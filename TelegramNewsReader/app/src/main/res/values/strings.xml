@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">Telegram News Reader</string>
+    <string name="enter_phone">Введите номер телефона</string>
+    <string name="send_code">Отправить код</string>
+    <string name="enter_code">Введите код</string>
+    <string name="verify">Подтвердить</string>
+    <string name="select_channels">Выберите каналы</string>
+    <string name="time_period">Период времени</string>
+    <string name="collect_news">Собрать новости</string>
+    <string name="play">Воспроизвести</string>
+    <string name="pause">Пауза</string>
+    <string name="stop">Стоп</string>
+    <string name="voice_male">Мужской голос</string>
+    <string name="voice_female">Женский голос</string>
+    <string name="processing">Обработка...</string>
+    <string name="error_auth">Ошибка авторизации</string>
+    <string name="preview_text">Найдено %1\$d новостей, ~%2\$d мин</string>
+    <string name="favorites">Избранные</string>
+</resources>

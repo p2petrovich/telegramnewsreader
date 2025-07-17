@@ -1,0 +1,423 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.example.telegramnewsreader"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="24"
+9        android:targetSdkVersion="34" />
+10
+11    <uses-permission android:name="android.permission.INTERNET" />
+11-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:5:5-67
+11-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:5:22-64
+12    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+12-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:6:5-79
+12-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:6:22-76
+13    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+13-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:7:5-81
+13-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:7:22-78
+14    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+14-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:8:5-80
+14-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:8:22-77
+15    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+15-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:9:5-71
+15-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:9:22-68
+16    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+16-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:10:5-80
+16-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:10:22-77
+17    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+17-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:11:5-77
+17-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:11:22-74
+18    <uses-permission android:name="android.permission.WAKE_LOCK" />
+18-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:23:5-68
+18-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:23:22-65
+19    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+19-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:25:5-81
+19-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:25:22-78
+20
+21    <permission
+21-->[androidx.core:core:1.12.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\5b331c2ca5d1968b871d309d9d1af46b\transformed\core-1.12.0\AndroidManifest.xml:22:5-24:47
+22        android:name="com.example.telegramnewsreader.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+22-->[androidx.core:core:1.12.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\5b331c2ca5d1968b871d309d9d1af46b\transformed\core-1.12.0\AndroidManifest.xml:23:9-81
+23        android:protectionLevel="signature" />
+23-->[androidx.core:core:1.12.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\5b331c2ca5d1968b871d309d9d1af46b\transformed\core-1.12.0\AndroidManifest.xml:24:9-44
+24
+25    <uses-permission android:name="com.example.telegramnewsreader.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+25-->[androidx.core:core:1.12.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\5b331c2ca5d1968b871d309d9d1af46b\transformed\core-1.12.0\AndroidManifest.xml:26:5-97
+25-->[androidx.core:core:1.12.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\5b331c2ca5d1968b871d309d9d1af46b\transformed\core-1.12.0\AndroidManifest.xml:26:22-94
+26
+27    <application
+27-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:13:5-43:19
+28        android:name="com.example.telegramnewsreader.TelegramNewsApplication"
+28-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:14:9-48
+29        android:allowBackup="true"
+29-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:15:9-35
+30        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+30-->[androidx.core:core:1.12.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\5b331c2ca5d1968b871d309d9d1af46b\transformed\core-1.12.0\AndroidManifest.xml:28:18-86
+31        android:dataExtractionRules="@xml/data_extraction_rules"
+31-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:16:9-65
+32        android:debuggable="true"
+33        android:extractNativeLibs="false"
+34        android:fullBackupContent="@xml/backup_rules"
+34-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:17:9-54
+35        android:icon="@mipmap/ic_launcher"
+35-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:18:9-43
+36        android:label="@string/app_name"
+36-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:19:9-41
+37        android:roundIcon="@mipmap/ic_launcher_round"
+37-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:20:9-54
+38        android:supportsRtl="true"
+38-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:21:9-35
+39        android:testOnly="true"
+40        android:theme="@style/Theme.TelegramNewsReader" >
+40-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:22:9-56
+41        <activity
+41-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:25:9-30:20
+42            android:name="com.example.telegramnewsreader.activities.MainActivity"
+42-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:25:19-58
+43            android:exported="true" >
+43-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:25:59-82
+44            <intent-filter>
+44-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:26:13-29:29
+45                <action android:name="android.intent.action.MAIN" />
+45-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:27:17-69
+45-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:27:25-66
+46
+47                <category android:name="android.intent.category.LAUNCHER" />
+47-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:28:17-77
+47-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:28:27-74
+48            </intent-filter>
+49        </activity>
+50        <activity
+50-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:31:9-86
+51            android:name="com.example.telegramnewsreader.activities.AuthActivity"
+51-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:31:19-58
+52            android:exported="false" />
+52-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:31:59-83
+53        <activity
+53-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:32:9-98
+54            android:name="com.example.telegramnewsreader.activities.ChannelSelectionActivity"
+54-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:32:19-70
+55            android:exported="false" />
+55-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:32:71-95
+56        <activity
+56-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:33:9-88
+57            android:name="com.example.telegramnewsreader.activities.PlayerActivity"
+57-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:33:19-60
+58            android:exported="false" />
+58-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:33:61-85
+59        <activity
+59-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:34:9-90
+60            android:name="com.example.telegramnewsreader.activities.SettingsActivity"
+60-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:34:19-62
+61            android:exported="false" />
+61-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:34:63-87
+62        <activity
+62-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:35:9-99
+63            android:name="com.example.telegramnewsreader.activities.CategorySelectionActivity"
+63-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:35:19-71
+64            android:exported="false" />
+64-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:35:72-96
+65        <activity
+65-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:36:9-89
+66            android:name="com.example.telegramnewsreader.activities.PreviewActivity"
+66-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:36:19-61
+67            android:exported="false" />
+67-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:36:62-86
+68        <activity
+68-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:37:9-91
+69            android:name="com.example.telegramnewsreader.activities.FavoritesActivity"
+69-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:37:19-63
+70            android:exported="false" />
+70-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:37:64-88
+71
+72        <service android:name="com.example.telegramnewsreader.services.TelegramService" />
+72-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:39:9-61
+72-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:39:18-58
+73        <service android:name="com.example.telegramnewsreader.services.TTSService" />
+73-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:40:9-56
+73-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:40:18-53
+74        <service android:name="com.example.telegramnewsreader.services.NewsCollectorService" />
+74-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:41:9-66
+74-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:41:18-63
+75        <service android:name="com.example.telegramnewsreader.services.AudioPlayerService" />
+75-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:42:9-64
+75-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:42:18-61
+76
+77        <provider
+77-->[androidx.emoji2:emoji2:1.2.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\a08c45be81020b9701529343e9756dcf\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:24:9-32:20
+78            android:name="androidx.startup.InitializationProvider"
+78-->[androidx.emoji2:emoji2:1.2.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\a08c45be81020b9701529343e9756dcf\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:25:13-67
+79            android:authorities="com.example.telegramnewsreader.androidx-startup"
+79-->[androidx.emoji2:emoji2:1.2.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\a08c45be81020b9701529343e9756dcf\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:26:13-68
+80            android:exported="false" >
+80-->[androidx.emoji2:emoji2:1.2.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\a08c45be81020b9701529343e9756dcf\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:27:13-37
+81            <meta-data
+81-->[androidx.emoji2:emoji2:1.2.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\a08c45be81020b9701529343e9756dcf\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:29:13-31:52
+82                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+82-->[androidx.emoji2:emoji2:1.2.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\a08c45be81020b9701529343e9756dcf\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:30:17-75
+83                android:value="androidx.startup" />
+83-->[androidx.emoji2:emoji2:1.2.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\a08c45be81020b9701529343e9756dcf\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:31:17-49
+84            <meta-data
+84-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:34:13-36:52
+85                android:name="androidx.work.WorkManagerInitializer"
+85-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:35:17-68
+86                android:value="androidx.startup" />
+86-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:36:17-49
+87            <meta-data
+87-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\03c43e1ab6daf446b84430b6ce4e0f04\transformed\jetified-lifecycle-process-2.7.0\AndroidManifest.xml:29:13-31:52
+88                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+88-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\03c43e1ab6daf446b84430b6ce4e0f04\transformed\jetified-lifecycle-process-2.7.0\AndroidManifest.xml:30:17-78
+89                android:value="androidx.startup" />
+89-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\03c43e1ab6daf446b84430b6ce4e0f04\transformed\jetified-lifecycle-process-2.7.0\AndroidManifest.xml:31:17-49
+90            <meta-data
+90-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:29:13-31:52
+91                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+91-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:30:17-85
+92                android:value="androidx.startup" />
+92-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:31:17-49
+93        </provider>
+94
+95        <service
+95-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:39:9-45:35
+96            android:name="androidx.work.impl.background.systemalarm.SystemAlarmService"
+96-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:40:13-88
+97            android:directBootAware="false"
+97-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:41:13-44
+98            android:enabled="@bool/enable_system_alarm_service_default"
+98-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:42:13-72
+99            android:exported="false" />
+99-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:43:13-37
+100        <service
+100-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:46:9-52:35
+101            android:name="androidx.work.impl.background.systemjob.SystemJobService"
+101-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:47:13-84
+102            android:directBootAware="false"
+102-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:48:13-44
+103            android:enabled="@bool/enable_system_job_service_default"
+103-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:49:13-70
+104            android:exported="true"
+104-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:50:13-36
+105            android:permission="android.permission.BIND_JOB_SERVICE" />
+105-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:51:13-69
+106        <service
+106-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:53:9-59:35
+107            android:name="androidx.work.impl.foreground.SystemForegroundService"
+107-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:54:13-81
+108            android:directBootAware="false"
+108-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:55:13-44
+109            android:enabled="@bool/enable_system_foreground_service_default"
+109-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:56:13-77
+110            android:exported="false" />
+110-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:57:13-37
+111
+112        <receiver
+112-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:61:9-66:35
+113            android:name="androidx.work.impl.utils.ForceStopRunnable$BroadcastReceiver"
+113-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:62:13-88
+114            android:directBootAware="false"
+114-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:63:13-44
+115            android:enabled="true"
+115-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:64:13-35
+116            android:exported="false" />
+116-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:65:13-37
+117        <receiver
+117-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:67:9-77:20
+118            android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryChargingProxy"
+118-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:68:13-106
+119            android:directBootAware="false"
+119-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:69:13-44
+120            android:enabled="false"
+120-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:70:13-36
+121            android:exported="false" >
+121-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:71:13-37
+122            <intent-filter>
+122-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:73:13-76:29
+123                <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
+123-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:74:17-87
+123-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:74:25-84
+124                <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED" />
+124-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:75:17-90
+124-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:75:25-87
+125            </intent-filter>
+126        </receiver>
+127        <receiver
+127-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:78:9-88:20
+128            android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryNotLowProxy"
+128-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:79:13-104
+129            android:directBootAware="false"
+129-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:80:13-44
+130            android:enabled="false"
+130-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:81:13-36
+131            android:exported="false" >
+131-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:82:13-37
+132            <intent-filter>
+132-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:84:13-87:29
+133                <action android:name="android.intent.action.BATTERY_OKAY" />
+133-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:85:17-77
+133-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:85:25-74
+134                <action android:name="android.intent.action.BATTERY_LOW" />
+134-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:86:17-76
+134-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:86:25-73
+135            </intent-filter>
+136        </receiver>
+137        <receiver
+137-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:89:9-99:20
+138            android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$StorageNotLowProxy"
+138-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:90:13-104
+139            android:directBootAware="false"
+139-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:91:13-44
+140            android:enabled="false"
+140-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:92:13-36
+141            android:exported="false" >
+141-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:93:13-37
+142            <intent-filter>
+142-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:95:13-98:29
+143                <action android:name="android.intent.action.DEVICE_STORAGE_LOW" />
+143-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:96:17-83
+143-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:96:25-80
+144                <action android:name="android.intent.action.DEVICE_STORAGE_OK" />
+144-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:97:17-82
+144-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:97:25-79
+145            </intent-filter>
+146        </receiver>
+147        <receiver
+147-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:100:9-109:20
+148            android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$NetworkStateProxy"
+148-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:101:13-103
+149            android:directBootAware="false"
+149-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:102:13-44
+150            android:enabled="false"
+150-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:103:13-36
+151            android:exported="false" >
+151-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:104:13-37
+152            <intent-filter>
+152-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:106:13-108:29
+153                <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
+153-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:107:17-79
+153-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:107:25-76
+154            </intent-filter>
+155        </receiver>
+156        <receiver
+156-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:110:9-121:20
+157            android:name="androidx.work.impl.background.systemalarm.RescheduleReceiver"
+157-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:111:13-88
+158            android:directBootAware="false"
+158-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:112:13-44
+159            android:enabled="false"
+159-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:113:13-36
+160            android:exported="false" >
+160-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:114:13-37
+161            <intent-filter>
+161-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:116:13-120:29
+162                <action android:name="android.intent.action.BOOT_COMPLETED" />
+162-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:117:17-79
+162-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:117:25-76
+163                <action android:name="android.intent.action.TIME_SET" />
+163-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:118:17-73
+163-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:118:25-70
+164                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+164-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:119:17-81
+164-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:119:25-78
+165            </intent-filter>
+166        </receiver>
+167        <receiver
+167-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:122:9-131:20
+168            android:name="androidx.work.impl.background.systemalarm.ConstraintProxyUpdateReceiver"
+168-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:123:13-99
+169            android:directBootAware="false"
+169-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:124:13-44
+170            android:enabled="@bool/enable_system_alarm_service_default"
+170-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:125:13-72
+171            android:exported="false" >
+171-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:126:13-37
+172            <intent-filter>
+172-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:128:13-130:29
+173                <action android:name="androidx.work.impl.background.systemalarm.UpdateProxies" />
+173-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:129:17-98
+173-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:129:25-95
+174            </intent-filter>
+175        </receiver>
+176        <receiver
+176-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:132:9-142:20
+177            android:name="androidx.work.impl.diagnostics.DiagnosticsReceiver"
+177-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:133:13-78
+178            android:directBootAware="false"
+178-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:134:13-44
+179            android:enabled="true"
+179-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:135:13-35
+180            android:exported="true"
+180-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:136:13-36
+181            android:permission="android.permission.DUMP" >
+181-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:137:13-57
+182            <intent-filter>
+182-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:139:13-141:29
+183                <action android:name="androidx.work.diagnostics.REQUEST_DIAGNOSTICS" />
+183-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:140:17-88
+183-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:140:25-85
+184            </intent-filter>
+185        </receiver>
+186
+187        <uses-library
+187-->[androidx.window:window:1.0.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\47aa147d16f6541b955024249ac50921\transformed\jetified-window-1.0.0\AndroidManifest.xml:25:9-27:40
+188            android:name="androidx.window.extensions"
+188-->[androidx.window:window:1.0.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\47aa147d16f6541b955024249ac50921\transformed\jetified-window-1.0.0\AndroidManifest.xml:26:13-54
+189            android:required="false" />
+189-->[androidx.window:window:1.0.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\47aa147d16f6541b955024249ac50921\transformed\jetified-window-1.0.0\AndroidManifest.xml:27:13-37
+190        <uses-library
+190-->[androidx.window:window:1.0.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\47aa147d16f6541b955024249ac50921\transformed\jetified-window-1.0.0\AndroidManifest.xml:28:9-30:40
+191            android:name="androidx.window.sidecar"
+191-->[androidx.window:window:1.0.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\47aa147d16f6541b955024249ac50921\transformed\jetified-window-1.0.0\AndroidManifest.xml:29:13-51
+192            android:required="false" />
+192-->[androidx.window:window:1.0.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\47aa147d16f6541b955024249ac50921\transformed\jetified-window-1.0.0\AndroidManifest.xml:30:13-37
+193
+194        <service
+194-->[androidx.room:room-runtime:2.6.1] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\7af88b6a0eb4196ab6d9a1d40ac22f75\transformed\room-runtime-2.6.1\AndroidManifest.xml:24:9-28:63
+195            android:name="androidx.room.MultiInstanceInvalidationService"
+195-->[androidx.room:room-runtime:2.6.1] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\7af88b6a0eb4196ab6d9a1d40ac22f75\transformed\room-runtime-2.6.1\AndroidManifest.xml:25:13-74
+196            android:directBootAware="true"
+196-->[androidx.room:room-runtime:2.6.1] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\7af88b6a0eb4196ab6d9a1d40ac22f75\transformed\room-runtime-2.6.1\AndroidManifest.xml:26:13-43
+197            android:exported="false" />
+197-->[androidx.room:room-runtime:2.6.1] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\7af88b6a0eb4196ab6d9a1d40ac22f75\transformed\room-runtime-2.6.1\AndroidManifest.xml:27:13-37
+198
+199        <receiver
+199-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:34:9-52:20
+200            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+200-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:35:13-76
+201            android:directBootAware="false"
+201-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:36:13-44
+202            android:enabled="true"
+202-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:37:13-35
+203            android:exported="true"
+203-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:38:13-36
+204            android:permission="android.permission.DUMP" >
+204-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:39:13-57
+205            <intent-filter>
+205-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:40:13-42:29
+206                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+206-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:41:17-91
+206-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:41:25-88
+207            </intent-filter>
+208            <intent-filter>
+208-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:43:13-45:29
+209                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+209-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:44:17-85
+209-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:44:25-82
+210            </intent-filter>
+211            <intent-filter>
+211-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:46:13-48:29
+212                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+212-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:47:17-88
+212-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:47:25-85
+213            </intent-filter>
+214            <intent-filter>
+214-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:49:13-51:29
+215                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+215-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:50:17-95
+215-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\18f102ef119fb1db6df5405c09dd26e3\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:50:25-92
+216            </intent-filter>
+217        </receiver>
+218    </application>
+219
+220</manifest>

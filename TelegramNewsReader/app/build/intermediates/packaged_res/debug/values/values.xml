@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="holo_red_dark">#D32F2F</color>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="white">#FFFFFFFF</color>
+    <string name="app_name">Telegram News Reader</string>
+    <string name="collect_news">Собрать новости</string>
+    <string name="enter_code">Введите код</string>
+    <string name="enter_phone">Введите номер телефона</string>
+    <string name="error_auth">Ошибка авторизации</string>
+    <string name="favorites">Избранные</string>
+    <string name="pause">Пауза</string>
+    <string name="play">Воспроизвести</string>
+    <string name="preview_text">Найдено %1\$d новостей, ~%2\$d мин</string>
+    <string name="processing">Обработка...</string>
+    <string name="select_channels">Выберите каналы</string>
+    <string name="send_code">Отправить код</string>
+    <string name="stop">Стоп</string>
+    <string name="time_period">Период времени</string>
+    <string name="verify">Подтвердить</string>
+    <string name="voice_female">Женский голос</string>
+    <string name="voice_male">Мужской голос</string>
+    <style name="Theme.TelegramNewsReader" parent="Theme.Material3.DayNight">
+        <item name="colorPrimary">@color/purple_500</item>
+        <item name="colorPrimaryVariant">@color/purple_700</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
+    </style>
+    <style name="Theme.TelegramNewsReader.Dark" parent="Theme.Material3.Dark">
+        <item name="colorPrimary">@color/teal_200</item>
+        <item name="colorPrimaryVariant">@color/teal_700</item>
+        <item name="colorOnPrimary">@color/black</item>
+    </style>
+    <style name="Theme.TelegramNewsReader.Light" parent="Theme.Material3.Light">
+        <item name="colorPrimary">@color/purple_500</item>
+        <item name="colorPrimaryVariant">@color/purple_700</item>
+        <item name="colorOnPrimary">@color/white</item>
+    </style>
+</resources>
