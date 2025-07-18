@@ -120,19 +120,10 @@ class MainActivity : AppCompatActivity() {
         binding.progressBar.visibility = View.VISIBLE
         updateStatus("Загружаем каналы...")
 
-        telegramClient.loadChannels { telegramChannels ->
+        telegramClient.loadChannels { channels ->
             runOnUiThread {
                 binding.progressBar.visibility = View.GONE
-                if (telegramChannels.isNotEmpty()) {
-                    // Конвертируем TelegramChannel в Channel
-                    val channels = telegramChannels.map { telegramChannel ->
-                        Channel(
-                            id = telegramChannel.id,
-                            accessHash = 0L,
-                            title = telegramChannel.name,
-                            username = telegramChannel.username
-                        )
-                    }
+                if (channels.isNotEmpty()) {
                     channelAdapter.updateChannels(channels)
                     updateStatus("Выберите каналы для сбора новостей")
                 } else {
