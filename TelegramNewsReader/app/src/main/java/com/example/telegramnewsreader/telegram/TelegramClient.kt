@@ -24,11 +24,17 @@ class TelegramClient(private val context: Context) {
     private val authLatch = CountDownLatch(1)
     private var isReady = false
 
+    // Флаг для отслеживания процесса инициализации
+    private var initializationStarted = false
+
     init {
         initializeClient()
     }
 
     private fun initializeClient() {
+        if (initializationStarted) return
+        initializationStarted = true
+
         try {
             Log.d(TAG, "Initializing TelegramClient...")
 
@@ -87,33 +93,36 @@ class TelegramClient(private val context: Context) {
 
     private fun handleAuthUpdate(state: TdApi.AuthorizationState) {
         authorizationState = state
+        Log.d(TAG, "Auth state updated: ${state::class.simpleName}")
 
         when (state) {
             is TdApi.AuthorizationStateWaitTdlibParameters -> {
                 Log.d(TAG, "Waiting for TDLib parameters")
+                isAuthorized = false
+                isReady = false
             }
             is TdApi.AuthorizationStateWaitPhoneNumber -> {
-                Log.d(TAG, "Waiting for phone number")
+                Log.w(TAG, "Waiting for phone number - need reauth!")
                 isAuthorized = false
                 isReady = false
             }
             is TdApi.AuthorizationStateWaitCode -> {
-                Log.d(TAG, "Waiting for authentication code")
+                Log.w(TAG, "Waiting for authentication code - need reauth!")
                 isAuthorized = false
                 isReady = false
             }
             is TdApi.AuthorizationStateWaitOtherDeviceConfirmation -> {
-                Log.d(TAG, "Waiting for other device confirmation")
+                Log.w(TAG, "Waiting for other device confirmation")
                 isAuthorized = false
                 isReady = false
             }
             is TdApi.AuthorizationStateWaitRegistration -> {
-                Log.d(TAG, "Waiting for registration")
+                Log.w(TAG, "Waiting for registration")
                 isAuthorized = false
                 isReady = false
             }
             is TdApi.AuthorizationStateWaitPassword -> {
-                Log.d(TAG, "Waiting for password")
+                Log.w(TAG, "Waiting for password - need reauth!")
                 isAuthorized = false
                 isReady = false
             }
@@ -155,9 +164,38 @@ class TelegramClient(private val context: Context) {
         }
     }
 
-    // Проверка текущего состояния авторизации
+    // УЛУЧШЕННАЯ проверка текущего состояния авторизации
     fun checkAuthState(): Boolean {
-        return isReady && isAuthorized
+        val ready = isReady && isAuthorized && isInitialized
+        Log.d(TAG, "checkAuthState: ready=$ready (isReady=$isReady, isAuthorized=$isAuthorized, isInitialized=$isInitialized, authState=${getCurrentAuthState()})")
+        return ready
+    }
+
+    // Проверка, нужна ли повторная авторизация
+    fun needsReauth(): Boolean {
+        return when (authorizationState) {
+            is TdApi.AuthorizationStateWaitPhoneNumber,
+            is TdApi.AuthorizationStateWaitCode,
+            is TdApi.AuthorizationStateWaitPassword -> true
+            else -> false
+        }
+    }
+
+    // Метод для получения текущего состояния авторизации (для отладки)
+    fun getCurrentAuthState(): String {
+        return when (authorizationState) {
+            is TdApi.AuthorizationStateWaitTdlibParameters -> "Ожидание параметров TDLib"
+            is TdApi.AuthorizationStateWaitPhoneNumber -> "Требуется номер телефона"
+            is TdApi.AuthorizationStateWaitCode -> "Требуется код подтверждения"
+            is TdApi.AuthorizationStateWaitPassword -> "Требуется пароль"
+            is TdApi.AuthorizationStateWaitRegistration -> "Требуется регистрация"
+            is TdApi.AuthorizationStateWaitOtherDeviceConfirmation -> "Ожидание подтверждения с другого устройства"
+            is TdApi.AuthorizationStateReady -> "Готов к работе"
+            is TdApi.AuthorizationStateLoggingOut -> "Выход из системы"
+            is TdApi.AuthorizationStateClosed -> "Соединение закрыто"
+            null -> "Не инициализирован"
+            else -> "Неизвестное состояние: ${authorizationState?.javaClass?.simpleName}"
+        }
     }
 
     fun sendCode(phone: String, callback: (Boolean) -> Unit) {
@@ -213,78 +251,50 @@ class TelegramClient(private val context: Context) {
     fun loadChannels(callback: (List<com.example.telegramnewsreader.model.Channel>) -> Unit) {
         Log.d(TAG, "loadChannels called")
 
-        if (!isInitialized) {
-            Log.e(TAG, "Client not initialized")
+        if (!checkAuthState()) {
+            Log.e(TAG, "Client not ready. Current state: ${getCurrentAuthState()}")
             callback(emptyList())
             return
         }
 
-        // Запускаем в отдельном потоке для ожидания готовности
-        Thread {
-            Log.d(TAG, "Waiting for client to be ready...")
+        Log.d(TAG, "Client is ready and authorized, loading channels...")
 
-            if (!waitForReady(15)) {
-                Log.e(TAG, "Client not ready after timeout")
-                callback(emptyList())
-                return@Thread
-            }
+        client?.send(TdApi.GetChats(TdApi.ChatListMain(), 100), { result ->
+            when (result) {
+                is TdApi.Chats -> {
+                    Log.d(TAG, "Received ${result.chatIds.size} chats")
 
-            if (!isAuthorized) {
-                Log.e(TAG, "Client not authorized")
-                callback(emptyList())
-                return@Thread
-            }
+                    if (result.chatIds.isEmpty()) {
+                        Log.w(TAG, "No chats found")
+                        callback(emptyList())
+                        return@send
+                    }
 
-            Log.d(TAG, "Client is ready and authorized, loading channels...")
+                    val channels = mutableListOf<com.example.telegramnewsreader.model.Channel>()
+                    var processedCount = 0
+                    val totalCount = result.chatIds.size
 
-            client?.send(TdApi.GetChats(TdApi.ChatListMain(), 100), { result ->
-                when (result) {
-                    is TdApi.Chats -> {
-                        Log.d(TAG, "Received ${result.chatIds.size} chats")
+                    for (chatId in result.chatIds) {
+                        client?.send(TdApi.GetChat(chatId), { chatResult ->
+                            when (chatResult) {
+                                is TdApi.Chat -> {
+                                    Log.d(TAG, "Processing chat: ${chatResult.title}, type: ${chatResult.type::class.simpleName}")
 
-                        if (result.chatIds.isEmpty()) {
-                            Log.w(TAG, "No chats found")
-                            callback(emptyList())
-                            return@send
-                        }
-
-                        val channels = mutableListOf<com.example.telegramnewsreader.model.Channel>()
-                        var processedCount = 0
-                        val totalCount = result.chatIds.size
-
-                        for (chatId in result.chatIds) {
-                            client?.send(TdApi.GetChat(chatId), { chatResult ->
-                                when (chatResult) {
-                                    is TdApi.Chat -> {
-                                        Log.d(TAG, "Processing chat: ${chatResult.title}, type: ${chatResult.type::class.simpleName}")
-
-                                        when (chatResult.type) {
-                                            is TdApi.ChatTypeSupergroup -> {
-                                                val supergroup = chatResult.type as TdApi.ChatTypeSupergroup
-                                                if (supergroup.isChannel) {
-                                                    Log.d(TAG, "Found channel: ${chatResult.title}")
-                                                    channels.add(com.example.telegramnewsreader.model.Channel(
-                                                        id = chatId,
-                                                        accessHash = 0L,
-                                                        title = chatResult.title,
-                                                        username = "",
-                                                        isSelected = false
-                                                    ))
-                                                } else {
-                                                    Log.d(TAG, "Found supergroup: ${chatResult.title}")
-                                                    // Добавляем также супергруппы
-                                                    channels.add(com.example.telegramnewsreader.model.Channel(
-                                                        id = chatId,
-                                                        accessHash = 0L,
-                                                        title = chatResult.title,
-                                                        username = "",
-                                                        isSelected = false
-                                                    ))
-                                                }
-                                            }
-                                            is TdApi.ChatTypeBasicGroup -> {
-                                                Log.d(TAG, "Found basic group: ${chatResult.title}")
-                                                // Добавляем базовые группы
+                                    when (chatResult.type) {
+                                        is TdApi.ChatTypeSupergroup -> {
+                                            val supergroup = chatResult.type as TdApi.ChatTypeSupergroup
+                                            if (supergroup.isChannel) {
+                                                Log.d(TAG, "Found channel: ${chatResult.title}")
+                                                channels.add(com.example.telegramnewsreader.model.Channel(
+                                                    id = chatId,
+                                                    accessHash = 0L,
+                                                    title = chatResult.title,
+                                                    username = "",
+                                                    isSelected = false
+                                                ))
+                                            } else {
+                                                Log.d(TAG, "Found supergroup: ${chatResult.title}")
+                                                // Добавляем также супергруппы
                                                 channels.add(com.example.telegramnewsreader.model.Channel(
                                                     id = chatId,
                                                     accessHash = 0L,
@@ -293,40 +303,51 @@ class TelegramClient(private val context: Context) {
                                                     isSelected = false
                                                 ))
                                             }
-                                            is TdApi.ChatTypePrivate -> {
-                                                Log.d(TAG, "Found private chat: ${chatResult.title}")
-                                                // Приватные чаты обычно не нужны для новостей
-                                            }
-                                            is TdApi.ChatTypeSecret -> {
-                                                Log.d(TAG, "Found secret chat: ${chatResult.title}")
-                                                // Секретные чаты не нужны
-                                            }
+                                        }
+                                        is TdApi.ChatTypeBasicGroup -> {
+                                            Log.d(TAG, "Found basic group: ${chatResult.title}")
+                                            // Добавляем базовые группы
+                                            channels.add(com.example.telegramnewsreader.model.Channel(
+                                                id = chatId,
+                                                accessHash = 0L,
+                                                title = chatResult.title,
+                                                username = "",
+                                                isSelected = false
+                                            ))
+                                        }
+                                        is TdApi.ChatTypePrivate -> {
+                                            Log.d(TAG, "Found private chat: ${chatResult.title}")
+                                            // Приватные чаты обычно не нужны для новостей
+                                        }
+                                        is TdApi.ChatTypeSecret -> {
+                                            Log.d(TAG, "Found secret chat: ${chatResult.title}")
+                                            // Секретные чаты не нужны
                                         }
                                     }
-                                    is TdApi.Error -> {
-                                        Log.e(TAG, "Error getting chat $chatId: ${chatResult.message}")
-                                    }
                                 }
+                                is TdApi.Error -> {
+                                    Log.e(TAG, "Error getting chat $chatId: ${chatResult.message}")
+                                }
+                            }
 
-                                processedCount++
-                                if (processedCount == totalCount) {
-                                    Log.d(TAG, "Processed all chats. Found ${channels.size} channels/groups")
-                                    callback(channels)
-                                }
-                            })
-                        }
-                    }
-                    is TdApi.Error -> {
-                        Log.e(TAG, "Failed to load chats: ${result.message}")
-                        callback(emptyList())
-                    }
-                    else -> {
-                        Log.e(TAG, "Unknown result when loading chats: $result")
-                        callback(emptyList())
+                            processedCount++
+                            if (processedCount == totalCount) {
+                                Log.d(TAG, "Processed all chats. Found ${channels.size} channels/groups")
+                                callback(channels)
+                            }
+                        })
                     }
                 }
-            })
-        }.start()
+                is TdApi.Error -> {
+                    Log.e(TAG, "Failed to load chats: ${result.message}")
+                    callback(emptyList())
+                }
+                else -> {
+                    Log.e(TAG, "Unknown result when loading chats: $result")
+                    callback(emptyList())
+                }
+            }
+        })
     }
 
     suspend fun getChannelMessagesSuspend(channelId: Long, fromDate: Long): List<String> =
@@ -339,8 +360,8 @@ class TelegramClient(private val context: Context) {
         }
 
     fun getMessages(channelId: Long, fromDate: Long, callback: (List<String>) -> Unit) {
-        if (!isInitialized || !isAuthorized) {
-            Log.e(TAG, "Client not initialized or not authorized")
+        if (!checkAuthState()) {
+            Log.e(TAG, "Client not ready for getting messages. Current state: ${getCurrentAuthState()}")
             callback(emptyList())
             return
         }
