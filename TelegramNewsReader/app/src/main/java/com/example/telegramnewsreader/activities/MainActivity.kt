@@ -21,6 +21,7 @@ import com.example.telegramnewsreader.tts.TTSManager
 import com.example.telegramnewsreader.utils.PreferenceManager
 import kotlinx.coroutines.launch
 import java.io.File
+import android.util.Log
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -129,6 +130,16 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     updateStatus("Каналы не найдены")
                 }
+                if (channels.isEmpty()) {
+                    Log.w("MainActivity", "No channels found, adding test data")
+                    val testChannels = listOf(
+                        Channel(id = 1, accessHash = 0, title = "Test Channel 1", username = "", isSelected = false),
+                        Channel(id = 2, accessHash = 0, title = "Test Channel 2", username = "", isSelected = false)
+                    )
+                    channelAdapter.updateChannels(testChannels)
+                    updateStatus("Тестовые каналы загружены")
+                }
+
             }
         }
     }
