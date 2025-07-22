@@ -21,14 +21,17 @@ id btn_edit_filters
 id btn_pause
 id btn_play
 id btn_play_favorite
+id btn_reset_auth
 id btn_save
 id btn_save_categories
 id btn_send_code
 id btn_settings
 id btn_stop
 id btn_verify
+id btn_verify_password
 id checkboxChannel
 id et_code
+id et_password
 id et_phone
 id ivAvatar
 id ll_player

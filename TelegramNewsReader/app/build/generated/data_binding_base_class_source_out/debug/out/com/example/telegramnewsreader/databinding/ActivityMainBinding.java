@@ -36,6 +36,9 @@ public final class ActivityMainBinding implements ViewBinding {
   public final Button btnPlay;
 
   @NonNull
+  public final Button btnResetAuth;
+
+  @NonNull
   public final Button btnStop;
 
   @NonNull
@@ -72,8 +75,8 @@ public final class ActivityMainBinding implements ViewBinding {
   public final TextView tvVoice;
 
   private ActivityMainBinding(@NonNull ConstraintLayout rootView, @NonNull Button btnCollectNews,
-      @NonNull Button btnPause, @NonNull Button btnPlay, @NonNull Button btnStop,
-      @NonNull LinearLayout llPlayer, @NonNull ProgressBar progressBar,
+      @NonNull Button btnPause, @NonNull Button btnPlay, @NonNull Button btnResetAuth,
+      @NonNull Button btnStop, @NonNull LinearLayout llPlayer, @NonNull ProgressBar progressBar,
       @NonNull RadioButton rbFemale, @NonNull RadioButton rbMale,
       @NonNull RecyclerView recyclerChannels, @NonNull RadioGroup rgVoice,
       @NonNull Spinner spinnerTime, @NonNull TextView tvSelectChannels, @NonNull TextView tvStatus,
@@ -82,6 +85,7 @@ public final class ActivityMainBinding implements ViewBinding {
     this.btnCollectNews = btnCollectNews;
     this.btnPause = btnPause;
     this.btnPlay = btnPlay;
+    this.btnResetAuth = btnResetAuth;
     this.btnStop = btnStop;
     this.llPlayer = llPlayer;
     this.progressBar = progressBar;
@@ -138,6 +142,12 @@ public final class ActivityMainBinding implements ViewBinding {
       id = R.id.btn_play;
       Button btnPlay = ViewBindings.findChildViewById(rootView, id);
       if (btnPlay == null) {
+        break missingId;
+      }
+
+      id = R.id.btn_reset_auth;
+      Button btnResetAuth = ViewBindings.findChildViewById(rootView, id);
+      if (btnResetAuth == null) {
         break missingId;
       }
 
@@ -214,8 +224,8 @@ public final class ActivityMainBinding implements ViewBinding {
       }
 
       return new ActivityMainBinding((ConstraintLayout) rootView, btnCollectNews, btnPause, btnPlay,
-          btnStop, llPlayer, progressBar, rbFemale, rbMale, recyclerChannels, rgVoice, spinnerTime,
-          tvSelectChannels, tvStatus, tvTimePeriod, tvVoice);
+          btnResetAuth, btnStop, llPlayer, progressBar, rbFemale, rbMale, recyclerChannels, rgVoice,
+          spinnerTime, tvSelectChannels, tvStatus, tvTimePeriod, tvVoice);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

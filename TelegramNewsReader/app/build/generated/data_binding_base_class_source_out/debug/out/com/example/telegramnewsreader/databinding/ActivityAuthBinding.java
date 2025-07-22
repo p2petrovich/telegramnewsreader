@@ -29,7 +29,13 @@ public final class ActivityAuthBinding implements ViewBinding {
   public final Button btnVerify;
 
   @NonNull
+  public final Button btnVerifyPassword;
+
+  @NonNull
   public final EditText etCode;
+
+  @NonNull
+  public final EditText etPassword;
 
   @NonNull
   public final EditText etPhone;
@@ -41,12 +47,15 @@ public final class ActivityAuthBinding implements ViewBinding {
   public final TextView tvError;
 
   private ActivityAuthBinding(@NonNull ConstraintLayout rootView, @NonNull Button btnSendCode,
-      @NonNull Button btnVerify, @NonNull EditText etCode, @NonNull EditText etPhone,
-      @NonNull ProgressBar progressBar, @NonNull TextView tvError) {
+      @NonNull Button btnVerify, @NonNull Button btnVerifyPassword, @NonNull EditText etCode,
+      @NonNull EditText etPassword, @NonNull EditText etPhone, @NonNull ProgressBar progressBar,
+      @NonNull TextView tvError) {
     this.rootView = rootView;
     this.btnSendCode = btnSendCode;
     this.btnVerify = btnVerify;
+    this.btnVerifyPassword = btnVerifyPassword;
     this.etCode = etCode;
+    this.etPassword = etPassword;
     this.etPhone = etPhone;
     this.progressBar = progressBar;
     this.tvError = tvError;
@@ -91,9 +100,21 @@ public final class ActivityAuthBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.btn_verify_password;
+      Button btnVerifyPassword = ViewBindings.findChildViewById(rootView, id);
+      if (btnVerifyPassword == null) {
+        break missingId;
+      }
+
       id = R.id.et_code;
       EditText etCode = ViewBindings.findChildViewById(rootView, id);
       if (etCode == null) {
+        break missingId;
+      }
+
+      id = R.id.et_password;
+      EditText etPassword = ViewBindings.findChildViewById(rootView, id);
+      if (etPassword == null) {
         break missingId;
       }
 
@@ -115,8 +136,8 @@ public final class ActivityAuthBinding implements ViewBinding {
         break missingId;
       }
 
-      return new ActivityAuthBinding((ConstraintLayout) rootView, btnSendCode, btnVerify, etCode,
-          etPhone, progressBar, tvError);
+      return new ActivityAuthBinding((ConstraintLayout) rootView, btnSendCode, btnVerify,
+          btnVerifyPassword, etCode, etPassword, etPhone, progressBar, tvError);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

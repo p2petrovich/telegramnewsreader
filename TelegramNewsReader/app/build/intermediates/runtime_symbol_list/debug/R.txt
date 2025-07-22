@@ -3243,12 +3243,14 @@ int id btn_edit_filters 0x7f080066
 int id btn_pause 0x7f080067
 int id btn_play 0x7f080068
 int id btn_play_favorite 0x7f080069
+int id btn_reset_auth 0x7f080228
 int id btn_save 0x7f08006a
 int id btn_save_categories 0x7f08006b
 int id btn_send_code 0x7f08006c
 int id btn_settings 0x7f08006d
 int id btn_stop 0x7f08006e
 int id btn_verify 0x7f08006f
+int id btn_verify_password 0x7f080229
 int id buttonPanel 0x7f080070
 int id cache_measures 0x7f080071
 int id callMeasure 0x7f080072
@@ -3332,6 +3334,7 @@ int id endToStart 0x7f0800bf
 int id enterAlways 0x7f0800c0
 int id enterAlwaysCollapsed 0x7f0800c1
 int id et_code 0x7f0800c2
+int id et_password 0x7f08022a
 int id et_phone 0x7f0800c3
 int id exitUntilCollapsed 0x7f0800c4
 int id expand_activities_button 0x7f0800c5

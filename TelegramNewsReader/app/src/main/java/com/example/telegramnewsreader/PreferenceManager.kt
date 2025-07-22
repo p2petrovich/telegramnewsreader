@@ -49,6 +49,14 @@ object PreferenceManager {
         return getPreferences(context).getString(KEY_API_HASH, null)
     }
 
+    // ✅ Добавлено: быстрый сброс авторизации (без очистки остального)
+    fun resetAuthorization(context: Context) {
+        getPreferences(context).edit()
+            .putBoolean(KEY_IS_AUTHORIZED, false)
+            .remove(KEY_PHONE_NUMBER)
+            .apply()
+    }
+
     fun clearAll(context: Context) {
         getPreferences(context).edit().clear().apply()
     }

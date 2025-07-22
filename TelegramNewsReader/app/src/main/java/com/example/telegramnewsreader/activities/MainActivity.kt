@@ -3,6 +3,7 @@ package com.example.telegramnewsreader.activities
 import android.content.Intent
 import android.media.MediaPlayer
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.RadioGroup
@@ -14,16 +15,17 @@ import com.example.telegramnewsreader.R
 import com.example.telegramnewsreader.adapter.ChannelAdapter
 import com.example.telegramnewsreader.databinding.ActivityMainBinding
 import com.example.telegramnewsreader.model.Channel
-import com.example.telegramnewsreader.models.TelegramChannel
 import com.example.telegramnewsreader.service.NewsService
 import com.example.telegramnewsreader.telegram.TelegramClient
 import com.example.telegramnewsreader.tts.TTSManager
 import com.example.telegramnewsreader.utils.PreferenceManager
 import kotlinx.coroutines.launch
 import java.io.File
-import android.util.Log
+import com.example.telegramnewsreader.telegram.TelegramClientManager
+
 
 class MainActivity : AppCompatActivity() {
+
     private lateinit var binding: ActivityMainBinding
     private lateinit var telegramClient: TelegramClient
     private lateinit var channelAdapter: ChannelAdapter
@@ -45,7 +47,6 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Check authorization
         if (!PreferenceManager.isAuthorized(this)) {
             startActivity(Intent(this, AuthActivity::class.java))
             finish()
@@ -55,39 +56,36 @@ class MainActivity : AppCompatActivity() {
         initComponents()
         setupUI()
 
-        // ВРЕМЕННАЯ ЗАДЕРЖКА ПЕРЕД ВЫЗОВОМ loadChannels
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            Log.d("MainActivity", "=== INIT TRACKING === Delayed loadChannels() started")
-            loadChannels()
-        }, 10000) // 1000 мс = 1 секунда задержки
+        // ✅ Загрузка каналов будет вызвана только после готовности клиента
+        telegramClient.onClientReady = {
+            Log.d("MainActivity", "=== INIT TRACKING === TelegramClient is READY")
+            runOnUiThread {
+                loadChannels()
+            }
+        }
     }
 
-
     private fun initComponents() {
-        // ДОБАВИТЬ: Детальное отслеживание создания клиента
         Log.d("MainActivity", "=== INIT TRACKING === Starting TelegramClient initialization")
-        telegramClient = TelegramClient(this)
+        telegramClient = TelegramClientManager.getTelegramClient(this)
         Log.d("MainActivity", "=== INIT TRACKING === TelegramClient object created: ${telegramClient != null}")
 
         ttsManager = TTSManager(this)
         newsService = NewsService(telegramClient, ttsManager)
 
-        // Setup channel adapter
-        channelAdapter = ChannelAdapter { channel, isSelected ->
-            // Handle channel selection
+        channelAdapter = ChannelAdapter { _, _ ->
             updateNewsCollectionButton()
         }
+
         binding.recyclerChannels.layoutManager = LinearLayoutManager(this)
         binding.recyclerChannels.adapter = channelAdapter
     }
 
     private fun setupUI() {
-        // Setup time spinner
         val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, timePeriods)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         binding.spinnerTime.adapter = adapter
 
-        // Setup voice selection - проверяем существование элементов
         try {
             binding.rbMale.isChecked = true
             binding.rgVoice.setOnCheckedChangeListener { _: RadioGroup, checkedId: Int ->
@@ -95,11 +93,9 @@ class MainActivity : AppCompatActivity() {
                 ttsManager.setVoiceGender(isMale)
             }
         } catch (e: Exception) {
-            // Если элементы не найдены, используем мужской голос по умолчанию
             ttsManager.setVoiceGender(true)
         }
 
-        // Setup buttons
         binding.btnCollectNews.setOnClickListener {
             collectNews()
         }
@@ -115,12 +111,19 @@ class MainActivity : AppCompatActivity() {
         binding.btnStop.setOnClickListener {
             stopAudio()
         }
+        binding.btnResetAuth.setOnClickListener {
+            PreferenceManager.clearAll(this)
+            TelegramClientManager.clearClient() // 🧩 ← ВАЖНО: очищаем singleton!
+            Toast.makeText(this, "Авторизация сброшена", Toast.LENGTH_SHORT).show()
+            startActivity(Intent(this, AuthActivity::class.java))
+            finish()
+        }
 
-        // Initially hide player controls - проверяем существование элемента
+
+
         try {
             binding.llPlayer.visibility = View.GONE
         } catch (e: Exception) {
-            // Если layoutPlayer не существует, скрываем отдельные кнопки
             binding.btnPlay.visibility = View.GONE
             binding.btnPause.visibility = View.GONE
             binding.btnStop.visibility = View.GONE
@@ -131,7 +134,6 @@ class MainActivity : AppCompatActivity() {
         binding.progressBar.visibility = View.VISIBLE
         updateStatus("Загружаем каналы...")
 
-        // ДОБАВИТЬ: Проверка состояния перед вызовом
         Log.d("MainActivity", "=== INIT TRACKING === About to call loadChannels on telegramClient")
         Log.d("MainActivity", "=== INIT TRACKING === TelegramClient is null: ${!::telegramClient.isInitialized}")
 
@@ -150,9 +152,8 @@ class MainActivity : AppCompatActivity() {
                     updateStatus("Выберите каналы для сбора новостей")
                 } else {
                     updateStatus("Каналы не найдены")
-                }
-                if (channels.isEmpty()) {
-                    Log.w("MainActivity", "No channels found, adding test data")
+
+                    // Можно добавить тестовые
                     val testChannels = listOf(
                         Channel(id = 1, accessHash = 0, title = "Test Channel 1", username = "", isSelected = false),
                         Channel(id = 2, accessHash = 0, title = "Test Channel 2", username = "", isSelected = false)
@@ -177,7 +178,6 @@ class MainActivity : AppCompatActivity() {
         binding.btnCollectNews.isEnabled = false
         updateStatus("Собираем новости...")
 
-        // Используем корутину для вызова suspend функции
         lifecycleScope.launch {
             try {
                 val audioFile = newsService.collectAndProcessNews(
@@ -277,7 +277,6 @@ class MainActivity : AppCompatActivity() {
         try {
             binding.llPlayer.visibility = View.VISIBLE
         } catch (e: Exception) {
-            // Если layoutPlayer не существует, показываем отдельные кнопки
             binding.btnPlay.visibility = View.VISIBLE
             binding.btnPause.visibility = View.VISIBLE
             binding.btnStop.visibility = View.VISIBLE
@@ -288,7 +287,6 @@ class MainActivity : AppCompatActivity() {
         try {
             binding.tvStatus.text = message
         } catch (e: Exception) {
-            // Если textStatus не существует, показываем Toast
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
     }
@@ -296,14 +294,13 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         mediaPlayer?.release()
-        if (::ttsManager.isInitialized) { // <--- ДОБАВИТЬ ЭТУ ПРОВЕРКУ
+        if (::ttsManager.isInitialized) {
             ttsManager.shutdown()
         }
     }
 
     override fun onPause() {
         super.onPause()
-        // Pause audio when activity is paused
         if (mediaPlayer?.isPlaying == true) {
             pauseAudio()
         }
