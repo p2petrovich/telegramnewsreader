@@ -11,7 +11,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.telegramnewsreader.R
-import com.example.telegramnewsreader.activities.AuthActivity
 import com.example.telegramnewsreader.adapter.ChannelAdapter
 import com.example.telegramnewsreader.databinding.ActivityMainBinding
 import com.example.telegramnewsreader.model.Channel
@@ -22,6 +21,7 @@ import com.example.telegramnewsreader.tts.TTSManager
 import com.example.telegramnewsreader.utils.PreferenceManager
 import kotlinx.coroutines.launch
 import java.io.File
+import android.util.Log
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -55,14 +55,20 @@ class MainActivity : AppCompatActivity() {
         initComponents()
         setupUI()
 
-        // Запускаем загрузку каналов в корутине с задержкой
-        lifecycleScope.launch {
-            waitForClientAndLoadChannels()
-        }
+        // ВРЕМЕННАЯ ЗАДЕРЖКА ПЕРЕД ВЫЗОВОМ loadChannels
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            Log.d("MainActivity", "=== INIT TRACKING === Delayed loadChannels() started")
+            loadChannels()
+        }, 10000) // 1000 мс = 1 секунда задержки
     }
 
+
     private fun initComponents() {
+        // ДОБАВИТЬ: Детальное отслеживание создания клиента
+        Log.d("MainActivity", "=== INIT TRACKING === Starting TelegramClient initialization")
         telegramClient = TelegramClient(this)
+        Log.d("MainActivity", "=== INIT TRACKING === TelegramClient object created: ${telegramClient != null}")
+
         ttsManager = TTSManager(this)
         newsService = NewsService(telegramClient, ttsManager)
 
@@ -121,95 +127,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // НОВЫЙ МЕТОД: Ожидание готовности клиента и загрузка каналов
-    private suspend fun waitForClientAndLoadChannels() {
-        binding.progressBar.visibility = View.VISIBLE
-        updateStatus("Подключение к Telegram...")
-
-        // Ждём пока клиент будет готов
-        var attempts = 0
-        val maxAttempts = 45 // 45 секунд максимум
-        var lastAuthState = ""
-
-        while (attempts < maxAttempts) {
-            val currentAuthState = telegramClient.getCurrentAuthState()
-
-            // Обновляем статус только если состояние изменилось
-            if (currentAuthState != lastAuthState) {
-                lastAuthState = currentAuthState
-                updateStatus("Статус: $currentAuthState")
-                android.util.Log.d("MainActivity", "Auth state changed to: $currentAuthState")
-            }
-
-            if (telegramClient.checkAuthState()) {
-                // Клиент готов, загружаем каналы
-                loadChannels()
-                return
-            }
-
-            // Проверяем, нужна ли повторная авторизация
-            if (telegramClient.needsReauth()) {
-                runOnUiThread {
-                    binding.progressBar.visibility = View.GONE
-                    updateStatus("Требуется повторная авторизация")
-                    Toast.makeText(this@MainActivity,
-                        "Требуется повторная авторизация. Переходим к экрану входа.",
-                        Toast.LENGTH_LONG).show()
-
-                    // Очищаем флаг авторизации и переходим к AuthActivity
-                    PreferenceManager.setAuthorized(this@MainActivity, false)
-                    startActivity(Intent(this@MainActivity, AuthActivity::class.java))
-                    finish()
-                }
-                return
-            }
-
-            attempts++
-            kotlinx.coroutines.delay(1000) // Ждём 1 секунду
-
-            // Более детальные статусы
-            when (attempts) {
-                3 -> updateStatus("Инициализация TDLib...")
-                8 -> updateStatus("Проверка авторизации...")
-                15 -> updateStatus("Подключение к серверам...")
-                25 -> updateStatus("Загрузка данных профиля...")
-                35 -> updateStatus("Финализация подключения...")
-            }
-        }
-
-        // Тайм-аут
-        runOnUiThread {
-            binding.progressBar.visibility = View.GONE
-            val finalState = telegramClient.getCurrentAuthState()
-            updateStatus("Ошибка подключения. Состояние: $finalState")
-
-            Toast.makeText(this@MainActivity,
-                "Тайм-аут подключения к Telegram.\nТекущее состояние: $finalState\n\nПопробуйте:\n1. Перезапустить приложение\n2. Проверить интернет\n3. Переавторизоваться",
-                Toast.LENGTH_LONG).show()
-
-            // Предлагаем переавторизацию
-            android.app.AlertDialog.Builder(this@MainActivity)
-                .setTitle("Ошибка подключения")
-                .setMessage("Не удалось подключиться к Telegram. Хотите попробовать переавторизоваться?")
-                .setPositiveButton("Переавторизоваться") { _, _ ->
-                    PreferenceManager.setAuthorized(this@MainActivity, false)
-                    startActivity(Intent(this@MainActivity, AuthActivity::class.java))
-                    finish()
-                }
-                .setNegativeButton("Повторить") { _, _ ->
-                    lifecycleScope.launch {
-                        waitForClientAndLoadChannels()
-                    }
-                }
-                .setNeutralButton("Закрыть") { _, _ ->
-                    finish()
-                }
-                .show()
-        }
-    }
-
     private fun loadChannels() {
+        binding.progressBar.visibility = View.VISIBLE
         updateStatus("Загружаем каналы...")
+
+        // ДОБАВИТЬ: Проверка состояния перед вызовом
+        Log.d("MainActivity", "=== INIT TRACKING === About to call loadChannels on telegramClient")
+        Log.d("MainActivity", "=== INIT TRACKING === TelegramClient is null: ${!::telegramClient.isInitialized}")
+
+        if (!::telegramClient.isInitialized) {
+            Log.e("MainActivity", "=== INIT TRACKING === TelegramClient not initialized in MainActivity!")
+            updateStatus("Ошибка: клиент не инициализирован")
+            binding.progressBar.visibility = View.GONE
+            return
+        }
 
         telegramClient.loadChannels { channels ->
             runOnUiThread {
@@ -219,6 +150,15 @@ class MainActivity : AppCompatActivity() {
                     updateStatus("Выберите каналы для сбора новостей")
                 } else {
                     updateStatus("Каналы не найдены")
+                }
+                if (channels.isEmpty()) {
+                    Log.w("MainActivity", "No channels found, adding test data")
+                    val testChannels = listOf(
+                        Channel(id = 1, accessHash = 0, title = "Test Channel 1", username = "", isSelected = false),
+                        Channel(id = 2, accessHash = 0, title = "Test Channel 2", username = "", isSelected = false)
+                    )
+                    channelAdapter.updateChannels(testChannels)
+                    updateStatus("Тестовые каналы загружены")
                 }
             }
         }
@@ -356,7 +296,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         mediaPlayer?.release()
-        if (::ttsManager.isInitialized) {
+        if (::ttsManager.isInitialized) { // <--- ДОБАВИТЬ ЭТУ ПРОВЕРКУ
             ttsManager.shutdown()
         }
     }
