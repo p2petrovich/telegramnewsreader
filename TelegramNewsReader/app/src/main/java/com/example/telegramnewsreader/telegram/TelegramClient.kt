@@ -11,6 +11,9 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
+
 
 class TelegramClient(private val context: Context) {
 
@@ -242,6 +245,7 @@ class TelegramClient(private val context: Context) {
         }
     }
 
+
     fun loadChannels(callback: (List<Channel>) -> Unit) {
         Log.d(TAG, "=== INIT TRACKING === loadChannels called")
         Log.d(TAG, getInitializationStatus())
@@ -265,21 +269,30 @@ class TelegramClient(private val context: Context) {
                 return@Thread
             }
 
-            client?.send(TdApi.GetChats(TdApi.ChatListMain(), 100)) { result ->
+            // Получаем до 100 чатов (можно и больше, чтобы найти 5 каналов)
+            client?.send(TdApi.GetChats(TdApi.ChatListMain(), 10)) { result ->
                 when (result) {
                     is TdApi.Chats -> {
                         val channels = mutableListOf<Channel>()
                         var processed = 0
+                        var found = 0
+                        val maxChannels = 5
+                        val total = result.chatIds.size
+
                         for (chatId in result.chatIds) {
+                            if (found >= maxChannels) break
+
                             client?.send(TdApi.GetChat(chatId)) { chatResult ->
                                 if (chatResult is TdApi.Chat) {
                                     val type = chatResult.type
                                     if (type is TdApi.ChatTypeSupergroup && type.isChannel) {
                                         channels.add(Channel(chatId, 0, chatResult.title, "", false))
+                                        found++
                                     }
                                 }
+
                                 processed++
-                                if (processed == result.chatIds.size) {
+                                if (processed == total || found == maxChannels) {
                                     callback(channels)
                                 }
                             }
@@ -292,6 +305,7 @@ class TelegramClient(private val context: Context) {
             }
         }.start()
     }
+
 
     fun getMessages(channelId: Long, fromDate: Long, callback: (List<String>) -> Unit) {
         if (!isInitialized || !isAuthorized) {
@@ -315,14 +329,46 @@ class TelegramClient(private val context: Context) {
         }
     }
 
-    suspend fun getChannelMessagesSuspend(channelId: Long, fromDate: Long): List<String> =
-        suspendCancellableCoroutine { continuation ->
-            getMessages(channelId, fromDate) { messages ->
-                if (continuation.isActive) {
-                    continuation.resume(messages)
+    suspend fun getChannelMessagesSuspend(
+        channelId: Long,
+        fromDate: Long
+    ): List<String> = suspendCoroutine { cont: kotlin.coroutines.Continuation<List<String>> ->
+        if (!isInitialized || client == null) {
+            Log.w(TAG, "getChannelMessagesSuspend: клиент не инициализирован")
+            cont.resume(emptyList())
+            return@suspendCoroutine
+        }
+
+        Log.d(TAG, "getChannelMessagesSuspend запущен для канала $channelId")
+
+        client?.send(TdApi.GetChatHistory(channelId, 0, 0, 100, false)) { response ->
+            if (response is TdApi.Messages) {
+                Log.d(TAG, "Канал $channelId: получено сообщений от TDLib: ${response.messages.size}")
+
+                val messages = response.messages.mapNotNull { message ->
+                    if (message.date < fromDate) return@mapNotNull null
+
+                    when (val content = message.content) {
+                        is TdApi.MessageText -> content.text.text.trim()
+                        is TdApi.MessagePhoto -> "[Фото]"
+                        is TdApi.MessageVideo -> "[Видео]"
+                        is TdApi.MessageSticker -> "[Стикер]"
+                        is TdApi.MessageVoiceNote -> "[Голосовое сообщение]"
+                        is TdApi.MessageDocument -> "[Документ]"
+                        else -> "[${content.javaClass.simpleName}]"
+                    }
                 }
+
+                Log.d(TAG, "Канал $channelId: после фильтрации типов: ${messages.size}")
+                Log.d(TAG, "Канал $channelId: примеры: ${messages.take(3)}")
+
+                cont.resume(messages)
+            } else {
+                Log.w(TAG, "Канал $channelId: TDLib вернул не Messages, а ${response?.javaClass?.simpleName}")
+                cont.resume(emptyList())
             }
         }
+    }
 
     private fun waitForReady(timeoutSeconds: Long = 10): Boolean {
         return try {
