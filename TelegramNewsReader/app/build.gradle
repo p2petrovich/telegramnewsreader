@@ -62,7 +62,7 @@ dependencies {
     //implementation(name: 'tdlib-android', ext: 'aar')
     implementation files('libs/FFmpegAndroid-0.3.2.aar')
     implementation files('libs/tdlib-android.aar')
-//    implementation(files("libs/ffmpeg-kit-full-gpl-6.0-2.LTS.aar"))
-    implementation 'com.arthenica:ffmpeg-kit-full-gpl:6.0'
-    implementation("com.arthenica:smart-exception-java9:0.2.1")
+    implementation(files("libs/ffmpeg-kit-full-gpl-6.0-2.LTS.aar"))
+  //  implementation 'com.arthenica:ffmpeg-kit-full-gpl:6.0'
+    implementation("com.arthenica:smart-exception-java:0.2.1")
 }
