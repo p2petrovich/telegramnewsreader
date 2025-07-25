@@ -5,5 +5,6 @@ data class Channel(
     val accessHash: Long,
     val title: String,
     val username: String? = null,
-    var isSelected: Boolean = false
+    var isSelected: Boolean = false,
+    var newMessagesCount: Int = 0
 )

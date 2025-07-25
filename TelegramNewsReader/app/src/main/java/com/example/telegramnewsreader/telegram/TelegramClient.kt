@@ -13,6 +13,10 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+
 
 
 class TelegramClient(private val context: Context) {
@@ -270,13 +274,13 @@ class TelegramClient(private val context: Context) {
             }
 
             // Получаем до 100 чатов (можно и больше, чтобы найти 5 каналов)
-            client?.send(TdApi.GetChats(TdApi.ChatListMain(), 10)) { result ->
+            client?.send(TdApi.GetChats(TdApi.ChatListMain(), 100)) { result ->
                 when (result) {
                     is TdApi.Chats -> {
                         val channels = mutableListOf<Channel>()
                         var processed = 0
                         var found = 0
-                        val maxChannels = 5
+                        val maxChannels = 50
                         val total = result.chatIds.size
 
                         for (chatId in result.chatIds) {
@@ -332,7 +336,7 @@ class TelegramClient(private val context: Context) {
     suspend fun getChannelMessagesSuspend(
         channelId: Long,
         fromDate: Long
-    ): List<String> = suspendCoroutine { cont: kotlin.coroutines.Continuation<List<String>> ->
+    ): List<String> = suspendCoroutine { cont ->
         if (!isInitialized || client == null) {
             Log.w(TAG, "getChannelMessagesSuspend: клиент не инициализирован")
             cont.resume(emptyList())
@@ -348,14 +352,33 @@ class TelegramClient(private val context: Context) {
                 val messages = response.messages.mapNotNull { message ->
                     if (message.date < fromDate) return@mapNotNull null
 
+                    val time = java.time.Instant.ofEpochSecond(message.date.toLong())
+                        .atZone(java.time.ZoneId.systemDefault())
+                        .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+
                     when (val content = message.content) {
-                        is TdApi.MessageText -> content.text.text.trim()
-                        is TdApi.MessagePhoto -> "[Фото]"
-                        is TdApi.MessageVideo -> "[Видео]"
-                        is TdApi.MessageSticker -> "[Стикер]"
-                        is TdApi.MessageVoiceNote -> "[Голосовое сообщение]"
-                        is TdApi.MessageDocument -> "[Документ]"
-                        else -> "[${content.javaClass.simpleName}]"
+                        is TdApi.MessageText -> "$time — ${content.text.text.trim()}"
+
+                        is TdApi.MessagePhoto -> {
+                            val caption = content.caption?.text?.trim()
+                            if (!caption.isNullOrBlank()) "$time — $caption" else "$time — [Фото]"
+                        }
+
+                        is TdApi.MessageVideo -> {
+                            val caption = content.caption?.text?.trim()
+                            if (!caption.isNullOrBlank()) "$time — $caption" else "$time — [Видео]"
+                        }
+
+                        is TdApi.MessageSticker -> "$time — [Стикер]"
+
+                        is TdApi.MessageVoiceNote -> "$time — [Голосовое сообщение]"
+
+                        is TdApi.MessageDocument -> {
+                            val caption = content.caption?.text?.trim()
+                            if (!caption.isNullOrBlank()) "$time — $caption" else "$time — [Документ]"
+                        }
+
+                        else -> "$time — [${content.javaClass.simpleName}]"
                     }
                 }
 
@@ -369,6 +392,7 @@ class TelegramClient(private val context: Context) {
             }
         }
     }
+
 
     private fun waitForReady(timeoutSeconds: Long = 10): Boolean {
         return try {

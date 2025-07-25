@@ -53,24 +53,48 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         if (status == TextToSpeech.SUCCESS) {
             ttsInitialized.set(true)
             Log.d("TTSManager", "TTS Initialized successfully.")
-            var result = tts?.setLanguage(Locale("ru")) // Попытка установить русский
+            var result = tts?.setLanguage(Locale("ru"))
+
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                 Log.w("TTSManager", "Russian language not supported or missing data, falling back to US English.")
-                tts?.setLanguage(Locale.US) // Фоллбэк на английский
+                tts?.setLanguage(Locale.US)
             }
-            // Установка голоса (тона)
+
+            val availableVoices = tts?.voices
+            val russianVoices = availableVoices?.filter { it.locale.language == "ru" }
+
+            // 🔍 Покажем все голоса в лог
+            russianVoices?.forEach { voice ->
+                Log.d(
+                    "TTSManager",
+                    "🔍 Voice found: name=${voice.name}, locale=${voice.locale}, quality=${voice.quality}, latency=${voice.latency}, isNetwork=${voice.isNetworkConnectionRequired}, genderHint=${if ("fem" in voice.name.lowercase()) "Женский" else "Мужской/неопределён"}"
+                )
+            }
+
+            // ✅ Принудительный выбор конкретного голоса
+            val selectedVoice = russianVoices?.find { it.name == "ru-ru-x-rue-local" }
+
+            if (selectedVoice != null) {
+                Log.d("TTSManager", "🔊 Выбран голос вручную: ${selectedVoice.name}")
+                tts?.voice = selectedVoice
+            } else {
+                Log.w("TTSManager", "⚠️ Голос не найден, используется по умолчанию.")
+            }
+
+            // Настройки тембра и скорости
             tts?.setPitch(if (isMale) 0.8f else 1.2f)
-            // Установка скорости речи (можно сделать настраиваемой)
             tts?.setSpeechRate(1.0f)
 
-            initializationContinuation?.resume(true) // Сообщаем ожидающим, что инициализация завершена
+            initializationContinuation?.resume(true)
         } else {
             ttsInitialized.set(false)
             Log.e("TTSManager", "TTS Initialization Failed! Status: $status")
-            initializationContinuation?.resume(false) // Сообщаем об ошибке инициализации
+            initializationContinuation?.resume(false)
         }
-        initializationContinuation = null // Сбрасываем continuation после использования
+        initializationContinuation = null
     }
+
+
 
     private suspend fun ensureTtsInitialized(): Boolean {
         if (ttsInitialized.get()) {

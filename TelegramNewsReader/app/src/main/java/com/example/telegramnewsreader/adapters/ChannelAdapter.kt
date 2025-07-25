@@ -35,12 +35,18 @@ class ChannelAdapter(
 
         fun bind(channel: Channel) {
             binding.textChannelName.text = channel.title
-            binding.textNewMessages.text = "0 новых"
 
-            // Если есть поле avatarUrl, можно подгрузить изображение через Glide/Picasso
+            // ✅ Обновляем количество новых сообщений, если есть
+            binding.textNewMessages.text = if (channel.newMessagesCount > 0) {
+                "${channel.newMessagesCount} новых"
+            } else {
+                "Нет новостей"
+            }
+
+            // ✅ Можно подключить Glide/Picasso для загрузки аватарки, если появится поле avatarUrl
             binding.ivAvatar.setImageResource(com.example.telegramnewsreader.R.drawable.ic_channel_placeholder)
 
-            // Отвязываем слушатель, чтобы избежать ложных вызовов при обновлении состояния чекбокса
+            // ✅ Сброс слушателя перед установкой нового
             binding.checkboxChannel.setOnCheckedChangeListener(null)
             binding.checkboxChannel.isChecked = channel.isSelected
             binding.checkboxChannel.setOnCheckedChangeListener { _, isChecked ->
@@ -48,7 +54,7 @@ class ChannelAdapter(
                 onSelectionChanged(channel, isChecked)
             }
 
-            // Клик по элементу переключает чекбокс
+            // ✅ Клик по элементу переключает чекбокс
             binding.root.setOnClickListener {
                 binding.checkboxChannel.toggle()
             }

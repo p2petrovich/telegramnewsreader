@@ -17,13 +17,13 @@ class NewsService(
 
     suspend fun collectAndProcessNews(
         channels: List<Channel>,
-        timeHours: Int
+        timeHours: Double
     ): File? = withContext(Dispatchers.IO) {
         try {
             val allMessages = mutableListOf<String>()
 
             val currentTimeSeconds = System.currentTimeMillis() / 1000
-            val fromDate = currentTimeSeconds - timeHours * 3600
+            val fromDate = currentTimeSeconds - (timeHours * 3600).toLong()
             Log.d(TAG, "collectAndProcessNews: fromDate = $fromDate ($timeHours ч назад)")
 
             for (channel in channels) {
@@ -32,7 +32,11 @@ class NewsService(
 
                     val messages = telegramClient.getChannelMessagesSuspend(channel.id, fromDate)
                     Log.d(TAG, "▶ Из канала ${channel.title} получено сообщений: ${messages.size}")
+                    channel.newMessagesCount = messages.size
                     Log.d(TAG, "▶ Примеры: ${messages.take(3)}")
+
+                    // ✅ сохраняем количество сообщений в модель канала
+                    channel.newMessagesCount = messages.size
 
                     if (messages.isNotEmpty()) {
                         allMessages.add("Новости из канала ${channel.title}:")
@@ -63,24 +67,64 @@ class NewsService(
     private fun prepareMessages(messages: List<String>): List<String> {
         Log.d(TAG, "🧪 prepareMessages: на входе ${messages.size} сообщений")
 
-        val filtered = messages
-            .filter { message ->
-                message.length > 10 &&
-                        !message.matches(Regex("^https?://.*$")) &&
-                        !message.matches(Regex("^[\\p{So}\\s]+$"))
+        val filtered = messages.mapNotNull { original ->
+            Log.v(TAG, "📩 Сообщение до фильтрации: \"$original\"")
+
+            if (original.length <= 3) {
+                Log.v(TAG, "⛔ Отфильтровано (короткое): \"$original\"")
+                return@mapNotNull null
             }
-            .map { message ->
-                message.replace(Regex("\\n{3,}"), "\n\n")
-                    .replace(Regex("https?://\\S+"), "")
-                    .replace(Regex("#\\S+"), "")
-                    .replace(Regex("@\\S+"), "")
-                    .trim()
+
+            if (original.matches(Regex("^https?://.*$"))) {
+                Log.v(TAG, "⛔ Отфильтровано (ссылка целиком): \"$original\"")
+                return@mapNotNull null
             }
-            .filter { it.isNotBlank() }
+
+            if (original.matches(Regex("^[\\p{So}\\s]+$"))) {
+                Log.v(TAG, "⛔ Отфильтровано (только эмодзи или пробелы): \"$original\"")
+                return@mapNotNull null
+            }
+
+            // Очистка текста
+            var cleaned = original
+                .replace(Regex("\\n{3,}"), "\n\n")
+                .replace(Regex("https?://\\S+"), "")
+                .replace(Regex("#\\S+"), "")
+                .replace(Regex("@\\S+"), "")
+                .trim()
+
+            // Удаление рекламных строк в конце
+            val promoPatterns = listOf(
+                "^🔹.*",
+                "подписаться на.*",
+                "все наши каналы.*",
+                "читать(ь)? больше.*",
+                "t\\.me/\\S+",
+                "перейти в канал.*",
+                "наш tg.*"
+            )
+
+            promoPatterns.forEach { pattern ->
+                cleaned = cleaned.replace(Regex(pattern, setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE)), "")
+            }
+
+
+
+            cleaned = cleaned.trim()
+
+            if (cleaned.isBlank()) {
+                Log.v(TAG, "⛔ Отфильтровано (пусто после очистки): \"$original\"")
+                return@mapNotNull null
+            }
+
+            return@mapNotNull cleaned
+        }
             .distinct()
             .take(50)
 
         Log.d(TAG, "🧪 prepareMessages: после фильтрации ${filtered.size} сообщений")
         return filtered
     }
+
+
 }

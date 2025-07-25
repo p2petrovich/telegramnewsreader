@@ -35,12 +35,15 @@ class MainActivity : AppCompatActivity() {
     private var currentAudioFile: File? = null
 
     private val timePeriods = arrayOf(
+        "Последние 5 минут",
+        "Последние 10 минут",
+        "Последние 30 минут",
+        "Последний час",
         "Последние 2 часа",
-        "Последние 6 часов",
-        "Последние 12 часов",
-        "Последние сутки"
+        "Последние 4 часа"
     )
-    private val timeValues = arrayOf(2, 6, 12, 24)
+    private val timeValues = arrayOf(0.083, 0.166, 0.5, 1.0, 2.0, 4.0)
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -174,9 +177,22 @@ class MainActivity : AppCompatActivity() {
 
         val timeHours = timeValues[binding.spinnerTime.selectedItemPosition]
 
+        // ✅ ДОБАВЛЕНО: сброс перед сбором
+        updateStatus("Собираем новости...")
+        currentAudioFile = null
+        stopAudio()
+        try {
+            binding.llPlayer.visibility = View.GONE
+        } catch (e: Exception) {
+            binding.btnPlay.visibility = View.GONE
+            binding.btnPause.visibility = View.GONE
+            binding.btnStop.visibility = View.GONE
+        }
+        selectedChannels.forEach { it.newMessagesCount = 0 }
+        channelAdapter.notifyDataSetChanged()
+
         binding.progressBar.visibility = View.VISIBLE
         binding.btnCollectNews.isEnabled = false
-        updateStatus("Собираем новости...")
 
         lifecycleScope.launch {
             try {
@@ -192,11 +208,12 @@ class MainActivity : AppCompatActivity() {
                     if (audioFile != null) {
                         currentAudioFile = audioFile
                         updateStatus("Новости готовы к прослушиванию")
+                        channelAdapter.notifyDataSetChanged()
                         showPlayerControls()
                         resetPlayerButtons()
                     } else {
-                        updateStatus("Ошибка при обработке новостей")
-                        Toast.makeText(this@MainActivity, "Не удалось обработать новости", Toast.LENGTH_SHORT).show()
+                        updateStatus("Нет новых новостей")
+                        Toast.makeText(this@MainActivity, "Новые новости не найдены", Toast.LENGTH_SHORT).show()
                     }
                 }
             } catch (e: Exception) {
@@ -209,6 +226,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
+
 
     private fun playAudio() {
         currentAudioFile?.let { file ->

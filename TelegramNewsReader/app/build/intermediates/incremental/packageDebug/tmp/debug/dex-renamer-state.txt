@@ -1,4 +1,4 @@
-#Thu Jul 24 21:01:41 MSK 2025
+#Fri Jul 25 22:01:02 MSK 2025
 base.0=C\:\\Telegram_grok\\TelegramNewsReader\\app\\build\\intermediates\\dex\\debug\\mergeExtDexDebug\\classes.dex
 base.1=C\:\\Telegram_grok\\TelegramNewsReader\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\0\\classes.dex
 base.10=C\:\\Telegram_grok\\TelegramNewsReader\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\8\\classes.dex
