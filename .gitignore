@@ -7696,3 +7696,5 @@
 /android-ndk-r26b/NOTICE.toolchain
 /android-ndk-r26b/README.md
 /android-ndk-r26b/source.properties
+*.apk
+*.aar

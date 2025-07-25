@@ -67,6 +67,18 @@ class NewsService(
     private fun prepareMessages(messages: List<String>): List<String> {
         Log.d(TAG, "🧪 prepareMessages: на входе ${messages.size} сообщений")
 
+        val promoPatterns = listOf(
+            "^🔹.*",
+            "подписаться на.*",
+            "все наши каналы.*",
+            "читать(ь)? больше.*",
+            "t\\.me/\\S+",
+            "перейти в канал.*",
+            "наш tg.*",
+            "^🐚.*",
+            "^Фото:.*"
+        )
+
         val filtered = messages.mapNotNull { original ->
             Log.v(TAG, "📩 Сообщение до фильтрации: \"$original\"")
 
@@ -91,24 +103,12 @@ class NewsService(
                 .replace(Regex("https?://\\S+"), "")
                 .replace(Regex("#\\S+"), "")
                 .replace(Regex("@\\S+"), "")
+                .replace(Regex("[\\p{So}&&[^\\p{L}\\p{N}]]"), "") // Удаляет большинство эмодзи
                 .trim()
-
-            // Удаление рекламных строк в конце
-            val promoPatterns = listOf(
-                "^🔹.*",
-                "подписаться на.*",
-                "все наши каналы.*",
-                "читать(ь)? больше.*",
-                "t\\.me/\\S+",
-                "перейти в канал.*",
-                "наш tg.*"
-            )
 
             promoPatterns.forEach { pattern ->
                 cleaned = cleaned.replace(Regex(pattern, setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE)), "")
             }
-
-
 
             cleaned = cleaned.trim()
 
