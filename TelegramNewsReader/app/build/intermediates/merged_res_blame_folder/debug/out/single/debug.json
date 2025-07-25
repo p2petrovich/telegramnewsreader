@@ -44,10 +44,6 @@
         "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\layout\\widget_loading.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/layout_activity_auth.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/layout/activity_auth.xml"
-    },
-    {
         "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\xml_news_widget_info.xml.flat",
         "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\xml\\news_widget_info.xml"
     },
@@ -78,6 +74,10 @@
     {
         "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\layout_activity_preview.xml.flat",
         "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\layout\\activity_preview.xml"
+    },
+    {
+        "merged": "com.example.telegramnewsreader.app-merged_res-4:/layout_activity_settings.xml.flat",
+        "source": "com.example.telegramnewsreader.app-main-6:/layout/activity_settings.xml"
     },
     {
         "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\xml_data_extraction_rules.xml.flat",

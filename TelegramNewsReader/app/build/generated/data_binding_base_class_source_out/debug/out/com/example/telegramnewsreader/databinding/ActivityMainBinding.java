@@ -9,11 +9,11 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
+import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewbinding.ViewBinding;
 import androidx.viewbinding.ViewBindings;
@@ -24,7 +24,7 @@ import java.lang.String;
 
 public final class ActivityMainBinding implements ViewBinding {
   @NonNull
-  private final ConstraintLayout rootView;
+  private final ScrollView rootView;
 
   @NonNull
   public final Button btnCollectNews;
@@ -74,7 +74,7 @@ public final class ActivityMainBinding implements ViewBinding {
   @NonNull
   public final TextView tvVoice;
 
-  private ActivityMainBinding(@NonNull ConstraintLayout rootView, @NonNull Button btnCollectNews,
+  private ActivityMainBinding(@NonNull ScrollView rootView, @NonNull Button btnCollectNews,
       @NonNull Button btnPause, @NonNull Button btnPlay, @NonNull Button btnResetAuth,
       @NonNull Button btnStop, @NonNull LinearLayout llPlayer, @NonNull ProgressBar progressBar,
       @NonNull RadioButton rbFemale, @NonNull RadioButton rbMale,
@@ -102,7 +102,7 @@ public final class ActivityMainBinding implements ViewBinding {
 
   @Override
   @NonNull
-  public ConstraintLayout getRoot() {
+  public ScrollView getRoot() {
     return rootView;
   }
 
@@ -223,7 +223,7 @@ public final class ActivityMainBinding implements ViewBinding {
         break missingId;
       }
 
-      return new ActivityMainBinding((ConstraintLayout) rootView, btnCollectNews, btnPause, btnPlay,
+      return new ActivityMainBinding((ScrollView) rootView, btnCollectNews, btnPause, btnPlay,
           btnResetAuth, btnStop, llPlayer, progressBar, rbFemale, rbMale, recyclerChannels, rgVoice,
           spinnerTime, tvSelectChannels, tvStatus, tvTimePeriod, tvVoice);
     }
