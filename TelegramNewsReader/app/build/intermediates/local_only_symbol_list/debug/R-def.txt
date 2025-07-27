@@ -45,6 +45,8 @@ id rb_male
 id recycler_channels
 id recycler_favorites
 id rg_voice
+id seekPitch
+id seekRate
 id seek_bar
 id seek_speed
 id spinner_language

@@ -3562,6 +3562,8 @@ int id search_mag_icon 0x7f08019f
 int id search_plate 0x7f0801a0
 int id search_src_text 0x7f0801a1
 int id search_voice_btn 0x7f0801a2
+int id seekPitch 0x7f080230
+int id seekRate 0x7f080231
 int id seek_bar 0x7f0801a3
 int id seek_speed 0x7f0801a4
 int id select_dialog_listview 0x7f0801a5

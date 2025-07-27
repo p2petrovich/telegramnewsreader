@@ -4,6 +4,10 @@
         "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\drawable\\ic_launcher_background.xml"
     },
     {
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\layout_item_voice.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\layout\\item_voice.xml"
+    },
+    {
         "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\layout_activity_favorites.xml.flat",
         "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\layout\\activity_favorites.xml"
     },

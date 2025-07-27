@@ -68,6 +68,29 @@ object PreferenceManager {
         return getPreferences(context).getString(KEY_TTS_VOICE_NAME, null)
     }
 
+    private const val KEY_TTS_PITCH = "tts_pitch"
+    private const val KEY_TTS_RATE = "tts_rate"
+
+    fun saveTtsPitch(context: Context, pitch: Float) {
+        getPreferences(context).edit()
+            .putFloat(KEY_TTS_PITCH, pitch)
+            .apply()
+    }
+
+    fun getTtsPitch(context: Context): Float {
+        return getPreferences(context).getFloat(KEY_TTS_PITCH, 1.0f) // значение по умолчанию
+    }
+
+    fun saveTtsRate(context: Context, rate: Float) {
+        getPreferences(context).edit()
+            .putFloat(KEY_TTS_RATE, rate)
+            .apply()
+    }
+
+    fun getTtsRate(context: Context): Float {
+        return getPreferences(context).getFloat(KEY_TTS_RATE, 1.0f) // значение по умолчанию
+    }
+
 
     fun clearAll(context: Context) {
         getPreferences(context).edit().clear().apply()

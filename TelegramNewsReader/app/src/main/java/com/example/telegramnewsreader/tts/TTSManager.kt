@@ -113,8 +113,12 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
 
         // Настройки тембра и скорости
-        tts?.setPitch(if (isMale) 0.8f else 1.2f)
-        tts?.setSpeechRate(1.0f)
+        val pitch = PreferenceManager.getTtsPitch(context)
+        val rate = PreferenceManager.getTtsRate(context)
+        tts?.setPitch(pitch)
+        tts?.setSpeechRate(rate)
+
+
     }
 
     private suspend fun ensureTtsInitialized(): Boolean {
@@ -143,6 +147,18 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         return tts?.voices?.filter {
             (it.locale.language == "ru" || it.locale.language == "en") && !it.name.contains("network")
         }?.toList() ?: emptyList()
+    }
+
+    fun updatePitch(pitch: Float) {
+        PreferenceManager.saveTtsPitch(context, pitch)
+        tts?.setPitch(pitch)
+        Log.d("TTSManager", "🎚 Тембр речи обновлён: $pitch")
+    }
+
+    fun updateRate(rate: Float) {
+        PreferenceManager.saveTtsRate(context, rate)
+        tts?.setSpeechRate(rate)
+        Log.d("TTSManager", "⏩ Скорость речи обновлена: $rate")
     }
 
     // 🔥 Обновленный метод - всегда применяет актуальный сохраненный голос
@@ -307,8 +323,8 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             tts?.voice = voice
 
             // 🔥 ВАЖНО: Применяем настройки pitch и speech rate сразу
-            tts?.setPitch(if (isMale) 0.8f else 1.2f)
-            tts?.setSpeechRate(1.0f)
+            //tts?.setPitch(if (isMale) 0.8f else 1.2f)
+            //tts?.setSpeechRate(1.0f)
 
             // Сохраняем в настройки
             PreferenceManager.saveTtsVoiceName(context, voiceName)
@@ -332,22 +348,23 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     fun refreshVoice() {
         if (ttsInitialized.get()) {
             val savedVoiceName = PreferenceManager.getTtsVoiceName(context)
-            if (savedVoiceName != null) {
-                val selectedVoice = tts?.voices?.find { it.name == savedVoiceName }
-                if (selectedVoice != null) {
-                    Log.d("TTSManager", "🔁 refreshVoice(): применяем голос ${selectedVoice.name}")
-                    tts?.language = selectedVoice.locale
-                    tts?.voice = selectedVoice
-                } else {
-                    Log.w("TTSManager", "❗ refreshVoice(): голос $savedVoiceName не найден среди доступных")
-                }
+            val selectedVoice = tts?.voices?.find { it.name == savedVoiceName }
+            selectedVoice?.let {
+                Log.d("TTSManager", "🔁 refreshVoice(): применяем голос ${it.name}")
+                tts?.language = it.locale
+                tts?.voice = it
+            } ?: run {
+                Log.w("TTSManager", "❗ refreshVoice(): голос $savedVoiceName не найден среди доступных")
             }
 
-            // Настройки тембра и скорости
-            tts?.setPitch(if (isMale) 0.8f else 1.2f)
-            tts?.setSpeechRate(1.0f)
+            // ✅ Применяем сохранённые настройки
+            val pitch = PreferenceManager.getTtsPitch(context)
+            val rate = PreferenceManager.getTtsRate(context)
+            tts?.setPitch(pitch)
+            tts?.setSpeechRate(rate)
 
-            Log.d("TTSManager", "🔄 Голос принудительно обновлен")
+            Log.d("TTSManager", "🔄 Голос и параметры обновлены: pitch=$pitch, rate=$rate")
         }
     }
+
 }

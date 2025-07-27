@@ -9,6 +9,10 @@ import android.widget.RadioButton
 import androidx.recyclerview.widget.RecyclerView
 import com.example.telegramnewsreader.R
 import android.speech.tts.Voice
+import android.widget.SeekBar
+import com.example.telegramnewsreader.tts.TTSManagerSingleton
+import com.example.telegramnewsreader.utils.PreferenceManager
+
 
 class VoiceAdapter(
     private val voices: List<Voice>,
@@ -32,6 +36,9 @@ class VoiceAdapter(
     inner class VoiceViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val radio: RadioButton = view.findViewById(R.id.radioVoice)
         val play: ImageButton = view.findViewById(R.id.btnPlay)
+        val seekPitch: SeekBar = view.findViewById(R.id.seekPitch)
+        val seekRate: SeekBar = view.findViewById(R.id.seekRate)
+
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VoiceViewHolder {
@@ -76,6 +83,37 @@ class VoiceAdapter(
             Log.d("VoiceAdapter", "▶️ Play button clicked для: ${voice.name}")
             onVoicePlay(voice)
         }
+        val context = holder.itemView.context
+        val ttsManager = TTSManagerSingleton.getInstance(context)
+
+        val savedPitch = PreferenceManager.getTtsPitch(context)
+        val savedRate = PreferenceManager.getTtsRate(context)
+
+        holder.seekPitch.progress = (savedPitch * 100).toInt()
+        holder.seekRate.progress = (savedRate * 100).toInt()
+
+        holder.seekPitch.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    val newPitch = progress / 100f
+                    ttsManager.updatePitch(newPitch)
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        holder.seekRate.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    val newRate = progress / 100f
+                    ttsManager.updateRate(newRate)
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
     }
 
     // 🔥 НОВЫЙ МЕТОД: Для принудительного обновления выбранного голоса извне

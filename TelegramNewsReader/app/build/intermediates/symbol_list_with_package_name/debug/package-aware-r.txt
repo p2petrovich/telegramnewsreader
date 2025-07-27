@@ -3563,6 +3563,8 @@ id search_mag_icon
 id search_plate
 id search_src_text
 id search_voice_btn
+id seekPitch
+id seekRate
 id seek_bar
 id seek_speed
 id select_dialog_listview
