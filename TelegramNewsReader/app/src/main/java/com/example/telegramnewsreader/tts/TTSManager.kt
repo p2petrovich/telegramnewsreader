@@ -16,6 +16,25 @@ import kotlin.coroutines.resume
 import com.example.telegramnewsreader.utils.PreferenceManager
 import android.speech.tts.Voice
 
+// 🔥 Singleton Manager для TTSManager
+object TTSManagerSingleton {
+    @Volatile
+    private var INSTANCE: TTSManager? = null
+
+    fun getInstance(context: Context): TTSManager {
+        return INSTANCE ?: synchronized(this) {
+            INSTANCE ?: TTSManager(context.applicationContext).also { INSTANCE = it }
+        }
+    }
+
+    fun clearInstance() {
+        synchronized(this) {
+            INSTANCE?.shutdown()
+            INSTANCE = null
+        }
+    }
+}
+
 class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     private var tts: TextToSpeech? = null
@@ -126,25 +145,15 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }?.toList() ?: emptyList()
     }
 
-    // 🔥 Обновленный метод - применяет голос перед синтезом
+    // 🔥 Обновленный метод - всегда применяет актуальный сохраненный голос
     suspend fun convertToAudio(texts: List<String>): File? {
         if (!ensureTtsInitialized() || tts == null) {
             Log.e("TTSManager", "TTS not initialized. Cannot convert to audio.")
             return null
         }
 
-        // 🔥 ВАЖНО: Применяем сохраненный голос перед синтезом
-        val savedVoiceName = PreferenceManager.getTtsVoiceName(context)
-        if (savedVoiceName != null) {
-            val savedVoice = tts?.voices?.find { it.name == savedVoiceName }
-            if (savedVoice != null) {
-                Log.d("TTSManager", "🔊 convertToAudio(): применяем сохранённый голос ${savedVoice.name}")
-                tts?.language = savedVoice.locale
-                tts?.voice = savedVoice
-            } else {
-                Log.w("TTSManager", "❗ convertToAudio(): сохранённый голос $savedVoiceName не найден")
-            }
-        }
+        // 🔥 ВАЖНО: Всегда применяем актуальный сохраненный голос перед синтезом
+        refreshVoice()
 
         return suspendCancellableCoroutine { continuation ->
             val combinedText = texts.joinToString(" ")
@@ -289,7 +298,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         tts = null
     }
 
-    // 🔥 Обновленный метод - сохраняет настройки и обновляет текущий голос
+    // 🔥 Улучшенный метод - применяет выбранный голос немедленно
     fun setVoiceByName(voiceName: String) {
         val voice = tts?.voices?.firstOrNull { it.name == voiceName }
         voice?.let {
@@ -297,9 +306,13 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             tts?.language = voice.locale
             tts?.voice = voice
 
+            // 🔥 ВАЖНО: Применяем настройки pitch и speech rate сразу
+            tts?.setPitch(if (isMale) 0.8f else 1.2f)
+            tts?.setSpeechRate(1.0f)
+
             // Сохраняем в настройки
             PreferenceManager.saveTtsVoiceName(context, voiceName)
-            Log.d("TTSManager", "💾 Голос сохранен в настройки: $voiceName")
+            Log.d("TTSManager", "💾 Голос сохранен и применен: $voiceName")
         } ?: run {
             Log.w("TTSManager", "❗ Голос '$voiceName' не найден среди доступных")
         }
@@ -307,29 +320,33 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     fun speak(text: String) {
         if (ttsInitialized.get()) {
-            // 💡 Устанавливаем голос каждый раз при воспроизведении
-            val savedVoiceName = PreferenceManager.getTtsVoiceName(context)
-            if (savedVoiceName != null) {
-                val selectedVoice = tts?.voices?.find { it.name == savedVoiceName }
-                if (selectedVoice != null) {
-                    Log.d("TTSManager", "🔁 speak(): применяем голос ${selectedVoice.name}")
-                    tts?.language = selectedVoice.locale
-                    tts?.voice = selectedVoice
-                } else {
-                    Log.w("TTSManager", "❗ speak(): голос $savedVoiceName не найден среди доступных")
-                }
-            }
-
+            // 💡 Применяем актуальный голос перед воспроизведением
+            refreshVoice()
             tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "TTS_SAMPLE")
         } else {
             Log.w("TTSManager", "⚠️ TTS не инициализирован, speak пропущен.")
         }
     }
 
-    // 🔥 Новый метод для принудительного обновления голоса
+    // 🔥 Метод для принудительного обновления голоса (применяет актуальные настройки)
     fun refreshVoice() {
         if (ttsInitialized.get()) {
-            applySavedVoice()
+            val savedVoiceName = PreferenceManager.getTtsVoiceName(context)
+            if (savedVoiceName != null) {
+                val selectedVoice = tts?.voices?.find { it.name == savedVoiceName }
+                if (selectedVoice != null) {
+                    Log.d("TTSManager", "🔁 refreshVoice(): применяем голос ${selectedVoice.name}")
+                    tts?.language = selectedVoice.locale
+                    tts?.voice = selectedVoice
+                } else {
+                    Log.w("TTSManager", "❗ refreshVoice(): голос $savedVoiceName не найден среди доступных")
+                }
+            }
+
+            // Настройки тембра и скорости
+            tts?.setPitch(if (isMale) 0.8f else 1.2f)
+            tts?.setSpeechRate(1.0f)
+
             Log.d("TTSManager", "🔄 Голос принудительно обновлен")
         }
     }

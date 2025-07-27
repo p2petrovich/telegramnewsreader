@@ -70,13 +70,16 @@ class NewsService(
         val promoPatterns = listOf(
             "^🔹.*",
             "подписаться на.*",
+            "подписывайся(те)? на.*",
             "все наши каналы.*",
             "читать(ь)? больше.*",
             "t\\.me/\\S+",
             "перейти в канал.*",
             "наш tg.*",
             "^🐚.*",
-            "^Фото:.*"
+            "^Фото:.*",
+            "^Фото.*",
+            "^Видео.*"
         )
 
         val filtered = messages.mapNotNull { original ->
@@ -97,8 +100,20 @@ class NewsService(
                 return@mapNotNull null
             }
 
-            // Очистка текста
-            var cleaned = original
+            if (original.trim().matches(
+                    Regex("^(фото|видео|аудио|документ|gif|голосовое сообщение)[\\p{P}\\s]*$",
+                        RegexOption.IGNORE_CASE)
+                )) {
+                Log.v(TAG, "⛔ Отфильтровано (медиа-заглушка): \"$original\"")
+                return@mapNotNull null
+            }
+
+            // 🧹 Удаление медиа-префиксов в начале строки (например: "Фото, Видео, ..." → "...")
+            val mediaPrefixPattern = Regex("^(фото|видео|аудио|документ|gif|голосовое сообщение)[\\p{P}\\s]+", RegexOption.IGNORE_CASE)
+            val withoutMediaPrefix = original.trim().replace(mediaPrefixPattern, "").trim()
+
+            // 🔧 Очистка текста
+            var cleaned = withoutMediaPrefix
                 .replace(Regex("\\n{3,}"), "\n\n")
                 .replace(Regex("https?://\\S+"), "")
                 .replace(Regex("#\\S+"), "")
@@ -125,6 +140,7 @@ class NewsService(
         Log.d(TAG, "🧪 prepareMessages: после фильтрации ${filtered.size} сообщений")
         return filtered
     }
+
 
 
 }

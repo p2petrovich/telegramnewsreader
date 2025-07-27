@@ -18,6 +18,7 @@ import com.example.telegramnewsreader.model.Channel
 import com.example.telegramnewsreader.service.NewsService
 import com.example.telegramnewsreader.telegram.TelegramClient
 import com.example.telegramnewsreader.tts.TTSManager
+import com.example.telegramnewsreader.tts.TTSManagerSingleton // 🔥 НОВЫЙ ИМПОРТ
 import com.example.telegramnewsreader.utils.PreferenceManager
 import kotlinx.coroutines.launch
 import java.io.File
@@ -33,6 +34,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var newsService: NewsService
     private var mediaPlayer: MediaPlayer? = null
     private var currentAudioFile: File? = null
+
+    // 🔥 НОВОЕ: для отслеживания изменения голоса
+    private var lastUsedVoice: String? = null
 
     private val timePeriods = arrayOf(
         "Последние 5 минут",
@@ -70,6 +74,10 @@ class MainActivity : AppCompatActivity() {
             Log.d("MainActivity", "=== INIT TRACKING === TelegramClient уже готов, вызываем loadChannels() напрямую")
             loadChannels()
         }
+
+        // 🔥 НОВОЕ: инициализируем текущий голос
+        lastUsedVoice = PreferenceManager.getTtsVoiceName(this)
+        Log.d("MainActivity", "🎯 onCreate: начальный голос = $lastUsedVoice")
     }
 
     private fun initComponents() {
@@ -77,7 +85,10 @@ class MainActivity : AppCompatActivity() {
         telegramClient = TelegramClientManager.getTelegramClient(this)
         Log.d("MainActivity", "=== INIT TRACKING === TelegramClient object created: ${telegramClient != null}")
 
-        ttsManager = TTSManager(this)
+        // 🔥 ИЗМЕНЕНИЕ: Используем синглтон TTSManager
+        ttsManager = TTSManagerSingleton.getInstance(this)
+        Log.d("MainActivity", "=== INIT TRACKING === TTSManager получен из синглтона")
+
         newsService = NewsService(telegramClient, ttsManager)
 
         channelAdapter = ChannelAdapter { _, _ ->
@@ -93,15 +104,12 @@ class MainActivity : AppCompatActivity() {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         binding.spinnerTime.adapter = adapter
 
-
-
         binding.btnCollectNews.setOnClickListener {
             collectNews()
         }
         binding.btnOpenSettings.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
-
 
         binding.btnPlay.setOnClickListener {
             playAudio()
@@ -117,12 +125,11 @@ class MainActivity : AppCompatActivity() {
         binding.btnResetAuth.setOnClickListener {
             PreferenceManager.clearAll(this)
             TelegramClientManager.clearClient() // 🧩 ← ВАЖНО: очищаем singleton!
+            TTSManagerSingleton.clearInstance() // 🔥 НОВОЕ: очищаем TTS singleton
             Toast.makeText(this, "Авторизация сброшена", Toast.LENGTH_SHORT).show()
             startActivity(Intent(this, AuthActivity::class.java))
             finish()
         }
-
-
 
         try {
             binding.llPlayer.visibility = View.GONE
@@ -209,6 +216,10 @@ class MainActivity : AppCompatActivity() {
 
                     if (audioFile != null) {
                         currentAudioFile = audioFile
+                        // 🔥 НОВОЕ: запоминаем голос, который использовался для создания аудио
+                        lastUsedVoice = PreferenceManager.getTtsVoiceName(this@MainActivity)
+                        Log.d("MainActivity", "🎯 Аудио создано с голосом: $lastUsedVoice")
+
                         updateStatus("Новости готовы к прослушиванию")
                         channelAdapter.notifyDataSetChanged()
                         showPlayerControls()
@@ -228,8 +239,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
-
 
     private fun playAudio() {
         currentAudioFile?.let { file ->
@@ -295,7 +304,6 @@ class MainActivity : AppCompatActivity() {
         updateChannelStats() // ✅ ← ДОБАВЬ ЭТУ СТРОКУ
     }
 
-
     private fun showPlayerControls() {
         try {
             binding.llPlayer.visibility = View.VISIBLE
@@ -313,6 +321,7 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
     }
+
     private fun updateChannelStats() {
         val total = channelAdapter.getAllChannels().size
         val selected = channelAdapter.getSelectedChannels().size
@@ -326,13 +335,52 @@ class MainActivity : AppCompatActivity() {
         updateStatus("Выберите каналы\n$message")
     }
 
+    // 🔥 ИСПРАВЛЕННЫЙ: обновляем голос при возобновлении активности + проверяем изменения
+    override fun onResume() {
+        super.onResume()
+        // Применяем актуальные настройки голоса при возврате в активность
+        if (::ttsManager.isInitialized) {
+            val currentVoice = PreferenceManager.getTtsVoiceName(this)
+
+            // 🔥 КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Проверяем, изменился ли голос
+            if (lastUsedVoice != null && lastUsedVoice != currentVoice && currentAudioFile != null) {
+                Log.d("MainActivity", "🔄 Голос изменился с '$lastUsedVoice' на '$currentVoice' - очищаем старое аудио")
+
+                // Останавливаем воспроизведение
+                stopAudio()
+
+                // Удаляем старый аудиофайл
+                currentAudioFile?.delete()
+                currentAudioFile = null
+
+                // Скрываем плеер
+                try {
+                    binding.llPlayer.visibility = View.GONE
+                } catch (e: Exception) {
+                    binding.btnPlay.visibility = View.GONE
+                    binding.btnPause.visibility = View.GONE
+                    binding.btnStop.visibility = View.GONE
+                }
+
+                // Обновляем статус
+                updateStatus("Голос изменен. Пересоберите новости для применения нового голоса.")
+
+                Toast.makeText(this, "Голос изменен. Нажмите 'Собрать новости' для применения.", Toast.LENGTH_LONG).show()
+            }
+
+            // Обновляем голос в TTS
+            ttsManager.refreshVoice()
+            Log.d("MainActivity", "🔄 onResume(): голос обновлен из настроек. Текущий: $currentVoice")
+        }
+    }
 
     override fun onDestroy() {
         super.onDestroy()
         mediaPlayer?.release()
-        if (::ttsManager.isInitialized) {
-            ttsManager.shutdown()
-        }
+        // 🔥 ИЗМЕНЕНИЕ: не shutdown синглтон в onDestroy
+        // if (::ttsManager.isInitialized) {
+        //     ttsManager.shutdown()
+        // }
     }
 
     override fun onPause() {
