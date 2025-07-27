@@ -13,6 +13,10 @@ import java.io.File
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
+import com.example.telegramnewsreader.utils.PreferenceManager
+import android.speech.tts.Voice
+
+
 
 class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
@@ -62,6 +66,10 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
             val availableVoices = tts?.voices
             val russianVoices = availableVoices?.filter { it.locale.language == "ru" }
+            val savedVoiceName = PreferenceManager.getTtsVoiceName(context)
+            val matchedVoice = availableVoices?.find { it.name == savedVoiceName }
+
+
 
             // 🔍 Покажем все голоса в лог
             russianVoices?.forEach { voice ->
@@ -71,15 +79,16 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 )
             }
 
-            // ✅ Принудительный выбор конкретного голоса
-            val selectedVoice = russianVoices?.find { it.name == "ru-ru-x-rue-local" }
-
-            if (selectedVoice != null) {
-                Log.d("TTSManager", "🔊 Выбран голос вручную: ${selectedVoice.name}")
-                tts?.voice = selectedVoice
+            if (matchedVoice != null) {
+                Log.d("TTSManager", "🔊 Применяем сохранённый голос: ${matchedVoice.name}")
+                tts?.voice = matchedVoice
+            } else if (!russianVoices.isNullOrEmpty()) {
+                Log.d("TTSManager", "🟡 Голос не найден, выбираем первый доступный: ${russianVoices.first().name}")
+                tts?.voice = russianVoices.first()
             } else {
-                Log.w("TTSManager", "⚠️ Голос не найден, используется по умолчанию.")
+                Log.w("TTSManager", "⚠️ Нет русских голосов, используется голос по умолчанию.")
             }
+
 
             // Настройки тембра и скорости
             tts?.setPitch(if (isMale) 0.8f else 1.2f)
@@ -122,6 +131,11 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         if (ttsInitialized.get()) { // Применяем только если TTS инициализирован
             tts?.setPitch(if (isMale) 0.8f else 1.2f)
         }
+    }
+    fun getAvailableVoices(): List<Voice> {
+        return tts?.voices?.filter {
+            it.locale.language == "ru" || it.locale.language == "en"
+        }?.toList() ?: emptyList()
     }
 
     suspend fun convertToAudio(texts: List<String>): File? {
@@ -282,4 +296,20 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         tts?.shutdown()
         tts = null
     }
+    fun setVoiceByName(voiceName: String) {
+        val voice = tts?.voices?.firstOrNull { it.name == voiceName }
+        voice?.let {
+            Log.d("TTSManager", "🔄 Применяем выбранный голос: ${voice.name}")
+            tts?.voice = voice
+        }
+    }
+
+    fun speak(text: String) {
+        if (ttsInitialized.get()) {
+            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "TTS_SAMPLE")
+        } else {
+            Log.w("TTSManager", "⚠️ TTS не инициализирован, speak пропущен.")
+        }
+    }
+
 }

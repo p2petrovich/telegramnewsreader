@@ -93,19 +93,15 @@ class MainActivity : AppCompatActivity() {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         binding.spinnerTime.adapter = adapter
 
-        try {
-            binding.rbMale.isChecked = true
-            binding.rgVoice.setOnCheckedChangeListener { _: RadioGroup, checkedId: Int ->
-                val isMale = checkedId == R.id.rb_male
-                ttsManager.setVoiceGender(isMale)
-            }
-        } catch (e: Exception) {
-            ttsManager.setVoiceGender(true)
-        }
+
 
         binding.btnCollectNews.setOnClickListener {
             collectNews()
         }
+        binding.btnOpenSettings.setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
+
 
         binding.btnPlay.setOnClickListener {
             playAudio()

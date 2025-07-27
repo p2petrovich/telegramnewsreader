@@ -56,6 +56,18 @@ object PreferenceManager {
             .remove(KEY_PHONE_NUMBER)
             .apply()
     }
+    private const val KEY_TTS_VOICE_NAME = "tts_voice_name"
+
+    fun saveTtsVoiceName(context: Context, voiceName: String) {
+        getPreferences(context).edit()
+            .putString(KEY_TTS_VOICE_NAME, voiceName)
+            .apply()
+    }
+
+    fun getTtsVoiceName(context: Context): String? {
+        return getPreferences(context).getString(KEY_TTS_VOICE_NAME, null)
+    }
+
 
     fun clearAll(context: Context) {
         getPreferences(context).edit().clear().apply()

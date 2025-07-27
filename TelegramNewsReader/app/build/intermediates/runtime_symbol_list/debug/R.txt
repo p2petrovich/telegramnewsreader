@@ -3236,10 +3236,12 @@ int id bounce 0x7f08005f
 int id bounceBoth 0x7f080060
 int id bounceEnd 0x7f080061
 int id bounceStart 0x7f080062
+int id btnPlay 0x7f08022e
 int id btn_collect 0x7f080063
 int id btn_collect_news 0x7f080064
 int id btn_delete_favorite 0x7f080065
 int id btn_edit_filters 0x7f080066
+int id btn_open_settings 0x7f08022d
 int id btn_pause 0x7f080067
 int id btn_play 0x7f080068
 int id btn_play_favorite 0x7f080069
@@ -3523,6 +3525,7 @@ int id progress_bar 0x7f08017b
 int id progress_circular 0x7f08017c
 int id progress_horizontal 0x7f08017d
 int id radio 0x7f08017e
+int id radioVoice 0x7f08022f
 int id ratio 0x7f08017f
 int id rb_female 0x7f080180
 int id rb_male 0x7f080181
@@ -3830,6 +3833,7 @@ int layout design_text_input_start_icon 0x7f0b0032
 int layout ime_base_split_test_activity 0x7f0b0033
 int layout ime_secondary_split_test_activity 0x7f0b0034
 int layout item_channel 0x7f0b0035
+int layout item_voice 0x7f0b0074
 int layout m3_alert_dialog 0x7f0b0036
 int layout m3_alert_dialog_actions 0x7f0b0037
 int layout m3_alert_dialog_title 0x7f0b0038

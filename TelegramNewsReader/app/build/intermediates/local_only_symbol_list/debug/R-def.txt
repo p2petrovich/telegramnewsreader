@@ -14,10 +14,12 @@ drawable ic_channel_placeholder
 drawable ic_launcher_background
 drawable ic_launcher_foreground
 drawable widget_preview
+id btnPlay
 id btn_collect
 id btn_collect_news
 id btn_delete_favorite
 id btn_edit_filters
+id btn_open_settings
 id btn_pause
 id btn_play
 id btn_play_favorite
@@ -37,6 +39,7 @@ id ivAvatar
 id ll_player
 id lv_categories
 id progress_bar
+id radioVoice
 id rb_female
 id rb_male
 id recycler_channels
@@ -68,6 +71,7 @@ layout activity_player
 layout activity_preview
 layout activity_settings
 layout item_channel
+layout item_voice
 layout widget_loading
 mipmap ic_launcher
 mipmap ic_launcher_round

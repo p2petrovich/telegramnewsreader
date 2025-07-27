@@ -3237,10 +3237,12 @@ id bounce
 id bounceBoth
 id bounceEnd
 id bounceStart
+id btnPlay
 id btn_collect
 id btn_collect_news
 id btn_delete_favorite
 id btn_edit_filters
+id btn_open_settings
 id btn_pause
 id btn_play
 id btn_play_favorite
@@ -3524,6 +3526,7 @@ id progress_bar
 id progress_circular
 id progress_horizontal
 id radio
+id radioVoice
 id ratio
 id rb_female
 id rb_male
@@ -3831,6 +3834,7 @@ layout design_text_input_start_icon
 layout ime_base_split_test_activity
 layout ime_secondary_split_test_activity
 layout item_channel
+layout item_voice
 layout m3_alert_dialog
 layout m3_alert_dialog_actions
 layout m3_alert_dialog_title

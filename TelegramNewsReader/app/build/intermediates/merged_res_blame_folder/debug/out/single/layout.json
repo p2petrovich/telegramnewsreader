@@ -4,6 +4,10 @@
         "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\layout\\item_channel.xml"
     },
     {
+        "merged": "com.example.telegramnewsreader.app-mergeDebugResources-3:/layout/item_voice.xml",
+        "source": "com.example.telegramnewsreader.app-main-6:/layout/item_voice.xml"
+    },
+    {
         "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-mergeDebugResources-3:\\layout\\activity_player.xml",
         "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\layout\\activity_player.xml"
     },
@@ -34,9 +38,5 @@
     {
         "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-mergeDebugResources-3:\\layout\\activity_preview.xml",
         "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\layout\\activity_preview.xml"
-    },
-    {
-        "merged": "com.example.telegramnewsreader.app-mergeDebugResources-3:/layout/activity_main.xml",
-        "source": "com.example.telegramnewsreader.app-main-6:/layout/activity_main.xml"
     }
 ]

@@ -7,8 +7,6 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
-import android.widget.RadioButton;
-import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -30,6 +28,9 @@ public final class ActivityMainBinding implements ViewBinding {
   public final Button btnCollectNews;
 
   @NonNull
+  public final Button btnOpenSettings;
+
+  @NonNull
   public final Button btnPause;
 
   @NonNull
@@ -48,16 +49,7 @@ public final class ActivityMainBinding implements ViewBinding {
   public final ProgressBar progressBar;
 
   @NonNull
-  public final RadioButton rbFemale;
-
-  @NonNull
-  public final RadioButton rbMale;
-
-  @NonNull
   public final RecyclerView recyclerChannels;
-
-  @NonNull
-  public final RadioGroup rgVoice;
 
   @NonNull
   public final Spinner spinnerTime;
@@ -71,33 +63,26 @@ public final class ActivityMainBinding implements ViewBinding {
   @NonNull
   public final TextView tvTimePeriod;
 
-  @NonNull
-  public final TextView tvVoice;
-
   private ActivityMainBinding(@NonNull ScrollView rootView, @NonNull Button btnCollectNews,
-      @NonNull Button btnPause, @NonNull Button btnPlay, @NonNull Button btnResetAuth,
-      @NonNull Button btnStop, @NonNull LinearLayout llPlayer, @NonNull ProgressBar progressBar,
-      @NonNull RadioButton rbFemale, @NonNull RadioButton rbMale,
-      @NonNull RecyclerView recyclerChannels, @NonNull RadioGroup rgVoice,
+      @NonNull Button btnOpenSettings, @NonNull Button btnPause, @NonNull Button btnPlay,
+      @NonNull Button btnResetAuth, @NonNull Button btnStop, @NonNull LinearLayout llPlayer,
+      @NonNull ProgressBar progressBar, @NonNull RecyclerView recyclerChannels,
       @NonNull Spinner spinnerTime, @NonNull TextView tvSelectChannels, @NonNull TextView tvStatus,
-      @NonNull TextView tvTimePeriod, @NonNull TextView tvVoice) {
+      @NonNull TextView tvTimePeriod) {
     this.rootView = rootView;
     this.btnCollectNews = btnCollectNews;
+    this.btnOpenSettings = btnOpenSettings;
     this.btnPause = btnPause;
     this.btnPlay = btnPlay;
     this.btnResetAuth = btnResetAuth;
     this.btnStop = btnStop;
     this.llPlayer = llPlayer;
     this.progressBar = progressBar;
-    this.rbFemale = rbFemale;
-    this.rbMale = rbMale;
     this.recyclerChannels = recyclerChannels;
-    this.rgVoice = rgVoice;
     this.spinnerTime = spinnerTime;
     this.tvSelectChannels = tvSelectChannels;
     this.tvStatus = tvStatus;
     this.tvTimePeriod = tvTimePeriod;
-    this.tvVoice = tvVoice;
   }
 
   @Override
@@ -130,6 +115,12 @@ public final class ActivityMainBinding implements ViewBinding {
       id = R.id.btn_collect_news;
       Button btnCollectNews = ViewBindings.findChildViewById(rootView, id);
       if (btnCollectNews == null) {
+        break missingId;
+      }
+
+      id = R.id.btn_open_settings;
+      Button btnOpenSettings = ViewBindings.findChildViewById(rootView, id);
+      if (btnOpenSettings == null) {
         break missingId;
       }
 
@@ -169,27 +160,9 @@ public final class ActivityMainBinding implements ViewBinding {
         break missingId;
       }
 
-      id = R.id.rb_female;
-      RadioButton rbFemale = ViewBindings.findChildViewById(rootView, id);
-      if (rbFemale == null) {
-        break missingId;
-      }
-
-      id = R.id.rb_male;
-      RadioButton rbMale = ViewBindings.findChildViewById(rootView, id);
-      if (rbMale == null) {
-        break missingId;
-      }
-
       id = R.id.recycler_channels;
       RecyclerView recyclerChannels = ViewBindings.findChildViewById(rootView, id);
       if (recyclerChannels == null) {
-        break missingId;
-      }
-
-      id = R.id.rg_voice;
-      RadioGroup rgVoice = ViewBindings.findChildViewById(rootView, id);
-      if (rgVoice == null) {
         break missingId;
       }
 
@@ -217,15 +190,9 @@ public final class ActivityMainBinding implements ViewBinding {
         break missingId;
       }
 
-      id = R.id.tv_voice;
-      TextView tvVoice = ViewBindings.findChildViewById(rootView, id);
-      if (tvVoice == null) {
-        break missingId;
-      }
-
-      return new ActivityMainBinding((ScrollView) rootView, btnCollectNews, btnPause, btnPlay,
-          btnResetAuth, btnStop, llPlayer, progressBar, rbFemale, rbMale, recyclerChannels, rgVoice,
-          spinnerTime, tvSelectChannels, tvStatus, tvTimePeriod, tvVoice);
+      return new ActivityMainBinding((ScrollView) rootView, btnCollectNews, btnOpenSettings,
+          btnPause, btnPlay, btnResetAuth, btnStop, llPlayer, progressBar, recyclerChannels,
+          spinnerTime, tvSelectChannels, tvStatus, tvTimePeriod);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

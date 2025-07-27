@@ -40,34 +40,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp" />
 
-        <TextView
-            android:id="@+id/tv_voice"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Голос"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:layout_marginTop="16dp" />
 
-        <RadioGroup
-            android:id="@+id/rg_voice"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="8dp">
-
-            <RadioButton
-                android:id="@+id/rb_male"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/voice_male" />
-
-            <RadioButton
-                android:id="@+id/rb_female"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/voice_female" />
-        </RadioGroup>
 
         <Button
             android:id="@+id/btn_collect_news"
@@ -119,6 +92,13 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text=""
+            android:layout_marginTop="16dp" />
+
+        <Button
+            android:id="@+id/btn_open_settings"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Настройки TTS"
             android:layout_marginTop="16dp" />
 
         <Button
