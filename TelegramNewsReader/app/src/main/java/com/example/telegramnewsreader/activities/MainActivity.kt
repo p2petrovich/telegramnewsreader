@@ -66,6 +66,10 @@ class MainActivity : AppCompatActivity() {
                 loadChannels()
             }
         }
+        if (telegramClient.checkAuthState()) {
+            Log.d("MainActivity", "=== INIT TRACKING === TelegramClient уже готов, вызываем loadChannels() напрямую")
+            loadChannels()
+        }
     }
 
     private fun initComponents() {
@@ -309,6 +313,19 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
     }
+    private fun updateChannelStats() {
+        val total = channelAdapter.getAllChannels().size
+        val selected = channelAdapter.getSelectedChannels().size
+
+        val message = if (selected > 0) {
+            "Каналов: $total | Выбрано: $selected"
+        } else {
+            "Каналов: $total"
+        }
+
+        updateStatus("Выберите каналы\n$message")
+    }
+
 
     override fun onDestroy() {
         super.onDestroy()

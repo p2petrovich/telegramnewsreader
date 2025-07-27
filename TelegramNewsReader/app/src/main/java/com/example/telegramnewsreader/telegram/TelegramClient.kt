@@ -274,29 +274,24 @@ class TelegramClient(private val context: Context) {
             }
 
             // Получаем до 100 чатов (можно и больше, чтобы найти 5 каналов)
-            client?.send(TdApi.GetChats(TdApi.ChatListMain(), 100)) { result ->
+            client?.send(TdApi.GetChats(TdApi.ChatListMain(), 200)) { result ->
                 when (result) {
                     is TdApi.Chats -> {
                         val channels = mutableListOf<Channel>()
                         var processed = 0
-                        var found = 0
-                        val maxChannels = 50
                         val total = result.chatIds.size
 
                         for (chatId in result.chatIds) {
-                            if (found >= maxChannels) break
-
                             client?.send(TdApi.GetChat(chatId)) { chatResult ->
                                 if (chatResult is TdApi.Chat) {
                                     val type = chatResult.type
                                     if (type is TdApi.ChatTypeSupergroup && type.isChannel) {
                                         channels.add(Channel(chatId, 0, chatResult.title, "", false))
-                                        found++
                                     }
                                 }
 
                                 processed++
-                                if (processed == total || found == maxChannels) {
+                                if (processed == total) {
                                     callback(channels)
                                 }
                             }
@@ -307,6 +302,7 @@ class TelegramClient(private val context: Context) {
                     }
                 }
             }
+
         }.start()
     }
 
