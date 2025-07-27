@@ -40,11 +40,8 @@ class SettingsActivity : AppCompatActivity() {
                 it.locale.language == "ru"
             }
 
-            val voiceNames: List<String> = voiceList.map { voice ->
-                val gender = if (voice.name.contains("f")) "Женский" else "Мужской"
-                val type = if (voice.name.contains("network")) "нейросеть" else "локально"
-                "$gender голос ($type)"
-            }
+            val voiceNames = voiceList.map { voice -> voice.name }
+
 
             val selectedVoiceName = PreferenceManager.getTtsVoiceName(this@SettingsActivity)
 

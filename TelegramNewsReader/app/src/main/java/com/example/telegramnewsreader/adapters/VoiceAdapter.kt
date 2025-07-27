@@ -34,9 +34,12 @@ class VoiceAdapter(
 
     override fun onBindViewHolder(holder: VoiceViewHolder, position: Int) {
         val voice = voices[position]
-        val gender = if (voice.name.contains("f")) "Женский" else "Мужской"
-        val type = if (voice.name.contains("network")) "нейросеть" else "локально"
-        holder.radio.text = "$gender голос ($type)"
+
+        val readableName = voice.name.replace("-", " ")
+        val engineInfo = if (voice.name.contains("network")) "нейросеть" else "локально"
+        val language = voice.locale.displayLanguage
+
+        holder.radio.text = "$readableName ($language, $engineInfo)"
         holder.radio.isChecked = position == selectedIndex
 
         holder.radio.setOnClickListener {
@@ -49,4 +52,5 @@ class VoiceAdapter(
             onVoicePlay(voice)
         }
     }
+
 }
