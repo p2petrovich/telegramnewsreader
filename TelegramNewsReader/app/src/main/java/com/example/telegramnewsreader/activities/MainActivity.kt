@@ -156,7 +156,7 @@ class MainActivity : AppCompatActivity() {
                 binding.progressBar.visibility = View.GONE
                 if (channels.isNotEmpty()) {
                     channelAdapter.updateChannels(channels)
-                    updateStatus("Выберите каналы для сбора новостей")
+                    updateChannelStats() // ✅ ← ДОБАВЬ ЗДЕСЬ
                 } else {
                     updateStatus("Каналы не найдены")
 
@@ -166,10 +166,12 @@ class MainActivity : AppCompatActivity() {
                         Channel(id = 2, accessHash = 0, title = "Test Channel 2", username = "", isSelected = false)
                     )
                     channelAdapter.updateChannels(testChannels)
+                    updateChannelStats() // ✅ ← И ТУТ ТОЖЕ
                     updateStatus("Тестовые каналы загружены")
                 }
             }
         }
+
     }
 
     private fun collectNews() {
@@ -294,7 +296,9 @@ class MainActivity : AppCompatActivity() {
     private fun updateNewsCollectionButton() {
         val hasSelectedChannels = channelAdapter.getSelectedChannels().isNotEmpty()
         binding.btnCollectNews.isEnabled = hasSelectedChannels
+        updateChannelStats() // ✅ ← ДОБАВЬ ЭТУ СТРОКУ
     }
+
 
     private fun showPlayerControls() {
         try {

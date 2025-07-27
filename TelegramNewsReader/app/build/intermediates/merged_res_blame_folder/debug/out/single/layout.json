@@ -36,7 +36,7 @@
         "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\layout\\activity_preview.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-mergeDebugResources-3:/layout/activity_settings.xml",
-        "source": "com.example.telegramnewsreader.app-main-6:/layout/activity_settings.xml"
+        "merged": "com.example.telegramnewsreader.app-mergeDebugResources-3:/layout/activity_main.xml",
+        "source": "com.example.telegramnewsreader.app-main-6:/layout/activity_main.xml"
     }
 ]

@@ -20,6 +20,9 @@ class ChannelAdapter(
 
     fun getSelectedChannels(): List<Channel> = channels.filter { it.isSelected }
 
+    fun getAllChannels(): List<Channel> = channels.toList()
+
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ChannelViewHolder {
         val binding = ItemChannelBinding.inflate(LayoutInflater.from(parent.context), parent, false)
         return ChannelViewHolder(binding)
