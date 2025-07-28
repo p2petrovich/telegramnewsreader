@@ -6,7 +6,6 @@ import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.widget.ArrayAdapter
-import android.widget.RadioGroup
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -18,12 +17,11 @@ import com.example.telegramnewsreader.model.Channel
 import com.example.telegramnewsreader.service.NewsService
 import com.example.telegramnewsreader.telegram.TelegramClient
 import com.example.telegramnewsreader.tts.TTSManager
-import com.example.telegramnewsreader.tts.TTSManagerSingleton // 🔥 НОВЫЙ ИМПОРТ
+import com.example.telegramnewsreader.tts.TTSManagerSingleton
 import com.example.telegramnewsreader.utils.PreferenceManager
 import kotlinx.coroutines.launch
 import java.io.File
 import com.example.telegramnewsreader.telegram.TelegramClientManager
-
 
 class MainActivity : AppCompatActivity() {
 
@@ -35,8 +33,11 @@ class MainActivity : AppCompatActivity() {
     private var mediaPlayer: MediaPlayer? = null
     private var currentAudioFile: File? = null
 
-    // 🔥 НОВОЕ: для отслеживания изменения голоса
+    // Для отслеживания изменения голоса
     private var lastUsedVoice: String? = null
+
+    // 🔥 НОВОЕ: флаг готовности клиента
+    private var isClientReady = false
 
     private val timePeriods = arrayOf(
         "Последние 5 минут",
@@ -44,10 +45,10 @@ class MainActivity : AppCompatActivity() {
         "Последние 30 минут",
         "Последний час",
         "Последние 2 часа",
-        "Последние 4 часа"
+        "Последние 4 часа",
+        "Последние 8 часов"
     )
-    private val timeValues = arrayOf(0.083, 0.166, 0.5, 1.0, 2.0, 4.0)
-
+    private val timeValues = arrayOf(0.083, 0.166, 0.5, 1.0, 2.0, 4.0, 8.0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,20 +63,8 @@ class MainActivity : AppCompatActivity() {
 
         initComponents()
         setupUI()
+        initializeTelegramClient()
 
-        // ✅ Загрузка каналов будет вызвана только после готовности клиента
-        telegramClient.onClientReady = {
-            Log.d("MainActivity", "=== INIT TRACKING === TelegramClient is READY")
-            runOnUiThread {
-                loadChannels()
-            }
-        }
-        if (telegramClient.checkAuthState()) {
-            Log.d("MainActivity", "=== INIT TRACKING === TelegramClient уже готов, вызываем loadChannels() напрямую")
-            loadChannels()
-        }
-
-        // 🔥 НОВОЕ: инициализируем текущий голос
         lastUsedVoice = PreferenceManager.getTtsVoiceName(this)
         Log.d("MainActivity", "🎯 onCreate: начальный голос = $lastUsedVoice")
     }
@@ -83,12 +72,8 @@ class MainActivity : AppCompatActivity() {
     private fun initComponents() {
         Log.d("MainActivity", "=== INIT TRACKING === Starting TelegramClient initialization")
         telegramClient = TelegramClientManager.getTelegramClient(this)
-        Log.d("MainActivity", "=== INIT TRACKING === TelegramClient object created: ${telegramClient != null}")
 
-        // 🔥 ИЗМЕНЕНИЕ: Используем синглтон TTSManager
         ttsManager = TTSManagerSingleton.getInstance(this)
-        Log.d("MainActivity", "=== INIT TRACKING === TTSManager получен из синглтона")
-
         newsService = NewsService(telegramClient, ttsManager)
 
         channelAdapter = ChannelAdapter { _, _ ->
@@ -97,6 +82,34 @@ class MainActivity : AppCompatActivity() {
 
         binding.recyclerChannels.layoutManager = LinearLayoutManager(this)
         binding.recyclerChannels.adapter = channelAdapter
+    }
+
+    // 🔥 НОВЫЙ МЕТОД: правильная инициализация клиента
+    private fun initializeTelegramClient() {
+        telegramClient.onClientReady = {
+            Log.d("MainActivity", "=== CLIENT READY === TelegramClient готов")
+            isClientReady = true
+            runOnUiThread {
+                loadChannels()
+                updateUIForReadyClient()
+            }
+        }
+
+        // Проверяем текущее состояние
+        if (telegramClient.checkAuthState()) {
+            Log.d("MainActivity", "=== CLIENT READY === Клиент уже готов")
+            isClientReady = true
+            loadChannels()
+            updateUIForReadyClient()
+        } else {
+            Log.d("MainActivity", "=== CLIENT INIT === Ожидаем готовности клиента...")
+            updateStatus("Инициализация Telegram клиента...")
+        }
+    }
+
+    private fun updateUIForReadyClient() {
+        binding.btnCollectNews.isEnabled = channelAdapter.getSelectedChannels().isNotEmpty()
+        updateStatus("Клиент готов. Выберите каналы для сбора новостей.")
     }
 
     private fun setupUI() {
@@ -111,25 +124,21 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
 
-        binding.btnPlay.setOnClickListener {
-            playAudio()
-        }
+        binding.btnPlay.setOnClickListener { playAudio() }
+        binding.btnPause.setOnClickListener { pauseAudio() }
+        binding.btnStop.setOnClickListener { stopAudio() }
 
-        binding.btnPause.setOnClickListener {
-            pauseAudio()
-        }
-
-        binding.btnStop.setOnClickListener {
-            stopAudio()
-        }
         binding.btnResetAuth.setOnClickListener {
             PreferenceManager.clearAll(this)
-            TelegramClientManager.clearClient() // 🧩 ← ВАЖНО: очищаем singleton!
-            TTSManagerSingleton.clearInstance() // 🔥 НОВОЕ: очищаем TTS singleton
+            TelegramClientManager.clearClient()
+            TTSManagerSingleton.clearInstance()
             Toast.makeText(this, "Авторизация сброшена", Toast.LENGTH_SHORT).show()
             startActivity(Intent(this, AuthActivity::class.java))
             finish()
         }
+
+        // Изначально кнопка сбора отключена
+        binding.btnCollectNews.isEnabled = false
 
         try {
             binding.llPlayer.visibility = View.GONE
@@ -141,43 +150,44 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadChannels() {
-        binding.progressBar.visibility = View.VISIBLE
-        updateStatus("Загружаем каналы...")
-
-        Log.d("MainActivity", "=== INIT TRACKING === About to call loadChannels on telegramClient")
-        Log.d("MainActivity", "=== INIT TRACKING === TelegramClient is null: ${!::telegramClient.isInitialized}")
-
-        if (!::telegramClient.isInitialized) {
-            Log.e("MainActivity", "=== INIT TRACKING === TelegramClient not initialized in MainActivity!")
-            updateStatus("Ошибка: клиент не инициализирован")
-            binding.progressBar.visibility = View.GONE
+        if (!isClientReady) {
+            Log.w("MainActivity", "Попытка загрузки каналов до готовности клиента")
             return
         }
+
+        binding.progressBar.visibility = View.VISIBLE
+        updateStatus("Загружаем каналы...")
 
         telegramClient.loadChannels { channels ->
             runOnUiThread {
                 binding.progressBar.visibility = View.GONE
                 if (channels.isNotEmpty()) {
                     channelAdapter.updateChannels(channels)
-                    updateChannelStats() // ✅ ← ДОБАВЬ ЗДЕСЬ
+                    updateChannelStats()
+                    Log.d("MainActivity", "Загружено каналов: ${channels.size}")
                 } else {
                     updateStatus("Каналы не найдены")
-
-                    // Можно добавить тестовые
+                    // Тестовые каналы для отладки
                     val testChannels = listOf(
                         Channel(id = 1, accessHash = 0, title = "Test Channel 1", username = "", isSelected = false),
                         Channel(id = 2, accessHash = 0, title = "Test Channel 2", username = "", isSelected = false)
                     )
                     channelAdapter.updateChannels(testChannels)
-                    updateChannelStats() // ✅ ← И ТУТ ТОЖЕ
+                    updateChannelStats()
                     updateStatus("Тестовые каналы загружены")
                 }
             }
         }
-
     }
 
     private fun collectNews() {
+        // 🔥 КРИТИЧЕСКАЯ ПРОВЕРКА: готовность клиента
+        if (!isClientReady || !telegramClient.checkAuthState()) {
+            Toast.makeText(this, "Telegram клиент не готов. Попробуйте позже.", Toast.LENGTH_LONG).show()
+            Log.e("MainActivity", "Попытка сбора новостей с неготовым клиентом")
+            return
+        }
+
         val selectedChannels = channelAdapter.getSelectedChannels()
         if (selectedChannels.isEmpty()) {
             Toast.makeText(this, "Выберите хотя бы один канал", Toast.LENGTH_SHORT).show()
@@ -185,26 +195,18 @@ class MainActivity : AppCompatActivity() {
         }
 
         val timeHours = timeValues[binding.spinnerTime.selectedItemPosition]
+        Log.d("MainActivity", "🔍 Начинаем сбор новостей: каналов=${selectedChannels.size}, период=${timeHours}ч")
 
-        // ✅ ДОБАВЛЕНО: сброс перед сбором
-        updateStatus("Собираем новости...")
-        currentAudioFile = null
-        stopAudio()
-        try {
-            binding.llPlayer.visibility = View.GONE
-        } catch (e: Exception) {
-            binding.btnPlay.visibility = View.GONE
-            binding.btnPause.visibility = View.GONE
-            binding.btnStop.visibility = View.GONE
-        }
-        selectedChannels.forEach { it.newMessagesCount = 0 }
-        channelAdapter.notifyDataSetChanged()
+        // Сброс состояния перед сбором
+        resetCollectionState()
 
         binding.progressBar.visibility = View.VISIBLE
         binding.btnCollectNews.isEnabled = false
 
         lifecycleScope.launch {
             try {
+                updateStatus("Собираем новости из ${selectedChannels.size} каналов...")
+
                 val audioFile = newsService.collectAndProcessNews(
                     channels = selectedChannels,
                     timeHours = timeHours
@@ -214,35 +216,64 @@ class MainActivity : AppCompatActivity() {
                     binding.progressBar.visibility = View.GONE
                     binding.btnCollectNews.isEnabled = true
 
-                    if (audioFile != null) {
+                    if (audioFile != null && audioFile.exists()) {
                         currentAudioFile = audioFile
-                        // 🔥 НОВОЕ: запоминаем голос, который использовался для создания аудио
                         lastUsedVoice = PreferenceManager.getTtsVoiceName(this@MainActivity)
-                        Log.d("MainActivity", "🎯 Аудио создано с голосом: $lastUsedVoice")
 
-                        updateStatus("Новости готовы к прослушиванию")
+                        val totalMessages = selectedChannels.sumOf { it.newMessagesCount }
+                        updateStatus("Готово! Обработано сообщений: $totalMessages")
+                        Log.d("MainActivity", "✅ Аудио создано: ${audioFile.length()} байт, сообщений: $totalMessages")
+
                         channelAdapter.notifyDataSetChanged()
                         showPlayerControls()
                         resetPlayerButtons()
+
+                        Toast.makeText(this@MainActivity, "Найдено $totalMessages новых сообщений", Toast.LENGTH_SHORT).show()
                     } else {
-                        updateStatus("Нет новых новостей")
-                        Toast.makeText(this@MainActivity, "Новые новости не найдены", Toast.LENGTH_SHORT).show()
+                        updateStatus("Новых новостей не найдено")
+                        Toast.makeText(this@MainActivity, "Новые новости не найдены в выбранный период", Toast.LENGTH_LONG).show()
+                        Log.d("MainActivity", "❌ Новости не найдены или аудиофайл не создан")
                     }
                 }
             } catch (e: Exception) {
+                Log.e("MainActivity", "❌ Ошибка при сборе новостей", e)
                 runOnUiThread {
                     binding.progressBar.visibility = View.GONE
                     binding.btnCollectNews.isEnabled = true
-                    updateStatus("Ошибка при обработке новостей")
-                    Toast.makeText(this@MainActivity, "Ошибка: ${e.message}", Toast.LENGTH_SHORT).show()
+                    updateStatus("Ошибка при обработке новостей: ${e.message}")
+                    Toast.makeText(this@MainActivity, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }
     }
 
+    // 🔥 НОВЫЙ МЕТОД: сброс состояния перед сбором
+    private fun resetCollectionState() {
+        currentAudioFile?.delete()
+        currentAudioFile = null
+        stopAudio()
+
+        try {
+            binding.llPlayer.visibility = View.GONE
+        } catch (e: Exception) {
+            binding.btnPlay.visibility = View.GONE
+            binding.btnPause.visibility = View.GONE
+            binding.btnStop.visibility = View.GONE
+        }
+
+        // Сбрасываем счетчики сообщений
+        channelAdapter.getAllChannels().forEach { it.newMessagesCount = 0 }
+        channelAdapter.notifyDataSetChanged()
+    }
+
     private fun playAudio() {
         currentAudioFile?.let { file ->
             try {
+                if (!file.exists()) {
+                    Toast.makeText(this, "Аудиофайл не найден", Toast.LENGTH_SHORT).show()
+                    return
+                }
+
                 if (mediaPlayer == null) {
                     mediaPlayer = MediaPlayer().apply {
                         setDataSource(file.absolutePath)
@@ -250,7 +281,8 @@ class MainActivity : AppCompatActivity() {
                         setOnCompletionListener {
                             resetPlayerButtons()
                         }
-                        setOnErrorListener { _, _, _ ->
+                        setOnErrorListener { _, what, extra ->
+                            Log.e("MainActivity", "MediaPlayer error: what=$what, extra=$extra")
                             Toast.makeText(this@MainActivity, "Ошибка воспроизведения", Toast.LENGTH_SHORT).show()
                             resetPlayerButtons()
                             true
@@ -260,9 +292,12 @@ class MainActivity : AppCompatActivity() {
                 mediaPlayer?.start()
                 updatePlayerButtons(isPlaying = true)
             } catch (e: Exception) {
+                Log.e("MainActivity", "Ошибка воспроизведения", e)
                 Toast.makeText(this, "Ошибка воспроизведения: ${e.message}", Toast.LENGTH_SHORT).show()
                 resetPlayerButtons()
             }
+        } ?: run {
+            Toast.makeText(this, "Сначала соберите новости", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -300,8 +335,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateNewsCollectionButton() {
         val hasSelectedChannels = channelAdapter.getSelectedChannels().isNotEmpty()
-        binding.btnCollectNews.isEnabled = hasSelectedChannels
-        updateChannelStats() // ✅ ← ДОБАВЬ ЭТУ СТРОКУ
+        binding.btnCollectNews.isEnabled = hasSelectedChannels && isClientReady
+        updateChannelStats()
     }
 
     private fun showPlayerControls() {
@@ -317,6 +352,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateStatus(message: String) {
         try {
             binding.tvStatus.text = message
+            Log.d("MainActivity", "Status: $message")
         } catch (e: Exception) {
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
@@ -332,28 +368,28 @@ class MainActivity : AppCompatActivity() {
             "Каналов: $total"
         }
 
-        updateStatus("Выберите каналы\n$message")
+        val statusText = if (isClientReady) {
+            "Выберите каналы\n$message"
+        } else {
+            "Инициализация...\n$message"
+        }
+
+        updateStatus(statusText)
     }
 
-    // 🔥 ИСПРАВЛЕННЫЙ: обновляем голос при возобновлении активности + проверяем изменения
     override fun onResume() {
         super.onResume()
-        // Применяем актуальные настройки голоса при возврате в активность
         if (::ttsManager.isInitialized) {
             val currentVoice = PreferenceManager.getTtsVoiceName(this)
 
-            // 🔥 КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Проверяем, изменился ли голос
+            // Проверяем изменение голоса
             if (lastUsedVoice != null && lastUsedVoice != currentVoice && currentAudioFile != null) {
-                Log.d("MainActivity", "🔄 Голос изменился с '$lastUsedVoice' на '$currentVoice' - очищаем старое аудио")
+                Log.d("MainActivity", "🔄 Голос изменился с '$lastUsedVoice' на '$currentVoice'")
 
-                // Останавливаем воспроизведение
                 stopAudio()
-
-                // Удаляем старый аудиофайл
                 currentAudioFile?.delete()
                 currentAudioFile = null
 
-                // Скрываем плеер
                 try {
                     binding.llPlayer.visibility = View.GONE
                 } catch (e: Exception) {
@@ -362,25 +398,19 @@ class MainActivity : AppCompatActivity() {
                     binding.btnStop.visibility = View.GONE
                 }
 
-                // Обновляем статус
                 updateStatus("Голос изменен. Пересоберите новости для применения нового голоса.")
-
                 Toast.makeText(this, "Голос изменен. Нажмите 'Собрать новости' для применения.", Toast.LENGTH_LONG).show()
             }
 
-            // Обновляем голос в TTS
             ttsManager.refreshVoice()
-            Log.d("MainActivity", "🔄 onResume(): голос обновлен из настроек. Текущий: $currentVoice")
+            Log.d("MainActivity", "🔄 onResume(): голос обновлен. Текущий: $currentVoice")
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         mediaPlayer?.release()
-        // 🔥 ИЗМЕНЕНИЕ: не shutdown синглтон в onDestroy
-        // if (::ttsManager.isInitialized) {
-        //     ttsManager.shutdown()
-        // }
+        mediaPlayer = null
     }
 
     override fun onPause() {

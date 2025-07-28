@@ -13,62 +13,128 @@ class NewsService(
 ) {
     companion object {
         private const val TAG = "NewsService"
+        private const val CHANNEL_TIMEOUT_MS = 15000L // 15 секунд на канал
+        private const val TOTAL_TIMEOUT_MS = 60000L   // 1 минута общий таймаут
     }
 
     suspend fun collectAndProcessNews(
         channels: List<Channel>,
         timeHours: Double
     ): File? = withContext(Dispatchers.IO) {
+
+        // ✅ Валидация входных данных
+        if (channels.isEmpty()) {
+            Log.w(TAG, "❌ Пустой список каналов")
+            return@withContext null
+        }
+
+        if (timeHours <= 0) {
+            Log.w(TAG, "❌ Некорректный период времени: $timeHours")
+            return@withContext null
+        }
+
         try {
-            val allMessages = mutableListOf<String>()
+            // ✅ Общий таймаут для всей операции
+            withTimeout(TOTAL_TIMEOUT_MS) {
+                val allMessages = mutableListOf<String>()
+                val currentTimeSeconds = System.currentTimeMillis() / 1000
+                val fromDate = currentTimeSeconds - (timeHours * 3600).toLong()
 
-            val currentTimeSeconds = System.currentTimeMillis() / 1000
-            val fromDate = currentTimeSeconds - (timeHours * 3600).toLong()
-            Log.d(TAG, "collectAndProcessNews: fromDate = $fromDate ($timeHours ч назад)")
+                Log.d(TAG, "🔍 Начинаем сбор новостей:")
+                Log.d(TAG, "   📅 Период: $timeHours часов назад")
+                Log.d(TAG, "   📺 Каналов: ${channels.size}")
+                Log.d(TAG, "   ⏰ fromDate: $fromDate")
 
-            for (channel in channels) {
-                try {
-                    Log.d(TAG, "▶ Обрабатываем канал: ${channel.title} (ID: ${channel.id})")
+                // ✅ ИСПРАВЛЕНИЕ: Параллельная обработка каналов с индивидуальными таймаутами
+                val channelResults = channels.map { channel ->
+                    async {
+                        processChannelWithTimeout(channel, fromDate)
+                    }
+                }.awaitAll()
 
-                    val messages = telegramClient.getChannelMessagesSuspend(channel.id, fromDate)
-                    Log.d(TAG, "▶ Из канала ${channel.title} получено сообщений: ${messages.size}")
-                    channel.newMessagesCount = messages.size
-                    Log.d(TAG, "▶ Примеры: ${messages.take(3)}")
-
-                    // ✅ сохраняем количество сообщений в модель канала
-                    channel.newMessagesCount = messages.size
-
+                // ✅ Собираем результаты
+                var totalMessages = 0
+                channelResults.forEach { (channel, messages) ->
                     if (messages.isNotEmpty()) {
                         allMessages.add("Новости из канала ${channel.title}:")
                         allMessages.addAll(messages)
+                        totalMessages += messages.size
+                        Log.d(TAG, "✅ Канал '${channel.title}': ${messages.size} сообщений")
                     } else {
-                        Log.d(TAG, "⚠ Канал ${channel.title} не содержит сообщений за период.")
+                        Log.d(TAG, "⚠️ Канал '${channel.title}': сообщений не найдено")
                     }
-                } catch (e: Exception) {
-                    Log.e(TAG, "❌ Ошибка при обработке канала ${channel.title}", e)
+                }
+
+                Log.d(TAG, "📊 Итого собрано сообщений: $totalMessages из ${channels.size} каналов")
+
+                if (allMessages.isNotEmpty()) {
+                    Log.d(TAG, "🔄 Фильтруем сообщения...")
+                    val preparedMessages = prepareMessages(allMessages)
+                    Log.d(TAG, "✅ После фильтрации: ${preparedMessages.size} сообщений")
+
+                    if (preparedMessages.isNotEmpty()) {
+                        Log.d(TAG, "🎵 Создаем аудиофайл...")
+                        return@withTimeout ttsManager.convertToAudio(preparedMessages)
+                    } else {
+                        Log.w(TAG, "⚠️ После фильтрации не осталось сообщений")
+                        return@withTimeout null
+                    }
+                } else {
+                    Log.w(TAG, "⚠️ Нет сообщений для обработки")
+                    return@withTimeout null
                 }
             }
-
-            if (allMessages.isNotEmpty()) {
-                Log.d(TAG, "💬 Всего сообщений до фильтрации: ${allMessages.size}")
-                val preparedMessages = prepareMessages(allMessages)
-                Log.d(TAG, "✅ После prepareMessages: ${preparedMessages.size} сообщений")
-                return@withContext ttsManager.convertToAudio(preparedMessages)
-            } else {
-                Log.w(TAG, "⚠ Нет сообщений для обработки. Возвращаем null.")
-                return@withContext null
-            }
+        } catch (e: TimeoutCancellationException) {
+            Log.e(TAG, "⏰ Превышен общий таймаут операции ($TOTAL_TIMEOUT_MS мс)")
+            null
         } catch (e: Exception) {
             Log.e(TAG, "❌ Ошибка в collectAndProcessNews", e)
             null
         }
     }
 
-    private fun prepareMessages(messages: List<String>): List<String> {
-        Log.d(TAG, "🧪 prepareMessages: на входе ${messages.size} сообщений")
+    // ✅ НОВЫЙ МЕТОД: Обработка одного канала с таймаутом
+    private suspend fun processChannelWithTimeout(
+        channel: Channel,
+        fromDate: Long
+    ): Pair<Channel, List<String>> {
+        return try {
+            withTimeout(CHANNEL_TIMEOUT_MS) {
+                Log.d(TAG, "📡 Загружаем сообщения из '${channel.title}' (ID: ${channel.id})")
 
+                val messages = telegramClient.getChannelMessagesSuspend(channel.id, fromDate)
+
+                // ✅ ИСПРАВЛЕНИЕ: Однократное присвоение newMessagesCount
+                channel.newMessagesCount = messages.size
+
+                Log.d(TAG, "📨 Канал '${channel.title}': получено ${messages.size} сообщений")
+
+                if (messages.isNotEmpty()) {
+                    Log.v(TAG, "   🔍 Примеры: ${messages.take(2)}")
+                }
+
+                Pair(channel, messages)
+            }
+        } catch (e: TimeoutCancellationException) {
+            Log.e(TAG, "⏰ Таймаут для канала '${channel.title}' ($CHANNEL_TIMEOUT_MS мс)")
+            channel.newMessagesCount = 0
+            Pair(channel, emptyList())
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Ошибка обработки канала '${channel.title}'", e)
+            channel.newMessagesCount = 0
+            Pair(channel, emptyList())
+        }
+    }
+
+    private fun prepareMessages(messages: List<String>): List<String> {
+        Log.d(TAG, "🧪 prepareMessages: обрабатываем ${messages.size} сообщений")
+
+        // ✅ Улучшенные паттерны фильтрации
         val promoPatterns = listOf(
             "^🔹.*",
+            "^🔸.*",
+            "^🔴.*",
+            "^⚡.*",
             "подписаться на.*",
             "подписывайся(те)? на.*",
             "все наши каналы.*",
@@ -79,68 +145,89 @@ class NewsService(
             "^🐚.*",
             "^Фото:.*",
             "^Фото.*",
-            "^Видео.*"
+            "^Видео.*",
+            "^\\[.*\\]$",  // [Фото], [Видео] и т.д.
+            "^\\d{2}:\\d{2}\\s*—\\s*\\[.*\\]$"  // "12:34 — [Стикер]"
         )
 
         val filtered = messages.mapNotNull { original ->
-            Log.v(TAG, "📩 Сообщение до фильтрации: \"$original\"")
+            val trimmed = original.trim()
 
-            if (original.length <= 3) {
-                Log.v(TAG, "⛔ Отфильтровано (короткое): \"$original\"")
+            // ✅ Базовые фильтры
+            when {
+                trimmed.length <= 3 -> {
+                    Log.v(TAG, "⛔ Слишком короткое: \"$trimmed\"")
+                    return@mapNotNull null
+                }
+
+                trimmed.matches(Regex("^https?://.*$")) -> {
+                    Log.v(TAG, "⛔ Только ссылка: \"$trimmed\"")
+                    return@mapNotNull null
+                }
+
+                trimmed.matches(Regex("^[\\p{So}\\p{Sk}\\s]+$")) -> {
+                    Log.v(TAG, "⛔ Только эмодзи/символы: \"$trimmed\"")
+                    return@mapNotNull null
+                }
+
+                trimmed.matches(Regex("^\\d{2}:\\d{2}\\s*—\\s*\\[.*\\]$")) -> {
+                    Log.v(TAG, "⛔ Медиа-заглушка: \"$trimmed\"")
+                    return@mapNotNull null
+                }
+            }
+
+            // ✅ Проверка на промо-паттерны
+            val hasPromoPattern = promoPatterns.any { pattern ->
+                trimmed.matches(Regex(pattern, setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE)))
+            }
+
+            if (hasPromoPattern) {
+                Log.v(TAG, "⛔ Промо-контент: \"$trimmed\"")
                 return@mapNotNull null
             }
 
-            if (original.matches(Regex("^https?://.*$"))) {
-                Log.v(TAG, "⛔ Отфильтровано (ссылка целиком): \"$original\"")
-                return@mapNotNull null
-            }
-
-            if (original.matches(Regex("^[\\p{So}\\s]+$"))) {
-                Log.v(TAG, "⛔ Отфильтровано (только эмодзи или пробелы): \"$original\"")
-                return@mapNotNull null
-            }
-
-            if (original.trim().matches(
-                    Regex("^(фото|видео|аудио|документ|gif|голосовое сообщение)[\\p{P}\\s]*$",
-                        RegexOption.IGNORE_CASE)
-                )) {
-                Log.v(TAG, "⛔ Отфильтровано (медиа-заглушка): \"$original\"")
-                return@mapNotNull null
-            }
-
-            // 🧹 Удаление медиа-префиксов в начале строки (например: "Фото, Видео, ..." → "...")
-            val mediaPrefixPattern = Regex("^(фото|видео|аудио|документ|gif|голосовое сообщение)[\\p{P}\\s]+", RegexOption.IGNORE_CASE)
-            val withoutMediaPrefix = original.trim().replace(mediaPrefixPattern, "").trim()
-
-            // 🔧 Очистка текста
-            var cleaned = withoutMediaPrefix
+            // ✅ Очистка текста
+            var cleaned = trimmed
+                // Удаляем медиа-префиксы
+                .replace(Regex("^\\d{2}:\\d{2}\\s*—\\s*(фото|видео|аудио|документ|gif|голосовое сообщение)[\\p{P}\\s]*", RegexOption.IGNORE_CASE), "")
+                // Нормализуем переносы строк
                 .replace(Regex("\\n{3,}"), "\n\n")
+                // Удаляем ссылки
                 .replace(Regex("https?://\\S+"), "")
+                // Удаляем хештеги и упоминания
                 .replace(Regex("#\\S+"), "")
                 .replace(Regex("@\\S+"), "")
-                .replace(Regex("[\\p{So}&&[^\\p{L}\\p{N}]]"), "") // Удаляет большинство эмодзи
+                // Удаляем избыточные эмодзи (но оставляем основные)
+                .replace(Regex("[🔸🔹🔴⚡🐚]"), "")
                 .trim()
 
-            promoPatterns.forEach { pattern ->
-                cleaned = cleaned.replace(Regex(pattern, setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE)), "")
-            }
-
-            cleaned = cleaned.trim()
-
-            if (cleaned.isBlank()) {
-                Log.v(TAG, "⛔ Отфильтровано (пусто после очистки): \"$original\"")
+            // ✅ Финальная проверка
+            if (cleaned.isBlank() || cleaned.length <= 5) {
+                Log.v(TAG, "⛔ Пустое после очистки: \"$original\" -> \"$cleaned\"")
                 return@mapNotNull null
             }
 
-            return@mapNotNull cleaned
-        }
-            .distinct()
-            .take(50)
+            // ✅ Ограничиваем длину сообщения
+            val finalMessage = if (cleaned.length > 500) {
+                cleaned.take(497) + "..."
+            } else {
+                cleaned
+            }
 
-        Log.d(TAG, "🧪 prepareMessages: после фильтрации ${filtered.size} сообщений")
+            Log.v(TAG, "✅ Сообщение принято: \"${finalMessage.take(50)}...\"")
+            finalMessage
+        }
+            .distinct() // Убираем дубликаты
+            .take(100) // Ограничиваем количество
+
+        Log.d(TAG, "🎯 prepareMessages: итого ${filtered.size} сообщений после фильтрации")
+
+        // ✅ Логируем статистику фильтрации
+        val originalCount = messages.size
+        val filteredCount = filtered.size
+        val filterRate = if (originalCount > 0) ((originalCount - filteredCount) * 100 / originalCount) else 0
+        Log.d(TAG, "📊 Статистика фильтрации: $originalCount -> $filteredCount (отфильтровано $filterRate%)")
+
         return filtered
     }
-
-
-
 }

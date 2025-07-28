@@ -329,63 +329,143 @@ class TelegramClient(private val context: Context) {
         }
     }
 
+    // Добавьте этот улучшенный метод в TelegramClient.kt
+
     suspend fun getChannelMessagesSuspend(
         channelId: Long,
         fromDate: Long
-    ): List<String> = suspendCoroutine { cont ->
+    ): List<String> = suspendCancellableCoroutine { cont ->
+
         if (!isInitialized || client == null) {
             Log.w(TAG, "getChannelMessagesSuspend: клиент не инициализирован")
             cont.resume(emptyList())
-            return@suspendCoroutine
+            return@suspendCancellableCoroutine
         }
 
-        Log.d(TAG, "getChannelMessagesSuspend запущен для канала $channelId")
+        if (!isReady || !isAuthorized) {
+            Log.w(TAG, "getChannelMessagesSuspend: клиент не готов (ready=$isReady, auth=$isAuthorized)")
+            cont.resume(emptyList())
+            return@suspendCancellableCoroutine
+        }
 
-        client?.send(TdApi.GetChatHistory(channelId, 0, 0, 100, false)) { response ->
-            if (response is TdApi.Messages) {
-                Log.d(TAG, "Канал $channelId: получено сообщений от TDLib: ${response.messages.size}")
+        Log.d(TAG, "📡 Запрос истории для канала $channelId (fromDate=$fromDate)")
 
-                val messages = response.messages.mapNotNull { message ->
-                    if (message.date < fromDate) return@mapNotNull null
+        // ✅ УЛУЧШЕНИЕ: Увеличиваем лимит до 200 сообщений
+        client?.send(TdApi.GetChatHistory(channelId, 0, 0, 200, false)) { response ->
+            try {
+                when (response) {
+                    is TdApi.Messages -> {
+                        Log.d(TAG, "📨 Канал $channelId: получено ${response.messages.size} сообщений от TDLib")
 
-                    val time = java.time.Instant.ofEpochSecond(message.date.toLong())
-                        .atZone(java.time.ZoneId.systemDefault())
-                        .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                        val messages = response.messages
+                            .filter { message ->
+                                // ✅ ИСПРАВЛЕНИЕ: добавляем буфер 5 минут (300 секунд)
+                                val bufferTime = 0
+                                val isRecent = message.date >= (fromDate - bufferTime)
+                                if (!isRecent) {
+                                    Log.v(TAG, "⏰ Сообщение слишком старое: ${message.date} < ${fromDate - bufferTime} (с буфером)")
+                                }
+                                isRecent
+                            }
+                            .mapNotNull { message ->
+                                // ✅ Форматируем время
+                                val time = try {
+                                    java.time.Instant.ofEpochSecond(message.date.toLong())
+                                        .atZone(java.time.ZoneId.systemDefault())
+                                        .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "Ошибка форматирования времени для сообщения ${message.id}", e)
+                                    "??:??"
+                                }
 
-                    when (val content = message.content) {
-                        is TdApi.MessageText -> "$time — ${content.text.text.trim()}"
+                                // ✅ Обрабатываем разные типы контента
+                                when (val content = message.content) {
+                                    is TdApi.MessageText -> {
+                                        val text = content.text.text.trim()
+                                        if (text.isNotBlank()) "$time — $text" else null
+                                    }
 
-                        is TdApi.MessagePhoto -> {
-                            val caption = content.caption?.text?.trim()
-                            if (!caption.isNullOrBlank()) "$time — $caption" else "$time — [Фото]"
+                                    is TdApi.MessagePhoto -> {
+                                        val caption = content.caption?.text?.trim()
+                                        if (!caption.isNullOrBlank()) {
+                                            "$time — $caption"
+                                        } else {
+                                            Log.v(TAG, "Пропускаем фото без подписи")
+                                            null
+                                        }
+                                    }
+
+                                    is TdApi.MessageVideo -> {
+                                        val caption = content.caption?.text?.trim()
+                                        if (!caption.isNullOrBlank()) {
+                                            "$time — $caption"
+                                        } else {
+                                            Log.v(TAG, "Пропускаем видео без подписи")
+                                            null
+                                        }
+                                    }
+
+                                    is TdApi.MessageDocument -> {
+                                        val caption = content.caption?.text?.trim()
+                                        if (!caption.isNullOrBlank()) {
+                                            "$time — $caption"
+                                        } else {
+                                            Log.v(TAG, "Пропускаем документ без подписи")
+                                            null
+                                        }
+                                    }
+
+                                    // ✅ Пропускаем медиа без текста
+                                    is TdApi.MessageSticker,
+                                    is TdApi.MessageVoiceNote,
+                                    is TdApi.MessageVideoNote,
+                                    is TdApi.MessageAnimation -> {
+                                        Log.v(TAG, "Пропускаем медиа-сообщение: ${content.javaClass.simpleName}")
+                                        null
+                                    }
+
+                                    else -> {
+                                        Log.v(TAG, "Неизвестный тип сообщения: ${content.javaClass.simpleName}")
+                                        null
+                                    }
+                                }
+                            }
+
+                        Log.d(TAG, "✅ Канал $channelId: после обработки ${messages.size} текстовых сообщений")
+                        if (messages.isNotEmpty()) {
+                            Log.d(TAG, "🔍 Примеры из канала $channelId: ${messages.take(2)}")
                         }
 
-                        is TdApi.MessageVideo -> {
-                            val caption = content.caption?.text?.trim()
-                            if (!caption.isNullOrBlank()) "$time — $caption" else "$time — [Видео]"
+                        if (cont.isActive) {
+                            cont.resume(messages)
                         }
+                    }
 
-                        is TdApi.MessageSticker -> "$time — [Стикер]"
-
-                        is TdApi.MessageVoiceNote -> "$time — [Голосовое сообщение]"
-
-                        is TdApi.MessageDocument -> {
-                            val caption = content.caption?.text?.trim()
-                            if (!caption.isNullOrBlank()) "$time — $caption" else "$time — [Документ]"
+                    is TdApi.Error -> {
+                        Log.e(TAG, "❌ Ошибка получения истории канала $channelId: ${response.message}")
+                        if (cont.isActive) {
+                            cont.resume(emptyList())
                         }
+                    }
 
-                        else -> "$time — [${content.javaClass.simpleName}]"
+                    else -> {
+                        Log.w(TAG, "⚠️ Канал $channelId: неожиданный ответ ${response?.javaClass?.simpleName}")
+                        if (cont.isActive) {
+                            cont.resume(emptyList())
+                        }
                     }
                 }
-
-                Log.d(TAG, "Канал $channelId: после фильтрации типов: ${messages.size}")
-                Log.d(TAG, "Канал $channelId: примеры: ${messages.take(3)}")
-
-                cont.resume(messages)
-            } else {
-                Log.w(TAG, "Канал $channelId: TDLib вернул не Messages, а ${response?.javaClass?.simpleName}")
-                cont.resume(emptyList())
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Исключение при обработке ответа для канала $channelId", e)
+                if (cont.isActive) {
+                    cont.resume(emptyList())
+                }
             }
+        }
+
+        // ✅ Обработка отмены корутины
+        cont.invokeOnCancellation {
+            Log.d(TAG, "🚫 Запрос для канала $channelId отменен")
         }
     }
 
