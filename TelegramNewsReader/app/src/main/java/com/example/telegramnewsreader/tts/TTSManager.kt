@@ -160,6 +160,60 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         tts?.setSpeechRate(rate)
         Log.d("TTSManager", "⏩ Скорость речи обновлена: $rate")
     }
+    private fun numberToOrdinalRu(number: Int): String {
+        return when (number) {
+            1 -> "первого"
+            2 -> "второго"
+            3 -> "третьего"
+            4 -> "четвёртого"
+            5 -> "пятого"
+            6 -> "шестого"
+            7 -> "седьмого"
+            8 -> "восьмого"
+            9 -> "девятого"
+            10 -> "десятого"
+            11 -> "одиннадцатого"
+            12 -> "двенадцатого"
+            13 -> "тринадцатого"
+            14 -> "четырнадцатого"
+            15 -> "пятнадцатого"
+            16 -> "шестнадцатого"
+            17 -> "семнадцатого"
+            18 -> "восемнадцатого"
+            19 -> "девятнадцатого"
+            20 -> "двадцатого"
+            21 -> "двадцать первого"
+            22 -> "двадцать второго"
+            23 -> "двадцать третьего"
+            24 -> "двадцать четвёртого"
+            25 -> "двадцать пятого"
+            26 -> "двадцать шестого"
+            27 -> "двадцать седьмого"
+            28 -> "двадцать восьмого"
+            29 -> "двадцать девятого"
+            30 -> "тридцатого"
+            31 -> "тридцать первого"
+            else -> number.toString()
+        }
+    }
+
+    private fun formatForIntonation(text: String): String {
+        val dateRegex = Regex("\\b(\\d{1,2})\\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\\b")
+        val withDatesConverted = dateRegex.replace(text) { match ->
+            val day = match.groupValues[1].toIntOrNull() ?: return@replace match.value
+            val month = match.groupValues[2]
+            "${numberToOrdinalRu(day)} $month"
+        }
+
+        return withDatesConverted
+            .replace("([а-яА-Я]{2,})([.!?])\\s+".toRegex(), "$1$2\n\n") // разбивка на абзацы по точке/воскл/вопросу
+            .replace("([а-яА-Я]{2,}):".toRegex(), "Цитата:") // Путин: → Цитата:
+            .replace(Regex(" - "), " — ") // тире с паузой
+            .replace(Regex("\\.\\.\\."), "…") // нормализуем ...
+            .replace(Regex(", "), ", ") // нормализуем запятые
+            .trim()
+    }
+
 
     // 🔥 Обновленный метод - всегда применяет актуальный сохраненный голос
     suspend fun convertToAudio(texts: List<String>): File? {
@@ -173,13 +227,16 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         return suspendCancellableCoroutine { continuation ->
             val combinedText = texts.joinToString(" ")
-            val words = combinedText.split(Regex("\\s+"))
+            val formattedText = formatForIntonation(combinedText)
+            val words = formattedText.split(Regex("\\s+"))
+
             val limitedText = if (words.size > 4500) {
                 Log.w("TTSManager", "Text too long (${words.size} words), truncating to 4500 words.")
                 words.take(4500).joinToString(" ")
             } else {
-                combinedText
+                formattedText
             }
+
 
             if (limitedText.isBlank()) {
                 Log.w("TTSManager", "Cannot synthesize empty text.")

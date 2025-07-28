@@ -90,7 +90,7 @@ class SettingsActivity : AppCompatActivity() {
 
                         // Применяем голос для тестирования
                         ttsManager.setVoiceByName(voice.name)
-                        ttsManager.speak("Это тестовое сообщение этим голосом.")
+                        ttsManager.speak("Пример сообщения этим голосом.")
 
                         // 🔥 ВОССТАНАВЛИВАЕМ: Возвращаем ранее выбранный голос после тестирования
                         lifecycleScope.launch {
