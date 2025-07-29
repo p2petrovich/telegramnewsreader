@@ -350,8 +350,8 @@ class TelegramClient(private val context: Context) {
 
         Log.d(TAG, "📡 Запрос истории для канала $channelId (fromDate=$fromDate)")
 
-        // ✅ УЛУЧШЕНИЕ: Увеличиваем лимит до 200 сообщений
-        client?.send(TdApi.GetChatHistory(channelId, 0, 0, 200, false)) { response ->
+        // ✅ УЛУЧШЕНИЕ: Увеличиваем лимит до 1000 сообщений
+        client?.send(TdApi.GetChatHistory(channelId, 0, 0, 1000, false)) { response ->
             try {
                 when (response) {
                     is TdApi.Messages -> {
@@ -467,6 +467,89 @@ class TelegramClient(private val context: Context) {
         cont.invokeOnCancellation {
             Log.d(TAG, "🚫 Запрос для канала $channelId отменен")
         }
+    }
+    suspend fun getChannelMessagesPaginated(
+        channelId: Long,
+        fromDate: Long,
+        maxMessages: Int = 3000
+    ): List<String> = suspendCancellableCoroutine { cont ->
+
+        val collectedMessages = mutableListOf<String>()
+        var lastMessageId = 0L
+        var loadedTotal = 0
+        var isDone = false
+
+        fun loadNextPage() {
+            if (!isInitialized || !isAuthorized || client == null) {
+                Log.e(TAG, "❌ TelegramClient не готов")
+                cont.resume(emptyList())
+                return
+            }
+
+            val request = TdApi.GetChatHistory(channelId, lastMessageId, 0, 100, false)
+
+            client?.send(request) { response ->
+                when (response) {
+                    is TdApi.Messages -> {
+                        val messages = response.messages
+                        if (messages.isEmpty()) {
+                            Log.d(TAG, "📭 Больше сообщений нет")
+                            cont.resume(collectedMessages)
+                            return@send
+                        }
+
+                        Log.d(TAG, "📨 Получено ${messages.size} сообщений")
+
+                        for (msg in messages) {
+                            if (msg.date < fromDate) {
+                                Log.d(TAG, "⏹ Достигнут fromDate: ${msg.date} < $fromDate")
+                                isDone = true
+                                break
+                            }
+
+                            val time = java.time.Instant.ofEpochSecond(msg.date.toLong())
+                                .atZone(java.time.ZoneId.systemDefault())
+                                .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+
+                            val content = msg.content
+                            val text = when (content) {
+                                is TdApi.MessageText -> content.text.text.trim()
+                                is TdApi.MessagePhoto -> content.caption?.text?.trim()
+                                is TdApi.MessageVideo -> content.caption?.text?.trim()
+                                is TdApi.MessageDocument -> content.caption?.text?.trim()
+                                else -> null
+                            }
+
+                            if (!text.isNullOrBlank()) {
+                                collectedMessages.add("$time — $text")
+                            }
+                        }
+
+                        loadedTotal += messages.size
+                        lastMessageId = messages.last().id
+
+                        if (isDone || loadedTotal >= maxMessages) {
+                            Log.d(TAG, "✅ Завершено: собрано ${collectedMessages.size} сообщений")
+                            cont.resume(collectedMessages)
+                        } else {
+                            loadNextPage()
+                        }
+                    }
+
+                    is TdApi.Error -> {
+                        Log.e(TAG, "❌ Ошибка TDLib: ${response.message}")
+                        cont.resume(collectedMessages)
+                    }
+
+                    else -> {
+                        Log.w(TAG, "⚠️ Неожиданный ответ: ${response?.javaClass?.simpleName}")
+                        cont.resume(collectedMessages)
+                    }
+                }
+            }
+        }
+
+        loadNextPage()
     }
 
 

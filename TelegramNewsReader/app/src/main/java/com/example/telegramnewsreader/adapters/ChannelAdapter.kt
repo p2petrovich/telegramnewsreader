@@ -14,9 +14,10 @@ class ChannelAdapter(
 
     fun updateChannels(newChannels: List<Channel>) {
         channels.clear()
-        channels.addAll(newChannels)
+        channels.addAll(newChannels.sortedBy { it.title.lowercase() }) // ⬅️ сортировка по имени
         notifyDataSetChanged()
     }
+
 
     fun getSelectedChannels(): List<Channel> = channels.filter { it.isSelected }
 

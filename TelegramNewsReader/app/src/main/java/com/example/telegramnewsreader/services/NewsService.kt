@@ -102,7 +102,8 @@ class NewsService(
             withTimeout(CHANNEL_TIMEOUT_MS) {
                 Log.d(TAG, "📡 Загружаем сообщения из '${channel.title}' (ID: ${channel.id})")
 
-                val messages = telegramClient.getChannelMessagesSuspend(channel.id, fromDate)
+                val messages = telegramClient.getChannelMessagesPaginated(channel.id, fromDate)
+
 
                 // ✅ ИСПРАВЛЕНИЕ: Однократное присвоение newMessagesCount
                 channel.newMessagesCount = messages.size
