@@ -230,12 +230,22 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             val formattedText = formatForIntonation(combinedText)
             val words = formattedText.split(Regex("\\s+"))
 
+            // 🔽 Ограничение по количеству слов (4500)
             val limitedText = if (words.size > 4500) {
                 Log.w("TTSManager", "Text too long (${words.size} words), truncating to 4500 words.")
                 words.take(4500).joinToString(" ")
             } else {
                 formattedText
             }
+
+// 🔽 Дополнительная защита по количеству символов (TTS падает на >4000-5000)
+            val safeText = if (limitedText.length > 3000) {
+                Log.w("TTSManager", "⚠️ Text too long (${limitedText.length} symbols), truncating to 3000 characters.")
+                limitedText.take(3000) + "..."
+            } else {
+                limitedText
+            }
+
 
 
             if (limitedText.isBlank()) {
@@ -302,7 +312,8 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             tts?.setOnUtteranceProgressListener(listener)
 
             Log.d("TTSManager", "Starting TTS synthesis to file: ${tempWavFile.absolutePath}")
-            val result = tts?.synthesizeToFile(limitedText, params, tempWavFile, utteranceId)
+            val result = tts?.synthesizeToFile(safeText, params, tempWavFile, utteranceId)
+
 
             if (result == TextToSpeech.ERROR) {
                 Log.e("TTSManager", "tts.synthesizeToFile immediately returned ERROR for $utteranceId.")

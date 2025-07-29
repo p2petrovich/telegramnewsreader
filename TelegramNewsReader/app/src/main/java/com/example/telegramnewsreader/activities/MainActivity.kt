@@ -46,9 +46,10 @@ class MainActivity : AppCompatActivity() {
         "Последний час",
         "Последние 2 часа",
         "Последние 4 часа",
-        "Последние 8 часов"
+        "Последние 8 часов",
+        "Последние 15 часов"
     )
-    private val timeValues = arrayOf(0.083, 0.166, 0.5, 1.0, 2.0, 4.0, 8.0)
+    private val timeValues = arrayOf(0.083, 0.166, 0.5, 1.0, 2.0, 4.0, 8.0, 15.0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -223,6 +224,25 @@ class MainActivity : AppCompatActivity() {
                         val totalMessages = selectedChannels.sumOf { it.newMessagesCount }
                         updateStatus("Готово! Обработано сообщений: $totalMessages")
                         Log.d("MainActivity", "✅ Аудио создано: ${audioFile.length()} байт, сообщений: $totalMessages")
+                        // ✅ Получаем длительность .mp3 (в миллисекундах)
+                        val durationMin = try {
+                            val player = MediaPlayer().apply {
+                                setDataSource(audioFile.absolutePath)
+                                prepare()
+                            }
+                            val durationMs = player.duration
+                            player.release()
+                            durationMs / 1000 / 60 // переводим в минуты
+                        } catch (e: Exception) {
+                            Log.w("MainActivity", "Не удалось определить длительность аудио", e)
+                            null
+                        }
+
+// ✅ Добавляем длительность в статус (если доступна)
+                        durationMin?.let {
+                            updateStatus("Готово! Обработано сообщений: $totalMessages\n⏱ Примерная длительность: ~${it} минут")
+                        }
+
 
                         channelAdapter.notifyDataSetChanged()
                         showPlayerControls()
