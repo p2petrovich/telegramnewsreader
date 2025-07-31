@@ -228,6 +228,20 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         return suspendCancellableCoroutine { continuation ->
             val combinedText = texts.joinToString(" ")
             val formattedText = formatForIntonation(combinedText)
+            val utteranceId = "ttsAudioConversion_${System.currentTimeMillis()}"
+
+
+
+
+            // 💾 Сохраняем полный (необрезанный) текст для анализа
+            val rawTextFile = File(context.cacheDir, "${utteranceId}_full.txt")
+            try {
+                rawTextFile.writeText(formattedText)
+                Log.d("TTSManager", "📄 Сохранили полный исходный текст в ${rawTextFile.absolutePath}")
+            } catch (e: Exception) {
+                Log.e("TTSManager", "❌ Ошибка при сохранении полного текста", e)
+            }
+
             val words = formattedText.split(Regex("\\s+"))
 
             // 🔽 Ограничение по количеству слов (4500)
@@ -239,9 +253,9 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             }
 
 // 🔽 Дополнительная защита по количеству символов (TTS падает на >4000-5000)
-            val safeText = if (limitedText.length > 3000) {
+            val safeText = if (limitedText.length > 3500) {
                 Log.w("TTSManager", "⚠️ Text too long (${limitedText.length} symbols), truncating to 3000 characters.")
-                limitedText.take(3000) + "..."
+                limitedText.take(3500) + "..."
             } else {
                 limitedText
             }
@@ -254,7 +268,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 return@suspendCancellableCoroutine
             }
 
-            val utteranceId = "ttsAudioConversion_${System.currentTimeMillis()}"
+                // val utteranceId = "ttsAudioConversion_${System.currentTimeMillis()}"
             val tempWavFile = File(context.cacheDir, "${utteranceId}.wav")
             val params = Bundle().apply {
                 putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
@@ -310,6 +324,16 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 }
             }
             tts?.setOnUtteranceProgressListener(listener)
+
+            // 💾 Сохраняем текст в .txt рядом с .mp3 для проверки
+            val textFile = File(context.cacheDir, "${utteranceId}.txt")
+            try {
+                textFile.writeText(safeText)
+                Log.d("TTSManager", "💾 Сохранили текст для TTS в ${textFile.absolutePath}")
+            } catch (e: Exception) {
+                Log.e("TTSManager", "❌ Ошибка при сохранении текста в файл", e)
+            }
+
 
             Log.d("TTSManager", "Starting TTS synthesis to file: ${tempWavFile.absolutePath}")
             val result = tts?.synthesizeToFile(safeText, params, tempWavFile, utteranceId)
