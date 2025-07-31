@@ -14,7 +14,7 @@ class NewsService(
     companion object {
         private const val TAG = "NewsService"
         private const val CHANNEL_TIMEOUT_MS = 15000L // 15 секунд на канал
-        private const val TOTAL_TIMEOUT_MS = 60000L   // 1 минута общий таймаут
+        private const val TOTAL_TIMEOUT_MS = 120000L   // 2 минута общий таймаут
     }
 
     suspend fun collectAndProcessNews(
@@ -209,8 +209,8 @@ class NewsService(
             }
 
             // ✅ Ограничиваем длину сообщения
-            val finalMessage = if (cleaned.length > 500) {
-                cleaned.take(497) + "..."
+            val finalMessage = if (cleaned.length > 5000) {
+                cleaned.take(4970) + "..."
             } else {
                 cleaned
             }

@@ -386,7 +386,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
 
         // 🔪 Разбиваем текст на части по 2800 символов
-        val textParts = splitTextSafely(formattedText, 3500)
+        val textParts = splitTextSafely(formattedText, 2800)
         Log.d("TTSManager", "📝 Разбили текст на ${textParts.size} частей (исходный размер: ${formattedText.length} символов)")
 
         // 🎤 Генерируем WAV файлы для каждой части последовательно
