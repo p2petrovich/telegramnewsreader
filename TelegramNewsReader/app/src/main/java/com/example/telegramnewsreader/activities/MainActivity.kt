@@ -34,10 +34,7 @@ class MainActivity : AppCompatActivity() {
     private var mediaPlayer: MediaPlayer? = null
     private var currentAudioFile: File? = null
 
-    // Для отслеживания изменения голоса
     private var lastUsedVoice: String? = null
-
-    // 🔥 НОВОЕ: флаг готовности клиента
     private var isClientReady = false
 
     private val timePeriods = arrayOf(
@@ -91,7 +88,6 @@ class MainActivity : AppCompatActivity() {
         binding.recyclerChannels.adapter = channelAdapter
     }
 
-    // 🔥 НОВЫЙ МЕТОД: правильная инициализация клиента
     private fun initializeTelegramClient() {
         telegramClient.onClientReady = {
             Log.d("MainActivity", "=== CLIENT READY === TelegramClient готов")
@@ -102,7 +98,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Проверяем текущее состояние
         if (telegramClient.checkAuthState()) {
             Log.d("MainActivity", "=== CLIENT READY === Клиент уже готов")
             isClientReady = true
@@ -131,7 +126,6 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
 
-        // Кнопка управления скрытыми каналами (есть в layout)
         findViewById<View?>(R.id.btn_manage_hidden)?.setOnClickListener {
             showHiddenManager()
         }
@@ -149,7 +143,6 @@ class MainActivity : AppCompatActivity() {
             finish()
         }
 
-        // Изначально кнопка сбора отключена
         binding.btnCollectNews.isEnabled = false
 
         try {
@@ -174,7 +167,6 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 binding.progressBar.visibility = View.GONE
                 if (channels.isNotEmpty()) {
-                    // Фильтруем скрытые
                     val hiddenUsernames = PreferenceManager.getHiddenUsernames(this)
                     val hiddenIds = PreferenceManager.getHiddenIds(this)
                     val filtered = channels.filterNot { ch ->
@@ -188,7 +180,6 @@ class MainActivity : AppCompatActivity() {
                     Log.d("MainActivity", "Загружено каналов: ${filtered.size}")
                 } else {
                     updateStatus("Каналы не найдены")
-                    // Тестовые каналы для отладки
                     val testChannels = listOf(
                         Channel(id = 1, accessHash = 0, title = "Test Channel 1", username = "", isSelected = false),
                         Channel(id = 2, accessHash = 0, title = "Test Channel 2", username = "", isSelected = false)
@@ -202,7 +193,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun collectNews() {
-        // 🔥 КРИТИЧЕСКАЯ ПРОВЕРКА: готовность клиента
         if (!isClientReady || !telegramClient.checkAuthState()) {
             Toast.makeText(this, "Telegram клиент не готов. Попробуйте позже.", Toast.LENGTH_LONG).show()
             Log.e("MainActivity", "Попытка сбора новостей с неготовым клиентом")
@@ -218,7 +208,6 @@ class MainActivity : AppCompatActivity() {
         val timeHours = timeValues[binding.spinnerTime.selectedItemPosition]
         Log.d("MainActivity", "🔍 Начинаем сбор новостей: каналов=${selectedChannels.size}, период=${timeHours}ч")
 
-        // Сброс состояния перед сбором
         resetCollectionState()
 
         binding.progressBar.visibility = View.VISIBLE
@@ -244,7 +233,6 @@ class MainActivity : AppCompatActivity() {
                         val totalMessages = selectedChannels.sumOf { it.newMessagesCount }
                         updateStatus("Готово! Обработано сообщений: $totalMessages")
                         Log.d("MainActivity", "✅ Аудио создано: ${audioFile.length()} байт, сообщений: $totalMessages")
-                        // ✅ Получаем длительность .mp3 (в миллисекундах)
                         val durationMin = try {
                             val player = MediaPlayer().apply {
                                 setDataSource(audioFile.absolutePath)
@@ -252,7 +240,7 @@ class MainActivity : AppCompatActivity() {
                             }
                             val durationMs = player.duration
                             player.release()
-                            durationMs / 1000 / 60 // переводим в минуты
+                            durationMs / 1000 / 60
                         } catch (e: Exception) {
                             Log.w("MainActivity", "Не удалось определить длительность аудио", e)
                             null
@@ -285,7 +273,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // 🔥 НОВЫЙ МЕТОД: сброс состояния перед сбором
     private fun resetCollectionState() {
         currentAudioFile?.delete()
         currentAudioFile = null
@@ -299,7 +286,6 @@ class MainActivity : AppCompatActivity() {
             binding.btnStop.visibility = View.GONE
         }
 
-        // Сбрасываем счетчики сообщений
         channelAdapter.getAllChannels().forEach { it.newMessagesCount = 0 }
         channelAdapter.notifyDataSetChanged()
     }
@@ -316,9 +302,7 @@ class MainActivity : AppCompatActivity() {
                     mediaPlayer = MediaPlayer().apply {
                         setDataSource(file.absolutePath)
                         prepare()
-                        setOnCompletionListener {
-                            resetPlayerButtons()
-                        }
+                        setOnCompletionListener { resetPlayerButtons() }
                         setOnErrorListener { _, what, extra ->
                             Log.e("MainActivity", "MediaPlayer error: what=$what, extra=$extra")
                             Toast.makeText(this@MainActivity, "Ошибка воспроизведения", Toast.LENGTH_SHORT).show()
@@ -350,9 +334,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopAudio() {
         mediaPlayer?.let {
-            if (it.isPlaying) {
-                it.stop()
-            }
+            if (it.isPlaying) it.stop()
             it.release()
         }
         mediaPlayer = null
@@ -420,10 +402,8 @@ class MainActivity : AppCompatActivity() {
         if (::ttsManager.isInitialized) {
             val currentVoice = PreferenceManager.getTtsVoiceName(this)
 
-            // Проверяем изменение голоса
             if (lastUsedVoice != null && lastUsedVoice != currentVoice && currentAudioFile != null) {
                 Log.d("MainActivity", "🔄 Голос изменился с '$lastUsedVoice' на '$currentVoice'")
-
                 stopAudio()
                 currentAudioFile?.delete()
                 currentAudioFile = null
@@ -458,7 +438,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Диалог подтверждения скрытия
     private fun confirmHideChannel(channel: Channel) {
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Скрыть канал")
@@ -468,7 +447,6 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // Скрытие канала и сохранение в Preferences
     private fun hideChannel(channel: Channel) {
         val hiddenUsernames = PreferenceManager.getHiddenUsernames(this)
         val hiddenIds = PreferenceManager.getHiddenIds(this)
@@ -479,6 +457,8 @@ class MainActivity : AppCompatActivity() {
         } else {
             hiddenIds.add(channel.id.toString())
             PreferenceManager.saveHiddenIds(this, hiddenIds)
+            // Сохраняем читабельное имя для показа в менеджере скрытых
+            PreferenceManager.saveHiddenTitleForId(this, channel.id, channel.title)
         }
 
         val current = channelAdapter.getAllChannels()
@@ -488,14 +468,27 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, "Канал скрыт", Toast.LENGTH_SHORT).show()
     }
 
-    // Менеджер скрытых каналов (диалог восстановления)
     private fun showHiddenManager() {
         val hiddenUsernames = PreferenceManager.getHiddenUsernames(this)
         val hiddenIds = PreferenceManager.getHiddenIds(this)
 
         val items = mutableListOf<String>()
-        items.addAll(hiddenUsernames.map { "username: $it" })
-        items.addAll(hiddenIds.map { "id: $it" })
+        val meta = mutableListOf<Pair<String, String>>() // ("u"|"i", key)
+
+        // username: показываем @username; можно расширить до "Title (@username)" при желании
+        hiddenUsernames.forEach { u ->
+            items.add("@$u")
+            meta.add("u" to u)
+        }
+
+        // id: вытаскиваем сохраненный title; если нет — показываем просто id
+        hiddenIds.forEach { idStr ->
+            val id = idStr.toLongOrNull()
+            val title = id?.let { PreferenceManager.getHiddenTitleForId(this, it) }
+            val label = if (!title.isNullOrBlank()) "$title (id: $idStr)" else "Канал (id: $idStr)"
+            items.add(label)
+            meta.add("i" to idStr)
+        }
 
         if (items.isEmpty()) {
             Toast.makeText(this, "Скрытых каналов нет", Toast.LENGTH_SHORT).show()
@@ -512,16 +505,10 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("Вернуть выбранные") { _, _ ->
                 val toRestoreUsernames = mutableSetOf<String>()
                 val toRestoreIds = mutableSetOf<String>()
-                items.forEachIndexed { index, label ->
+
+                meta.forEachIndexed { index, (type, key) ->
                     if (checked[index]) {
-                        when {
-                            label.startsWith("username: ") -> {
-                                toRestoreUsernames.add(label.removePrefix("username: ").trim())
-                            }
-                            label.startsWith("id: ") -> {
-                                toRestoreIds.add(label.removePrefix("id: ").trim())
-                            }
-                        }
+                        if (type == "u") toRestoreUsernames.add(key) else toRestoreIds.add(key)
                     }
                 }
 

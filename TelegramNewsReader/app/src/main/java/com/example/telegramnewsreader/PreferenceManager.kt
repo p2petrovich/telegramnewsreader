@@ -19,6 +19,9 @@ object PreferenceManager {
     private const val KEY_HIDDEN_USERNAMES = "hidden_usernames"
     private const val KEY_HIDDEN_IDS = "hidden_ids"
 
+    // Кеш названий скрытых каналов по id
+    private const val KEY_HIDDEN_TITLES = "hidden_id_title_map"
+
     private fun getPreferences(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
@@ -113,6 +116,39 @@ object PreferenceManager {
 
     fun saveHiddenIds(context: Context, set: Set<String>) {
         getPreferences(context).edit().putStringSet(KEY_HIDDEN_IDS, set).apply()
+    }
+
+    // Кеш названий скрытых каналов по id
+    fun saveHiddenTitleForId(context: Context, id: Long, title: String) {
+        val map = getHiddenIdTitleMap(context).toMutableMap()
+        map[id] = title
+        saveHiddenIdTitleMap(context, map)
+    }
+
+    fun getHiddenTitleForId(context: Context, id: Long): String? {
+        return getHiddenIdTitleMap(context)[id]
+    }
+
+    private fun getHiddenIdTitleMap(context: Context): Map<Long, String> {
+        val raw = getPreferences(context).getString(KEY_HIDDEN_TITLES, null) ?: return emptyMap()
+        return try {
+            // простой сериализатор "id:title|||id2:title2"
+            raw.split("|||").mapNotNull { pair ->
+                val idx = pair.indexOf(':')
+                if (idx <= 0) null else {
+                    val id = pair.substring(0, idx).toLongOrNull() ?: return@mapNotNull null
+                    val title = pair.substring(idx + 1)
+                    id to title
+                }
+            }.toMap()
+        } catch (_: Exception) {
+            emptyMap()
+        }
+    }
+
+    private fun saveHiddenIdTitleMap(context: Context, map: Map<Long, String>) {
+        val raw = map.entries.joinToString("|||") { "${it.key}:${it.value}" }
+        getPreferences(context).edit().putString(KEY_HIDDEN_TITLES, raw).apply()
     }
 
     fun clearAll(context: Context) {
