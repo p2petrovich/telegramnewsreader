@@ -19,6 +19,7 @@ id btn_collect
 id btn_collect_news
 id btn_delete_favorite
 id btn_edit_filters
+id btn_manage_hidden
 id btn_open_settings
 id btn_pause
 id btn_play

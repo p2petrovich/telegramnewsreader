@@ -10,6 +10,15 @@ object PreferenceManager {
     private const val KEY_API_ID = "api_id"
     private const val KEY_API_HASH = "api_hash"
 
+
+    private const val KEY_TTS_VOICE_NAME = "tts_voice_name"
+    private const val KEY_TTS_PITCH = "tts_pitch"
+    private const val KEY_TTS_RATE = "tts_rate"
+
+    // Новые ключи для скрытых каналов
+    private const val KEY_HIDDEN_USERNAMES = "hidden_usernames"
+    private const val KEY_HIDDEN_IDS = "hidden_ids"
+
     private fun getPreferences(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
@@ -49,14 +58,12 @@ object PreferenceManager {
         return getPreferences(context).getString(KEY_API_HASH, null)
     }
 
-    // ✅ Добавлено: быстрый сброс авторизации (без очистки остального)
     fun resetAuthorization(context: Context) {
         getPreferences(context).edit()
             .putBoolean(KEY_IS_AUTHORIZED, false)
             .remove(KEY_PHONE_NUMBER)
             .apply()
     }
-    private const val KEY_TTS_VOICE_NAME = "tts_voice_name"
 
     fun saveTtsVoiceName(context: Context, voiceName: String) {
         getPreferences(context).edit()
@@ -68,9 +75,6 @@ object PreferenceManager {
         return getPreferences(context).getString(KEY_TTS_VOICE_NAME, null)
     }
 
-    private const val KEY_TTS_PITCH = "tts_pitch"
-    private const val KEY_TTS_RATE = "tts_rate"
-
     fun saveTtsPitch(context: Context, pitch: Float) {
         getPreferences(context).edit()
             .putFloat(KEY_TTS_PITCH, pitch)
@@ -78,7 +82,7 @@ object PreferenceManager {
     }
 
     fun getTtsPitch(context: Context): Float {
-        return getPreferences(context).getFloat(KEY_TTS_PITCH, 1.0f) // значение по умолчанию
+        return getPreferences(context).getFloat(KEY_TTS_PITCH, 1.0f)
     }
 
     fun saveTtsRate(context: Context, rate: Float) {
@@ -88,9 +92,28 @@ object PreferenceManager {
     }
 
     fun getTtsRate(context: Context): Float {
-        return getPreferences(context).getFloat(KEY_TTS_RATE, 1.0f) // значение по умолчанию
+        return getPreferences(context).getFloat(KEY_TTS_RATE, 1.0f)
     }
 
+    // Хранилище скрытых каналов (username)
+    fun getHiddenUsernames(context: Context): MutableSet<String> {
+        return getPreferences(context).getStringSet(KEY_HIDDEN_USERNAMES, emptySet())?.toMutableSet()
+            ?: mutableSetOf()
+    }
+
+    fun saveHiddenUsernames(context: Context, set: Set<String>) {
+        getPreferences(context).edit().putStringSet(KEY_HIDDEN_USERNAMES, set).apply()
+    }
+
+    // Хранилище скрытых каналов (id как строка)
+    fun getHiddenIds(context: Context): MutableSet<String> {
+        return getPreferences(context).getStringSet(KEY_HIDDEN_IDS, emptySet())?.toMutableSet()
+            ?: mutableSetOf()
+    }
+
+    fun saveHiddenIds(context: Context, set: Set<String>) {
+        getPreferences(context).edit().putStringSet(KEY_HIDDEN_IDS, set).apply()
+    }
 
     fun clearAll(context: Context) {
         getPreferences(context).edit().clear().apply()

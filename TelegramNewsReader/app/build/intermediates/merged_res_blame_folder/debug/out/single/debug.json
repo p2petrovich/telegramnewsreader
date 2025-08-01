@@ -1,86 +1,90 @@
 [
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/layout_activity_player.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/layout/activity_player.xml"
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\layout_item_voice.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\layout\\item_voice.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/anim_fade_in.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/anim/fade_in.xml"
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\drawable_ic_launcher_background.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\drawable\\ic_launcher_background.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/xml_news_widget_info.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/xml/news_widget_info.xml"
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\layout_activity_favorites.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\layout\\activity_favorites.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/xml_data_extraction_rules.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/xml/data_extraction_rules.xml"
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\drawable_ic_channel_placeholder.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\drawable\\ic_channel_placeholder.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/layout_item_voice.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/layout/item_voice.xml"
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\layout_item_channel.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\layout\\item_channel.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/layout_activity_favorites.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/layout/activity_favorites.xml"
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\layout_activity_auth.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\layout\\activity_auth.xml"
+    },
+    {
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\drawable_widget_preview.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\drawable\\widget_preview.xml"
     },
     {
         "merged": "com.example.telegramnewsreader.app-merged_res-4:/layout_activity_main.xml.flat",
         "source": "com.example.telegramnewsreader.app-main-6:/layout/activity_main.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/layout_widget_loading.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/layout/widget_loading.xml"
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\anim_fade_in.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\anim\\fade_in.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/drawable_ic_channel_placeholder.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/drawable/ic_channel_placeholder.xml"
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\layout_activity_main.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\layout\\activity_main.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/layout_activity_auth.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/layout/activity_auth.xml"
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\mipmap-anydpi-v26\\ic_launcher.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/drawable_widget_preview.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/drawable/widget_preview.xml"
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\drawable_ic_launcher_foreground.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\drawable\\ic_launcher_foreground.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/mipmap-anydpi-v26/ic_launcher_round.xml"
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\layout_widget_loading.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\layout\\widget_loading.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/layout_activity_category_selection.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/layout/activity_category_selection.xml"
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\xml_news_widget_info.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\xml\\news_widget_info.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/layout_activity_preview.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/layout/activity_preview.xml"
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\anim_fade_out.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\anim\\fade_out.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/xml_backup_rules.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/xml/backup_rules.xml"
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\layout_activity_category_selection.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\layout\\activity_category_selection.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/mipmap-anydpi-v26_ic_launcher.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/mipmap-anydpi-v26/ic_launcher.xml"
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\xml_backup_rules.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\xml\\backup_rules.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/drawable_ic_launcher_background.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/drawable/ic_launcher_background.xml"
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\layout_activity_player.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\layout\\activity_player.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/anim_fade_out.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/anim/fade_out.xml"
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\mipmap-anydpi-v26\\ic_launcher_round.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/layout_activity_settings.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/layout/activity_settings.xml"
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\layout_activity_settings.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\layout\\activity_settings.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/drawable_ic_launcher_foreground.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/drawable/ic_launcher_foreground.xml"
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\layout_activity_preview.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\layout\\activity_preview.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/layout_item_channel.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/layout/item_channel.xml"
+        "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\xml_data_extraction_rules.xml.flat",
+        "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\xml\\data_extraction_rules.xml"
     }
 ]

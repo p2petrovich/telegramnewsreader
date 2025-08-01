@@ -28,6 +28,9 @@ public final class ActivityMainBinding implements ViewBinding {
   public final Button btnCollectNews;
 
   @NonNull
+  public final Button btnManageHidden;
+
+  @NonNull
   public final Button btnOpenSettings;
 
   @NonNull
@@ -64,13 +67,15 @@ public final class ActivityMainBinding implements ViewBinding {
   public final TextView tvTimePeriod;
 
   private ActivityMainBinding(@NonNull ScrollView rootView, @NonNull Button btnCollectNews,
-      @NonNull Button btnOpenSettings, @NonNull Button btnPause, @NonNull Button btnPlay,
-      @NonNull Button btnResetAuth, @NonNull Button btnStop, @NonNull LinearLayout llPlayer,
-      @NonNull ProgressBar progressBar, @NonNull RecyclerView recyclerChannels,
-      @NonNull Spinner spinnerTime, @NonNull TextView tvSelectChannels, @NonNull TextView tvStatus,
+      @NonNull Button btnManageHidden, @NonNull Button btnOpenSettings, @NonNull Button btnPause,
+      @NonNull Button btnPlay, @NonNull Button btnResetAuth, @NonNull Button btnStop,
+      @NonNull LinearLayout llPlayer, @NonNull ProgressBar progressBar,
+      @NonNull RecyclerView recyclerChannels, @NonNull Spinner spinnerTime,
+      @NonNull TextView tvSelectChannels, @NonNull TextView tvStatus,
       @NonNull TextView tvTimePeriod) {
     this.rootView = rootView;
     this.btnCollectNews = btnCollectNews;
+    this.btnManageHidden = btnManageHidden;
     this.btnOpenSettings = btnOpenSettings;
     this.btnPause = btnPause;
     this.btnPlay = btnPlay;
@@ -115,6 +120,12 @@ public final class ActivityMainBinding implements ViewBinding {
       id = R.id.btn_collect_news;
       Button btnCollectNews = ViewBindings.findChildViewById(rootView, id);
       if (btnCollectNews == null) {
+        break missingId;
+      }
+
+      id = R.id.btn_manage_hidden;
+      Button btnManageHidden = ViewBindings.findChildViewById(rootView, id);
+      if (btnManageHidden == null) {
         break missingId;
       }
 
@@ -190,9 +201,9 @@ public final class ActivityMainBinding implements ViewBinding {
         break missingId;
       }
 
-      return new ActivityMainBinding((ScrollView) rootView, btnCollectNews, btnOpenSettings,
-          btnPause, btnPlay, btnResetAuth, btnStop, llPlayer, progressBar, recyclerChannels,
-          spinnerTime, tvSelectChannels, tvStatus, tvTimePeriod);
+      return new ActivityMainBinding((ScrollView) rootView, btnCollectNews, btnManageHidden,
+          btnOpenSettings, btnPause, btnPlay, btnResetAuth, btnStop, llPlayer, progressBar,
+          recyclerChannels, spinnerTime, tvSelectChannels, tvStatus, tvTimePeriod);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

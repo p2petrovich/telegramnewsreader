@@ -7,8 +7,10 @@ import com.example.telegramnewsreader.databinding.ItemChannelBinding
 import com.example.telegramnewsreader.model.Channel
 
 class ChannelAdapter(
-    private val onSelectionChanged: (Channel, Boolean) -> Unit
+    private val onSelectionChanged: (Channel, Boolean) -> Unit,
+    private val onHideRequest: (Channel) -> Unit
 ) : RecyclerView.Adapter<ChannelAdapter.ChannelViewHolder>() {
+
 
     private val channels = mutableListOf<Channel>()
 
@@ -18,11 +20,9 @@ class ChannelAdapter(
         notifyDataSetChanged()
     }
 
-
     fun getSelectedChannels(): List<Channel> = channels.filter { it.isSelected }
 
     fun getAllChannels(): List<Channel> = channels.toList()
-
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ChannelViewHolder {
         val binding = ItemChannelBinding.inflate(LayoutInflater.from(parent.context), parent, false)
@@ -47,7 +47,7 @@ class ChannelAdapter(
                 "Нет новостей"
             }
 
-            // ✅ Можно подключить Glide/Picasso для загрузки аватарки, если появится поле avatarUrl
+            // ✅ Плейсхолдер-аватар
             binding.ivAvatar.setImageResource(com.example.telegramnewsreader.R.drawable.ic_channel_placeholder)
 
             // ✅ Сброс слушателя перед установкой нового
@@ -61,6 +61,12 @@ class ChannelAdapter(
             // ✅ Клик по элементу переключает чекбокс
             binding.root.setOnClickListener {
                 binding.checkboxChannel.toggle()
+            }
+
+            // ✅ Длинный тап -> запрос на скрытие
+            binding.root.setOnLongClickListener {
+                onHideRequest(channel)
+                true
             }
         }
     }

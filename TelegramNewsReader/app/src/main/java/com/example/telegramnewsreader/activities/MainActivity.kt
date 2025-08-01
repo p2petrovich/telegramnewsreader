@@ -25,6 +25,7 @@ import com.example.telegramnewsreader.telegram.TelegramClientManager
 
 class MainActivity : AppCompatActivity() {
 
+
     private lateinit var binding: ActivityMainBinding
     private lateinit var telegramClient: TelegramClient
     private lateinit var channelAdapter: ChannelAdapter
@@ -77,9 +78,14 @@ class MainActivity : AppCompatActivity() {
         ttsManager = TTSManagerSingleton.getInstance(this)
         newsService = NewsService(telegramClient, ttsManager)
 
-        channelAdapter = ChannelAdapter { _, _ ->
-            updateNewsCollectionButton()
-        }
+        channelAdapter = ChannelAdapter(
+            onSelectionChanged = { _, _ ->
+                updateNewsCollectionButton()
+            },
+            onHideRequest = { channel ->
+                confirmHideChannel(channel)
+            }
+        )
 
         binding.recyclerChannels.layoutManager = LinearLayoutManager(this)
         binding.recyclerChannels.adapter = channelAdapter
@@ -125,6 +131,11 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
 
+        // Кнопка управления скрытыми каналами (есть в layout)
+        findViewById<View?>(R.id.btn_manage_hidden)?.setOnClickListener {
+            showHiddenManager()
+        }
+
         binding.btnPlay.setOnClickListener { playAudio() }
         binding.btnPause.setOnClickListener { pauseAudio() }
         binding.btnStop.setOnClickListener { stopAudio() }
@@ -163,9 +174,18 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 binding.progressBar.visibility = View.GONE
                 if (channels.isNotEmpty()) {
-                    channelAdapter.updateChannels(channels)
+                    // Фильтруем скрытые
+                    val hiddenUsernames = PreferenceManager.getHiddenUsernames(this)
+                    val hiddenIds = PreferenceManager.getHiddenIds(this)
+                    val filtered = channels.filterNot { ch ->
+                        val byUsername = !ch.username.isNullOrBlank() && hiddenUsernames.contains(ch.username!!)
+                        val byId = hiddenIds.contains(ch.id.toString())
+                        byUsername || byId
+                    }
+
+                    channelAdapter.updateChannels(filtered)
                     updateChannelStats()
-                    Log.d("MainActivity", "Загружено каналов: ${channels.size}")
+                    Log.d("MainActivity", "Загружено каналов: ${filtered.size}")
                 } else {
                     updateStatus("Каналы не найдены")
                     // Тестовые каналы для отладки
@@ -238,11 +258,9 @@ class MainActivity : AppCompatActivity() {
                             null
                         }
 
-// ✅ Добавляем длительность в статус (если доступна)
                         durationMin?.let {
                             updateStatus("Готово! Обработано сообщений: $totalMessages\n⏱ Примерная длительность: ~${it} минут")
                         }
-
 
                         channelAdapter.notifyDataSetChanged()
                         showPlayerControls()
@@ -438,5 +456,86 @@ class MainActivity : AppCompatActivity() {
         if (mediaPlayer?.isPlaying == true) {
             pauseAudio()
         }
+    }
+
+    // Диалог подтверждения скрытия
+    private fun confirmHideChannel(channel: Channel) {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Скрыть канал")
+            .setMessage("Скрыть «${channel.title}» из списка?")
+            .setPositiveButton("Скрыть") { _, _ -> hideChannel(channel) }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    // Скрытие канала и сохранение в Preferences
+    private fun hideChannel(channel: Channel) {
+        val hiddenUsernames = PreferenceManager.getHiddenUsernames(this)
+        val hiddenIds = PreferenceManager.getHiddenIds(this)
+
+        if (!channel.username.isNullOrBlank()) {
+            hiddenUsernames.add(channel.username!!)
+            PreferenceManager.saveHiddenUsernames(this, hiddenUsernames)
+        } else {
+            hiddenIds.add(channel.id.toString())
+            PreferenceManager.saveHiddenIds(this, hiddenIds)
+        }
+
+        val current = channelAdapter.getAllChannels()
+        val updated = current.filterNot { it.id == channel.id }
+        channelAdapter.updateChannels(updated)
+        updateChannelStats()
+        Toast.makeText(this, "Канал скрыт", Toast.LENGTH_SHORT).show()
+    }
+
+    // Менеджер скрытых каналов (диалог восстановления)
+    private fun showHiddenManager() {
+        val hiddenUsernames = PreferenceManager.getHiddenUsernames(this)
+        val hiddenIds = PreferenceManager.getHiddenIds(this)
+
+        val items = mutableListOf<String>()
+        items.addAll(hiddenUsernames.map { "username: $it" })
+        items.addAll(hiddenIds.map { "id: $it" })
+
+        if (items.isEmpty()) {
+            Toast.makeText(this, "Скрытых каналов нет", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val checked = BooleanArray(items.size) { false }
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Скрытые каналы")
+            .setMultiChoiceItems(items.toTypedArray(), checked) { _, which, isChecked ->
+                checked[which] = isChecked
+            }
+            .setPositiveButton("Вернуть выбранные") { _, _ ->
+                val toRestoreUsernames = mutableSetOf<String>()
+                val toRestoreIds = mutableSetOf<String>()
+                items.forEachIndexed { index, label ->
+                    if (checked[index]) {
+                        when {
+                            label.startsWith("username: ") -> {
+                                toRestoreUsernames.add(label.removePrefix("username: ").trim())
+                            }
+                            label.startsWith("id: ") -> {
+                                toRestoreIds.add(label.removePrefix("id: ").trim())
+                            }
+                        }
+                    }
+                }
+
+                if (toRestoreUsernames.isEmpty() && toRestoreIds.isEmpty()) return@setPositiveButton
+
+                val newHiddenUsernames = hiddenUsernames.apply { removeAll(toRestoreUsernames) }
+                val newHiddenIds = hiddenIds.apply { removeAll(toRestoreIds) }
+                PreferenceManager.saveHiddenUsernames(this, newHiddenUsernames)
+                PreferenceManager.saveHiddenIds(this, newHiddenIds)
+
+                loadChannels()
+                Toast.makeText(this, "Выбранные каналы возвращены", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
     }
 }

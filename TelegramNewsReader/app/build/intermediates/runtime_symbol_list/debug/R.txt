@@ -3241,6 +3241,7 @@ int id btn_collect 0x7f080064
 int id btn_collect_news 0x7f080065
 int id btn_delete_favorite 0x7f080066
 int id btn_edit_filters 0x7f080067
+int id btn_manage_hidden 0x7f08022d
 int id btn_open_settings 0x7f080068
 int id btn_pause 0x7f080069
 int id btn_play 0x7f08006a
