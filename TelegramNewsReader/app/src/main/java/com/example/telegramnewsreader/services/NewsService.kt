@@ -13,24 +13,41 @@ class NewsService(
 ) {
     companion object {
         private const val TAG = "NewsService"
-        private const val CHANNEL_TIMEOUT_MS = 15000L // 15 секунд на канал
-        private const val TOTAL_TIMEOUT_MS = 120000L // 2 минута общий таймаут
+        private const val CHANNEL_TIMEOUT_MS = 15000L
+        private const val TOTAL_TIMEOUT_MS = 120000L
     }
+
 
     suspend fun collectAndProcessNews(
         channels: List<Channel>,
         timeHours: Double
     ): File? = withContext(Dispatchers.IO) {
+        val list = collectAndPrepareMessages(channels, timeHours) ?: return@withContext null
+        if (list.preparedMessages.isEmpty()) return@withContext null
+        ttsManager.convertToAudio(list.preparedMessages, pauseMs = 1200)
+    }
 
-        if (channels.isEmpty()) {
-            Log.w(TAG, "❌ Пустой список каналов")
-            return@withContext null
-        }
+    // Возвращаем список из одного файла, так как TTSManager генерит единый mp3
+    suspend fun collectAndSynthesizeNewsList(
+        channels: List<Channel>,
+        timeHours: Double
+    ): List<File> = withContext(Dispatchers.IO) {
+        val list = collectAndPrepareMessages(channels, timeHours) ?: return@withContext emptyList()
+        if (list.preparedMessages.isEmpty()) return@withContext emptyList()
+        val oneFile = ttsManager.convertToAudio(list.preparedMessages, pauseMs = 1200)
+        if (oneFile != null) listOf(oneFile) else emptyList()
+    }
 
-        if (timeHours <= 0) {
-            Log.w(TAG, "❌ Некорректный период времени: $timeHours")
-            return@withContext null
-        }
+    data class Prepared(
+        val preparedMessages: List<String>,
+        val totalMessages: Int
+    )
+
+    private suspend fun collectAndPrepareMessages(
+        channels: List<Channel>,
+        timeHours: Double
+    ): Prepared? = withContext(Dispatchers.IO) {
+        if (channels.isEmpty() || timeHours <= 0) return@withContext null
 
         try {
             withTimeout(TOTAL_TIMEOUT_MS) {
@@ -38,15 +55,8 @@ class NewsService(
                 val currentTimeSeconds = System.currentTimeMillis() / 1000
                 val fromDate = currentTimeSeconds - (timeHours * 3600).toLong()
 
-                Log.d(TAG, "🔍 Начинаем сбор новостей:")
-                Log.d(TAG, "   📅 Период: $timeHours часов назад")
-                Log.d(TAG, "   📺 Каналов: ${channels.size}")
-                Log.d(TAG, "   ⏰ fromDate: $fromDate")
-
                 val channelResults = channels.map { channel ->
-                    async {
-                        processChannelWithTimeout(channel, fromDate)
-                    }
+                    async { processChannelWithTimeout(channel, fromDate) }
                 }.awaitAll()
 
                 var totalMessages = 0
@@ -55,36 +65,19 @@ class NewsService(
                         allMessages.add("Новости из канала ${channel.title}:")
                         allMessages.addAll(messages)
                         totalMessages += messages.size
-                        Log.d(TAG, "✅ Канал '${channel.title}': ${messages.size} сообщений")
-                    } else {
-                        Log.d(TAG, "⚠️ Канал '${channel.title}': сообщений не найдено")
                     }
                 }
 
-                Log.d(TAG, "📊 Итого собрано сообщений: $totalMessages из ${channels.size} каналов")
+                if (allMessages.isEmpty()) return@withTimeout Prepared(emptyList(), 0)
 
-                if (allMessages.isNotEmpty()) {
-                    Log.d(TAG, "🔄 Фильтруем сообщения...")
-                    val preparedMessages = prepareMessages(allMessages)
-                    Log.d(TAG, "✅ После фильтрации: ${preparedMessages.size} сообщений")
-
-                    if (preparedMessages.isNotEmpty()) {
-                        Log.d(TAG, "🎵 Создаем аудиофайл...")
-                        return@withTimeout ttsManager.convertToAudio(preparedMessages, pauseMs = 1200)
-                    } else {
-                        Log.w(TAG, "⚠️ После фильтрации не осталось сообщений")
-                        return@withTimeout null
-                    }
-                } else {
-                    Log.w(TAG, "⚠️ Нет сообщений для обработки")
-                    return@withTimeout null
-                }
+                val preparedMessages = prepareMessages(allMessages)
+                Prepared(preparedMessages, totalMessages)
             }
         } catch (e: TimeoutCancellationException) {
-            Log.e(TAG, "⏰ Превышен общий таймаут операции ($TOTAL_TIMEOUT_MS мс)")
+            Log.e(TAG, "Timeout", e)
             null
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Ошибка в collectAndProcessNews", e)
+            Log.e(TAG, "Error", e)
             null
         }
     }
@@ -95,31 +88,17 @@ class NewsService(
     ): Pair<Channel, List<String>> {
         return try {
             withTimeout(CHANNEL_TIMEOUT_MS) {
-                Log.d(TAG, "📡 Загружаем сообщения из '${channel.title}' (ID: ${channel.id})")
-
                 val messages = telegramClient.getChannelMessagesPaginated(channel.id, fromDate)
-
                 channel.newMessagesCount = messages.size
-
-                Log.d(TAG, "📨 Канал '${channel.title}': получено ${messages.size} сообщений")
-                if (messages.isNotEmpty()) {
-                    Log.v(TAG, "   🔍 Примеры: ${messages.take(2)}")
-                }
-
                 Pair(channel, messages)
             }
-        } catch (e: TimeoutCancellationException) {
-            Log.e(TAG, "⏰ Таймаут для канала '${channel.title}' ($CHANNEL_TIMEOUT_MS мс)")
-            channel.newMessagesCount = 0
-            Pair(channel, emptyList())
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Ошибка обработки канала '${channel.title}'", e)
+        } catch (_: Exception) {
             channel.newMessagesCount = 0
             Pair(channel, emptyList())
         }
     }
 
-    private fun prepareMessages(messages: List<String>): List<String> {
+private fun prepareMessages(messages: List<String>): List<String> {
         Log.d(TAG, "🧪 prepareMessages: обрабатываем ${messages.size} сообщений")
 
         // RAW лог первых 10 элементов (переносы → \n)

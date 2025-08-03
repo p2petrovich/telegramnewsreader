@@ -31,6 +31,9 @@ public final class ActivityMainBinding implements ViewBinding {
   public final Button btnManageHidden;
 
   @NonNull
+  public final Button btnNext;
+
+  @NonNull
   public final Button btnOpenSettings;
 
   @NonNull
@@ -40,10 +43,10 @@ public final class ActivityMainBinding implements ViewBinding {
   public final Button btnPlay;
 
   @NonNull
-  public final Button btnResetAuth;
+  public final Button btnPrev;
 
   @NonNull
-  public final Button btnStop;
+  public final Button btnResetAuth;
 
   @NonNull
   public final LinearLayout llPlayer;
@@ -67,20 +70,21 @@ public final class ActivityMainBinding implements ViewBinding {
   public final TextView tvTimePeriod;
 
   private ActivityMainBinding(@NonNull ScrollView rootView, @NonNull Button btnCollectNews,
-      @NonNull Button btnManageHidden, @NonNull Button btnOpenSettings, @NonNull Button btnPause,
-      @NonNull Button btnPlay, @NonNull Button btnResetAuth, @NonNull Button btnStop,
-      @NonNull LinearLayout llPlayer, @NonNull ProgressBar progressBar,
-      @NonNull RecyclerView recyclerChannels, @NonNull Spinner spinnerTime,
-      @NonNull TextView tvSelectChannels, @NonNull TextView tvStatus,
+      @NonNull Button btnManageHidden, @NonNull Button btnNext, @NonNull Button btnOpenSettings,
+      @NonNull Button btnPause, @NonNull Button btnPlay, @NonNull Button btnPrev,
+      @NonNull Button btnResetAuth, @NonNull LinearLayout llPlayer,
+      @NonNull ProgressBar progressBar, @NonNull RecyclerView recyclerChannels,
+      @NonNull Spinner spinnerTime, @NonNull TextView tvSelectChannels, @NonNull TextView tvStatus,
       @NonNull TextView tvTimePeriod) {
     this.rootView = rootView;
     this.btnCollectNews = btnCollectNews;
     this.btnManageHidden = btnManageHidden;
+    this.btnNext = btnNext;
     this.btnOpenSettings = btnOpenSettings;
     this.btnPause = btnPause;
     this.btnPlay = btnPlay;
+    this.btnPrev = btnPrev;
     this.btnResetAuth = btnResetAuth;
-    this.btnStop = btnStop;
     this.llPlayer = llPlayer;
     this.progressBar = progressBar;
     this.recyclerChannels = recyclerChannels;
@@ -129,6 +133,12 @@ public final class ActivityMainBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.btn_next;
+      Button btnNext = ViewBindings.findChildViewById(rootView, id);
+      if (btnNext == null) {
+        break missingId;
+      }
+
       id = R.id.btn_open_settings;
       Button btnOpenSettings = ViewBindings.findChildViewById(rootView, id);
       if (btnOpenSettings == null) {
@@ -147,15 +157,15 @@ public final class ActivityMainBinding implements ViewBinding {
         break missingId;
       }
 
-      id = R.id.btn_reset_auth;
-      Button btnResetAuth = ViewBindings.findChildViewById(rootView, id);
-      if (btnResetAuth == null) {
+      id = R.id.btn_prev;
+      Button btnPrev = ViewBindings.findChildViewById(rootView, id);
+      if (btnPrev == null) {
         break missingId;
       }
 
-      id = R.id.btn_stop;
-      Button btnStop = ViewBindings.findChildViewById(rootView, id);
-      if (btnStop == null) {
+      id = R.id.btn_reset_auth;
+      Button btnResetAuth = ViewBindings.findChildViewById(rootView, id);
+      if (btnResetAuth == null) {
         break missingId;
       }
 
@@ -202,7 +212,7 @@ public final class ActivityMainBinding implements ViewBinding {
       }
 
       return new ActivityMainBinding((ScrollView) rootView, btnCollectNews, btnManageHidden,
-          btnOpenSettings, btnPause, btnPlay, btnResetAuth, btnStop, llPlayer, progressBar,
+          btnNext, btnOpenSettings, btnPause, btnPlay, btnPrev, btnResetAuth, llPlayer, progressBar,
           recyclerChannels, spinnerTime, tvSelectChannels, tvStatus, tvTimePeriod);
     }
     String missingId = rootView.getResources().getResourceName(id);

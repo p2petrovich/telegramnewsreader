@@ -1,7 +1,6 @@
 package com.example.telegramnewsreader.activities
 
 import android.content.Intent
-import android.media.MediaPlayer
 import android.os.Bundle
 import android.util.Log
 import android.view.View
@@ -16,26 +15,25 @@ import com.example.telegramnewsreader.databinding.ActivityMainBinding
 import com.example.telegramnewsreader.model.Channel
 import com.example.telegramnewsreader.service.NewsService
 import com.example.telegramnewsreader.telegram.TelegramClient
+import com.example.telegramnewsreader.telegram.TelegramClientManager
 import com.example.telegramnewsreader.tts.TTSManager
 import com.example.telegramnewsreader.tts.TTSManagerSingleton
 import com.example.telegramnewsreader.utils.PreferenceManager
 import kotlinx.coroutines.launch
 import java.io.File
-import com.example.telegramnewsreader.telegram.TelegramClientManager
 
 class MainActivity : AppCompatActivity() {
-
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var telegramClient: TelegramClient
     private lateinit var channelAdapter: ChannelAdapter
     private lateinit var ttsManager: TTSManager
     private lateinit var newsService: NewsService
-    private var mediaPlayer: MediaPlayer? = null
-    private var currentAudioFile: File? = null
 
     private var lastUsedVoice: String? = null
     private var isClientReady = false
+
+    private var currentPlaylist: List<File> = emptyList()
 
     private val timePeriods = arrayOf(
         "Последние 5 минут",
@@ -65,23 +63,19 @@ class MainActivity : AppCompatActivity() {
         initializeTelegramClient()
 
         lastUsedVoice = PreferenceManager.getTtsVoiceName(this)
-        Log.d("MainActivity", "🎯 onCreate: начальный голос = $lastUsedVoice")
+        Log.d("MainActivity", "onCreate: начальный голос = $lastUsedVoice")
     }
 
     private fun initComponents() {
-        Log.d("MainActivity", "=== INIT TRACKING === Starting TelegramClient initialization")
+        Log.d("MainActivity", "INIT: TelegramClient initialization")
         telegramClient = TelegramClientManager.getTelegramClient(this)
 
         ttsManager = TTSManagerSingleton.getInstance(this)
         newsService = NewsService(telegramClient, ttsManager)
 
         channelAdapter = ChannelAdapter(
-            onSelectionChanged = { _, _ ->
-                updateNewsCollectionButton()
-            },
-            onHideRequest = { channel ->
-                confirmHideChannel(channel)
-            }
+            onSelectionChanged = { _, _ -> updateNewsCollectionButton() },
+            onHideRequest = { channel -> confirmHideChannel(channel) }
         )
 
         binding.recyclerChannels.layoutManager = LinearLayoutManager(this)
@@ -90,7 +84,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun initializeTelegramClient() {
         telegramClient.onClientReady = {
-            Log.d("MainActivity", "=== CLIENT READY === TelegramClient готов")
+            Log.d("MainActivity", "CLIENT READY: TelegramClient готов")
             isClientReady = true
             runOnUiThread {
                 loadChannels()
@@ -99,12 +93,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (telegramClient.checkAuthState()) {
-            Log.d("MainActivity", "=== CLIENT READY === Клиент уже готов")
+            Log.d("MainActivity", "CLIENT READY: Клиент уже готов")
             isClientReady = true
             loadChannels()
             updateUIForReadyClient()
         } else {
-            Log.d("MainActivity", "=== CLIENT INIT === Ожидаем готовности клиента...")
+            Log.d("MainActivity", "CLIENT INIT: Ожидаем готовности клиента...")
             updateStatus("Инициализация Telegram клиента...")
         }
     }
@@ -119,20 +113,42 @@ class MainActivity : AppCompatActivity() {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         binding.spinnerTime.adapter = adapter
 
-        binding.btnCollectNews.setOnClickListener {
-            collectNews()
-        }
+        binding.btnCollectNews.setOnClickListener { collectNews() }
         binding.btnOpenSettings.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
 
-        findViewById<View?>(R.id.btn_manage_hidden)?.setOnClickListener {
-            showHiddenManager()
+        findViewById<View?>(R.id.btn_manage_hidden)?.setOnClickListener { showHiddenManager() }
+
+        // Управление сервисом плеера
+        binding.btnPlay.setOnClickListener {
+            startService(
+                Intent(this, com.example.telegramnewsreader.services.AudioPlayerService::class.java)
+                    .setAction(com.example.telegramnewsreader.services.AudioPlayerService.ACTION_PLAY)
+            )
+            updatePlayerButtons(isPlaying = true)
+        }
+        binding.btnPause.setOnClickListener {
+            startService(
+                Intent(this, com.example.telegramnewsreader.services.AudioPlayerService::class.java)
+                    .setAction(com.example.telegramnewsreader.services.AudioPlayerService.ACTION_PAUSE)
+            )
+            updatePlayerButtons(isPlaying = false)
         }
 
-        binding.btnPlay.setOnClickListener { playAudio() }
-        binding.btnPause.setOnClickListener { pauseAudio() }
-        binding.btnStop.setOnClickListener { stopAudio() }
+        // Prev/Next
+        findViewById<View?>(R.id.btn_prev)?.setOnClickListener {
+            startService(
+                Intent(this, com.example.telegramnewsreader.services.AudioPlayerService::class.java)
+                    .setAction(com.example.telegramnewsreader.services.AudioPlayerService.ACTION_PREV)
+            )
+        }
+        findViewById<View?>(R.id.btn_next)?.setOnClickListener {
+            startService(
+                Intent(this, com.example.telegramnewsreader.services.AudioPlayerService::class.java)
+                    .setAction(com.example.telegramnewsreader.services.AudioPlayerService.ACTION_NEXT)
+            )
+        }
 
         binding.btnResetAuth.setOnClickListener {
             PreferenceManager.clearAll(this)
@@ -147,10 +163,9 @@ class MainActivity : AppCompatActivity() {
 
         try {
             binding.llPlayer.visibility = View.GONE
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             binding.btnPlay.visibility = View.GONE
             binding.btnPause.visibility = View.GONE
-            binding.btnStop.visibility = View.GONE
         }
     }
 
@@ -206,7 +221,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val timeHours = timeValues[binding.spinnerTime.selectedItemPosition]
-        Log.d("MainActivity", "🔍 Начинаем сбор новостей: каналов=${selectedChannels.size}, период=${timeHours}ч")
+        Log.d("MainActivity", "Начинаем сбор новостей: каналов=${selectedChannels.size}, период=${timeHours}ч")
 
         resetCollectionState()
 
@@ -217,7 +232,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 updateStatus("Собираем новости из ${selectedChannels.size} каналов...")
 
-                val audioFile = newsService.collectAndProcessNews(
+                val files = newsService.collectAndSynthesizeNewsList(
                     channels = selectedChannels,
                     timeHours = timeHours
                 )
@@ -226,43 +241,60 @@ class MainActivity : AppCompatActivity() {
                     binding.progressBar.visibility = View.GONE
                     binding.btnCollectNews.isEnabled = true
 
-                    if (audioFile != null && audioFile.exists()) {
-                        currentAudioFile = audioFile
+                    if (files.isNotEmpty()) {
+                        currentPlaylist = files
                         lastUsedVoice = PreferenceManager.getTtsVoiceName(this@MainActivity)
 
                         val totalMessages = selectedChannels.sumOf { it.newMessagesCount }
                         updateStatus("Готово! Обработано сообщений: $totalMessages")
-                        Log.d("MainActivity", "✅ Аудио создано: ${audioFile.length()} байт, сообщений: $totalMessages")
-                        val durationMin = try {
-                            val player = MediaPlayer().apply {
-                                setDataSource(audioFile.absolutePath)
-                                prepare()
-                            }
-                            val durationMs = player.duration
-                            player.release()
-                            durationMs / 1000 / 60
-                        } catch (e: Exception) {
-                            Log.w("MainActivity", "Не удалось определить длительность аудио", e)
-                            null
-                        }
 
-                        durationMin?.let {
-                            updateStatus("Готово! Обработано сообщений: $totalMessages\n⏱ Примерная длительность: ~${it} минут")
+                        val paths = ArrayList(files.map { it.absolutePath })
+                        val setIntent = Intent(
+                            this@MainActivity,
+                            com.example.telegramnewsreader.services.AudioPlayerService::class.java
+                        ).apply {
+                            action = com.example.telegramnewsreader.services.AudioPlayerService.ACTION_SET_PLAYLIST
+                            putStringArrayListExtra(
+                                com.example.telegramnewsreader.services.AudioPlayerService.EXTRA_FILE_PATHS,
+                                paths
+                            )
+                            putExtra(
+                                com.example.telegramnewsreader.services.AudioPlayerService.EXTRA_START_INDEX,
+                                0
+                            )
+                            putExtra(
+                                com.example.telegramnewsreader.services.AudioPlayerService.EXTRA_TITLE,
+                                "Новости"
+                            )
                         }
+                        startService(setIntent)
+                        startService(
+                            Intent(
+                                this@MainActivity,
+                                com.example.telegramnewsreader.services.AudioPlayerService::class.java
+                            ).setAction(com.example.telegramnewsreader.services.AudioPlayerService.ACTION_PLAY)
+                        )
 
                         channelAdapter.notifyDataSetChanged()
                         showPlayerControls()
                         resetPlayerButtons()
-
-                        Toast.makeText(this@MainActivity, "Найдено $totalMessages новых сообщений", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Найдено $totalMessages новых сообщений",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     } else {
                         updateStatus("Новых новостей не найдено")
-                        Toast.makeText(this@MainActivity, "Новые новости не найдены в выбранный период", Toast.LENGTH_LONG).show()
-                        Log.d("MainActivity", "❌ Новости не найдены или аудиофайл не создан")
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Новые новости не найдены в выбранный период",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        Log.d("MainActivity", "Новости не найдены или аудио не создано")
                     }
                 }
             } catch (e: Exception) {
-                Log.e("MainActivity", "❌ Ошибка при сборе новостей", e)
+                Log.e("MainActivity", "Ошибка при сборе новостей", e)
                 runOnUiThread {
                     binding.progressBar.visibility = View.GONE
                     binding.btnCollectNews.isEnabled = true
@@ -274,83 +306,33 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun resetCollectionState() {
-        currentAudioFile?.delete()
-        currentAudioFile = null
-        stopAudio()
+        // Останавливаем сервис плеера
+        startService(
+            Intent(this, com.example.telegramnewsreader.services.AudioPlayerService::class.java)
+                .setAction(com.example.telegramnewsreader.services.AudioPlayerService.ACTION_STOP)
+        )
+
+        currentPlaylist = emptyList()
 
         try {
             binding.llPlayer.visibility = View.GONE
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             binding.btnPlay.visibility = View.GONE
             binding.btnPause.visibility = View.GONE
-            binding.btnStop.visibility = View.GONE
         }
 
         channelAdapter.getAllChannels().forEach { it.newMessagesCount = 0 }
         channelAdapter.notifyDataSetChanged()
     }
 
-    private fun playAudio() {
-        currentAudioFile?.let { file ->
-            try {
-                if (!file.exists()) {
-                    Toast.makeText(this, "Аудиофайл не найден", Toast.LENGTH_SHORT).show()
-                    return
-                }
-
-                if (mediaPlayer == null) {
-                    mediaPlayer = MediaPlayer().apply {
-                        setDataSource(file.absolutePath)
-                        prepare()
-                        setOnCompletionListener { resetPlayerButtons() }
-                        setOnErrorListener { _, what, extra ->
-                            Log.e("MainActivity", "MediaPlayer error: what=$what, extra=$extra")
-                            Toast.makeText(this@MainActivity, "Ошибка воспроизведения", Toast.LENGTH_SHORT).show()
-                            resetPlayerButtons()
-                            true
-                        }
-                    }
-                }
-                mediaPlayer?.start()
-                updatePlayerButtons(isPlaying = true)
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Ошибка воспроизведения", e)
-                Toast.makeText(this, "Ошибка воспроизведения: ${e.message}", Toast.LENGTH_SHORT).show()
-                resetPlayerButtons()
-            }
-        } ?: run {
-            Toast.makeText(this, "Сначала соберите новости", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun pauseAudio() {
-        mediaPlayer?.let {
-            if (it.isPlaying) {
-                it.pause()
-                updatePlayerButtons(isPlaying = false)
-            }
-        }
-    }
-
-    private fun stopAudio() {
-        mediaPlayer?.let {
-            if (it.isPlaying) it.stop()
-            it.release()
-        }
-        mediaPlayer = null
-        resetPlayerButtons()
-    }
-
     private fun updatePlayerButtons(isPlaying: Boolean) {
         binding.btnPlay.isEnabled = !isPlaying
         binding.btnPause.isEnabled = isPlaying
-        binding.btnStop.isEnabled = true
     }
 
     private fun resetPlayerButtons() {
         binding.btnPlay.isEnabled = true
         binding.btnPause.isEnabled = false
-        binding.btnStop.isEnabled = false
     }
 
     private fun updateNewsCollectionButton() {
@@ -362,10 +344,9 @@ class MainActivity : AppCompatActivity() {
     private fun showPlayerControls() {
         try {
             binding.llPlayer.visibility = View.VISIBLE
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             binding.btnPlay.visibility = View.VISIBLE
             binding.btnPause.visibility = View.VISIBLE
-            binding.btnStop.visibility = View.VISIBLE
         }
     }
 
@@ -373,7 +354,7 @@ class MainActivity : AppCompatActivity() {
         try {
             binding.tvStatus.text = message
             Log.d("MainActivity", "Status: $message")
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
     }
@@ -402,39 +383,17 @@ class MainActivity : AppCompatActivity() {
         if (::ttsManager.isInitialized) {
             val currentVoice = PreferenceManager.getTtsVoiceName(this)
 
-            if (lastUsedVoice != null && lastUsedVoice != currentVoice && currentAudioFile != null) {
-                Log.d("MainActivity", "🔄 Голос изменился с '$lastUsedVoice' на '$currentVoice'")
-                stopAudio()
-                currentAudioFile?.delete()
-                currentAudioFile = null
-
-                try {
-                    binding.llPlayer.visibility = View.GONE
-                } catch (e: Exception) {
-                    binding.btnPlay.visibility = View.GONE
-                    binding.btnPause.visibility = View.GONE
-                    binding.btnStop.visibility = View.GONE
-                }
-
+            if (lastUsedVoice != null && lastUsedVoice != currentVoice) {
                 updateStatus("Голос изменен. Пересоберите новости для применения нового голоса.")
-                Toast.makeText(this, "Голос изменен. Нажмите 'Собрать новости' для применения.", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    this,
+                    "Голос изменен. Нажмите 'Собрать новости' для применения.",
+                    Toast.LENGTH_LONG
+                ).show()
             }
 
             ttsManager.refreshVoice()
-            Log.d("MainActivity", "🔄 onResume(): голос обновлен. Текущий: $currentVoice")
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        mediaPlayer?.release()
-        mediaPlayer = null
-    }
-
-    override fun onPause() {
-        super.onPause()
-        if (mediaPlayer?.isPlaying == true) {
-            pauseAudio()
+            Log.d("MainActivity", "onResume(): голос обновлен. Текущий: $currentVoice")
         }
     }
 
@@ -457,7 +416,6 @@ class MainActivity : AppCompatActivity() {
         } else {
             hiddenIds.add(channel.id.toString())
             PreferenceManager.saveHiddenIds(this, hiddenIds)
-            // Сохраняем читабельное имя для показа в менеджере скрытых
             PreferenceManager.saveHiddenTitleForId(this, channel.id, channel.title)
         }
 
@@ -475,19 +433,17 @@ class MainActivity : AppCompatActivity() {
         val items = mutableListOf<String>()
         val meta = mutableListOf<Pair<String, String>>() // ("u"|"i", key)
 
-        // username: показываем @username; можно расширить до "Title (@username)" при желании
         hiddenUsernames.forEach { u ->
             items.add("@$u")
             meta.add("u" to u)
         }
 
-        // id: вытаскиваем сохраненный title; если нет — показываем просто "Канал"
         hiddenIds.forEach { idStr ->
             val id = idStr.toLongOrNull()
             val title = id?.let { PreferenceManager.getHiddenTitleForId(this, it) }
             val label = if (!title.isNullOrBlank()) title else "Канал"
             items.add(label)
-            meta.add("i" to idStr) // meta оставляем, чтобы знать, что удалять/восстанавливать
+            meta.add("i" to idStr)
         }
 
         if (items.isEmpty()) {

@@ -3242,10 +3242,12 @@ int id btn_collect_news 0x7f080065
 int id btn_delete_favorite 0x7f080066
 int id btn_edit_filters 0x7f080067
 int id btn_manage_hidden 0x7f08022d
+int id btn_next 0x7f08022e
 int id btn_open_settings 0x7f080068
 int id btn_pause 0x7f080069
 int id btn_play 0x7f08006a
 int id btn_play_favorite 0x7f08006b
+int id btn_prev 0x7f08022f
 int id btn_reset_auth 0x7f08006c
 int id btn_save 0x7f08006d
 int id btn_save_categories 0x7f08006e

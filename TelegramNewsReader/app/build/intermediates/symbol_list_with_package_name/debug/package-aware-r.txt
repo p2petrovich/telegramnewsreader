@@ -3243,10 +3243,12 @@ id btn_collect_news
 id btn_delete_favorite
 id btn_edit_filters
 id btn_manage_hidden
+id btn_next
 id btn_open_settings
 id btn_pause
 id btn_play
 id btn_play_favorite
+id btn_prev
 id btn_reset_auth
 id btn_save
 id btn_save_categories
