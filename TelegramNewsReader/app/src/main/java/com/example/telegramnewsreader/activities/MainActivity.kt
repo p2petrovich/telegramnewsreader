@@ -481,13 +481,13 @@ class MainActivity : AppCompatActivity() {
             meta.add("u" to u)
         }
 
-        // id: вытаскиваем сохраненный title; если нет — показываем просто id
+        // id: вытаскиваем сохраненный title; если нет — показываем просто "Канал"
         hiddenIds.forEach { idStr ->
             val id = idStr.toLongOrNull()
             val title = id?.let { PreferenceManager.getHiddenTitleForId(this, it) }
-            val label = if (!title.isNullOrBlank()) "$title (id: $idStr)" else "Канал (id: $idStr)"
+            val label = if (!title.isNullOrBlank()) title else "Канал"
             items.add(label)
-            meta.add("i" to idStr)
+            meta.add("i" to idStr) // meta оставляем, чтобы знать, что удалять/восстанавливать
         }
 
         if (items.isEmpty()) {
