@@ -70,7 +70,7 @@ class NewsService(
 
                     if (preparedMessages.isNotEmpty()) {
                         Log.d(TAG, "🎵 Создаем аудиофайл...")
-                        return@withTimeout ttsManager.convertToAudio(preparedMessages)
+                        return@withTimeout ttsManager.convertToAudio(preparedMessages, pauseMs = 1200)
                     } else {
                         Log.w(TAG, "⚠️ После фильтрации не осталось сообщений")
                         return@withTimeout null
