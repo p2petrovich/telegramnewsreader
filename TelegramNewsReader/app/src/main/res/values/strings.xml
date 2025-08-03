@@ -7,9 +7,10 @@
     <string name="select_channels">Выберите каналы</string>
     <string name="time_period">Период времени</string>
     <string name="collect_news">Собрать новости</string>
-    <string name="play">Воспроизвести</string>
+    <string name="play">Пуск</string>
     <string name="pause">Пауза</string>
     <string name="stop">Стоп</string>
+    <string name="next">Далее</string>
     <string name="voice_male">Мужской голос</string>
     <string name="voice_female">Женский голос</string>
     <string name="processing">Обработка...</string>

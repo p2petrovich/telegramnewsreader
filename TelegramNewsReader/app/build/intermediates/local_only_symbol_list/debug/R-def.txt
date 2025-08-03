@@ -85,6 +85,7 @@ string enter_code
 string enter_phone
 string error_auth
 string favorites
+string next
 string pause
 string play
 string preview_text

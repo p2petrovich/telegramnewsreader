@@ -14,8 +14,9 @@
     <string name="enter_phone">Введите номер телефона</string>
     <string name="error_auth">Ошибка авторизации</string>
     <string name="favorites">Избранные</string>
+    <string name="next">Далее</string>
     <string name="pause">Пауза</string>
-    <string name="play">Воспроизвести</string>
+    <string name="play">Пуск</string>
     <string name="preview_text">Найдено %1\$d новостей, ~%2\$d мин</string>
     <string name="processing">Обработка...</string>
     <string name="select_channels">Выберите каналы</string>

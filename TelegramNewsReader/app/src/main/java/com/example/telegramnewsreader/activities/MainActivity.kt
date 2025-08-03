@@ -24,7 +24,6 @@ import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
-
     private lateinit var binding: ActivityMainBinding
     private lateinit var telegramClient: TelegramClient
     private lateinit var channelAdapter: ChannelAdapter
@@ -124,12 +123,18 @@ class MainActivity : AppCompatActivity() {
 
         // Управление сервисом плеера
         binding.btnPlay.setOnClickListener {
+            // защита: не запускать PLAY, если нет плейлиста (после STOP)
+            if (currentPlaylist.isEmpty()) {
+                Toast.makeText(this, "Сначала соберите новости", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
             startService(
                 Intent(this, com.example.telegramnewsreader.services.AudioPlayerService::class.java)
                     .setAction(com.example.telegramnewsreader.services.AudioPlayerService.ACTION_PLAY)
             )
             updatePlayerButtons(isPlaying = true)
         }
+
         binding.btnPause.setOnClickListener {
             startService(
                 Intent(this, com.example.telegramnewsreader.services.AudioPlayerService::class.java)
@@ -138,7 +143,23 @@ class MainActivity : AppCompatActivity() {
             updatePlayerButtons(isPlaying = false)
         }
 
-        // Убрали prev/next из layout: оставим только next в сервисе (уведомлении). Если у вас кнопка next в UI нужна — оставьте её:
+        findViewById<View?>(R.id.btn_stop)?.setOnClickListener {
+            startService(
+                Intent(this, com.example.telegramnewsreader.services.AudioPlayerService::class.java)
+                    .setAction(com.example.telegramnewsreader.services.AudioPlayerService.ACTION_STOP)
+            )
+            resetPlayerButtons()
+            // Блокируем управление до нового плейлиста и скрываем панель
+            binding.btnPlay.isEnabled = false
+            findViewById<View?>(R.id.btn_next)?.isEnabled = false
+            try {
+                binding.llPlayer.visibility = View.GONE
+            } catch (_: Exception) {
+                binding.btnPlay.visibility = View.GONE
+                binding.btnPause.visibility = View.GONE
+            }
+        }
+
         findViewById<View?>(R.id.btn_next)?.setOnClickListener {
             startService(
                 Intent(this, com.example.telegramnewsreader.services.AudioPlayerService::class.java)
@@ -163,6 +184,12 @@ class MainActivity : AppCompatActivity() {
             binding.btnPlay.visibility = View.GONE
             binding.btnPause.visibility = View.GONE
         }
+
+        // Изначально блокируем Play/Next до первой установки плейлиста
+        binding.btnPlay.isEnabled = false
+        findViewById<View?>(R.id.btn_next)?.isEnabled = false
+        // Пауза выключена, пока ничего не играет
+        binding.btnPause.isEnabled = false
     }
 
     private fun loadChannels() {
@@ -263,18 +290,22 @@ class MainActivity : AppCompatActivity() {
                                 com.example.telegramnewsreader.services.AudioPlayerService.EXTRA_TITLE,
                                 "Новости"
                             )
-                            // Передаём таймкоды глав:
                             putExtra(
                                 com.example.telegramnewsreader.services.AudioPlayerService.EXTRA_CHAPTERS,
                                 currentChapters.toLongArray()
                             )
                         }
                         startService(setIntent)
-                        // ВАЖНО: НЕ запускаем ACTION_PLAY автоматически — старт по кнопке
+                        // НЕ запускаем ACTION_PLAY автоматически — старт по кнопке
 
                         channelAdapter.notifyDataSetChanged()
+
+                        // показать панель, сбросить кнопки и разрешить Play/Next
                         showPlayerControls()
                         resetPlayerButtons()
+                        binding.btnPlay.isEnabled = true
+                        findViewById<View?>(R.id.btn_next)?.isEnabled = true
+
                         Toast.makeText(
                             this@MainActivity,
                             "Найдено $totalMessages новых сообщений",
@@ -311,12 +342,16 @@ class MainActivity : AppCompatActivity() {
         currentPlaylist = emptyList()
         currentChapters = emptyList()
 
+        // Скрываем панель и блокируем Play/Next до нового плейлиста
         try {
             binding.llPlayer.visibility = View.GONE
         } catch (_: Exception) {
             binding.btnPlay.visibility = View.GONE
             binding.btnPause.visibility = View.GONE
         }
+        binding.btnPlay.isEnabled = false
+        findViewById<View?>(R.id.btn_next)?.isEnabled = false
+        binding.btnPause.isEnabled = false
 
         channelAdapter.getAllChannels().forEach { it.newMessagesCount = 0 }
         channelAdapter.notifyDataSetChanged()

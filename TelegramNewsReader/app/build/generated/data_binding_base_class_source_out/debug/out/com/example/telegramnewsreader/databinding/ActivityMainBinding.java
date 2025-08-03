@@ -46,6 +46,9 @@ public final class ActivityMainBinding implements ViewBinding {
   public final Button btnResetAuth;
 
   @NonNull
+  public final Button btnStop;
+
+  @NonNull
   public final LinearLayout llPlayer;
 
   @NonNull
@@ -69,7 +72,7 @@ public final class ActivityMainBinding implements ViewBinding {
   private ActivityMainBinding(@NonNull ScrollView rootView, @NonNull Button btnCollectNews,
       @NonNull Button btnManageHidden, @NonNull Button btnNext, @NonNull Button btnOpenSettings,
       @NonNull Button btnPause, @NonNull Button btnPlay, @NonNull Button btnResetAuth,
-      @NonNull LinearLayout llPlayer, @NonNull ProgressBar progressBar,
+      @NonNull Button btnStop, @NonNull LinearLayout llPlayer, @NonNull ProgressBar progressBar,
       @NonNull RecyclerView recyclerChannels, @NonNull Spinner spinnerTime,
       @NonNull TextView tvSelectChannels, @NonNull TextView tvStatus,
       @NonNull TextView tvTimePeriod) {
@@ -81,6 +84,7 @@ public final class ActivityMainBinding implements ViewBinding {
     this.btnPause = btnPause;
     this.btnPlay = btnPlay;
     this.btnResetAuth = btnResetAuth;
+    this.btnStop = btnStop;
     this.llPlayer = llPlayer;
     this.progressBar = progressBar;
     this.recyclerChannels = recyclerChannels;
@@ -159,6 +163,12 @@ public final class ActivityMainBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.btn_stop;
+      Button btnStop = ViewBindings.findChildViewById(rootView, id);
+      if (btnStop == null) {
+        break missingId;
+      }
+
       id = R.id.ll_player;
       LinearLayout llPlayer = ViewBindings.findChildViewById(rootView, id);
       if (llPlayer == null) {
@@ -202,7 +212,7 @@ public final class ActivityMainBinding implements ViewBinding {
       }
 
       return new ActivityMainBinding((ScrollView) rootView, btnCollectNews, btnManageHidden,
-          btnNext, btnOpenSettings, btnPause, btnPlay, btnResetAuth, llPlayer, progressBar,
+          btnNext, btnOpenSettings, btnPause, btnPlay, btnResetAuth, btnStop, llPlayer, progressBar,
           recyclerChannels, spinnerTime, tvSelectChannels, tvStatus, tvTimePeriod);
     }
     String missingId = rootView.getResources().getResourceName(id);

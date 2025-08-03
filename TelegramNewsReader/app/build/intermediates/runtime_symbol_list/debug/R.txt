@@ -4108,6 +4108,7 @@ int string mtrl_timepicker_cancel 0x7f10009f
 int string mtrl_timepicker_confirm 0x7f1000a0
 int string nav_app_bar_navigate_up_description 0x7f1000a1
 int string nav_app_bar_open_drawer_description 0x7f1000a2
+int string next 0x7f1000bb
 int string password_toggle_content_description 0x7f1000a3
 int string path_password_eye 0x7f1000a4
 int string path_password_eye_mask_strike_through 0x7f1000a5
