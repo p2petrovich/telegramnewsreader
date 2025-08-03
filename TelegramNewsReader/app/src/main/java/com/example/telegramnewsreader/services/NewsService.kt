@@ -14,8 +14,9 @@ class NewsService(
     companion object {
         private const val TAG = "NewsService"
         private const val CHANNEL_TIMEOUT_MS = 15000L // 15 секунд на канал
-        private const val TOTAL_TIMEOUT_MS = 120000L   // 2 минута общий таймаут
+        private const val TOTAL_TIMEOUT_MS = 120000L // 2 минута общий таймаут
     }
+
 
     suspend fun collectAndProcessNews(
         channels: List<Channel>,
@@ -104,7 +105,6 @@ class NewsService(
 
                 val messages = telegramClient.getChannelMessagesPaginated(channel.id, fromDate)
 
-
                 // ✅ ИСПРАВЛЕНИЕ: Однократное присвоение newMessagesCount
                 channel.newMessagesCount = messages.size
 
@@ -130,7 +130,7 @@ class NewsService(
     private fun prepareMessages(messages: List<String>): List<String> {
         Log.d(TAG, "🧪 prepareMessages: обрабатываем ${messages.size} сообщений")
 
-        // ✅ Улучшенные паттерны фильтрации
+        // ✅ Улучшенные паттерны фильтрации (добавлены варианты с эмодзи и "Подписывайся ...")
         val promoPatterns = listOf(
             "^🔹.*",
             "^🔸.*",
@@ -148,7 +148,15 @@ class NewsService(
             "^Фото.*",
             "^Видео.*",
             "^\\[.*\\]$",  // [Фото], [Видео] и т.д.
-            "^\\d{2}:\\d{2}\\s*—\\s*\\[.*\\]$"  // "12:34 — [Стикер]"
+            "^\\d{2}:\\d{2}\\s*—\\s*\\[.*\\]$",  // "12:34 — [Стикер]"
+
+            // Новые: подписочные призывы и варианты с эмодзи/восклицаниями
+            "^(?:[❤️💚💙💛💜🖤🤍🤎\\p{So}\\p{Sk}]\\s*)*подписывай(ся|тесь)?\\s+на\\b.*",
+            "^(?:[❗️!\\p{So}\\p{Sk}]\\s*)*подписывай(ся|тесь)?\\b.*",
+            "^\\s*подписка\\b.*",
+            ".*\\bподписывай(ся|тесь)?\\s+на\\b.*",
+            ".*\\bподписка\\b.*",
+            ".*\\bчитай(те)?\\s+нас\\b.*"
         )
 
         val filtered = messages.mapNotNull { original ->
@@ -179,27 +187,38 @@ class NewsService(
 
             // ✅ Проверка на промо-паттерны
             val hasPromoPattern = promoPatterns.any { pattern ->
-                trimmed.matches(Regex(pattern, setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE)))
+                trimmed.matches(
+                    Regex(
+                        pattern,
+                        setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE)
+                    )
+                )
             }
 
             if (hasPromoPattern) {
-                Log.v(TAG, "⛔ Промо-контент: \"$trimmed\"")
+                Log.v(TAG, "⛔ Промо/подписка: \"$trimmed\"")
                 return@mapNotNull null
             }
 
             // ✅ Очистка текста
             var cleaned = trimmed
                 // Удаляем медиа-префиксы
-                .replace(Regex("^\\d{2}:\\d{2}\\s*—\\s*(фото|видео|аудио|документ|gif|голосовое сообщение)[\\p{P}\\s]*", RegexOption.IGNORE_CASE), "")
+                .replace(
+                    Regex(
+                        "^\\d{2}:\\d{2}\\s*—\\s*(фото|видео|аудио|документ|gif|голосовое сообщение)[\\p{P}\\s]*",
+                        RegexOption.IGNORE_CASE
+                    ), ""
+                )
                 // Нормализуем переносы строк
                 .replace(Regex("\\n{3,}"), "\n\n")
                 // Удаляем ссылки
                 .replace(Regex("https?://\\S+"), "")
                 // Удаляем хештеги и упоминания
-                .replace(Regex("#\\S+"), "")
-                .replace(Regex("@\\S+"), "")
-                // Удаляем избыточные эмодзи (но оставляем основные)
-                .replace(Regex("[🔸🔹🔴⚡🐚]"), "")
+                .replace(Regex("(^|\\s)[#@][\\p{L}0-9_]+"), " ")
+                // Удаляем избыточные эмодзи (включая сердечки/воскл знаки в пачках)
+                .replace(Regex("[\\p{So}\\p{Sk}❗️!❤️💚💙💛💜🖤🤍🤎]+"), " ")
+                // Внутренние подписочные фразы
+                .replace(Regex("(?i)подписывай(ся|тесь)?\\s+на\\s+[^\\n.]+"), "")
                 .trim()
 
             // ✅ Финальная проверка
@@ -209,11 +228,7 @@ class NewsService(
             }
 
             // ✅ Ограничиваем длину сообщения
-            val finalMessage = if (cleaned.length > 5000) {
-                cleaned.take(4970) + "..."
-            } else {
-                cleaned
-            }
+            val finalMessage = if (cleaned.length > 5000) cleaned.take(4970) + "..." else cleaned
 
             Log.v(TAG, "✅ Сообщение принято: \"${finalMessage.take(50)}...\"")
             finalMessage
@@ -226,8 +241,12 @@ class NewsService(
         // ✅ Логируем статистику фильтрации
         val originalCount = messages.size
         val filteredCount = filtered.size
-        val filterRate = if (originalCount > 0) ((originalCount - filteredCount) * 100 / originalCount) else 0
-        Log.d(TAG, "📊 Статистика фильтрации: $originalCount -> $filteredCount (отфильтровано $filterRate%)")
+        val filterRate =
+            if (originalCount > 0) ((originalCount - filteredCount) * 100 / originalCount) else 0
+        Log.d(
+            TAG,
+            "📊 Статистика фильтрации: $originalCount -> $filteredCount (отфильтровано $filterRate%)"
+        )
 
         return filtered
     }
