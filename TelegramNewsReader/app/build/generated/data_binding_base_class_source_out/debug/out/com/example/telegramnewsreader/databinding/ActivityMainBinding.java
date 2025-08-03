@@ -43,9 +43,6 @@ public final class ActivityMainBinding implements ViewBinding {
   public final Button btnPlay;
 
   @NonNull
-  public final Button btnPrev;
-
-  @NonNull
   public final Button btnResetAuth;
 
   @NonNull
@@ -71,10 +68,10 @@ public final class ActivityMainBinding implements ViewBinding {
 
   private ActivityMainBinding(@NonNull ScrollView rootView, @NonNull Button btnCollectNews,
       @NonNull Button btnManageHidden, @NonNull Button btnNext, @NonNull Button btnOpenSettings,
-      @NonNull Button btnPause, @NonNull Button btnPlay, @NonNull Button btnPrev,
-      @NonNull Button btnResetAuth, @NonNull LinearLayout llPlayer,
-      @NonNull ProgressBar progressBar, @NonNull RecyclerView recyclerChannels,
-      @NonNull Spinner spinnerTime, @NonNull TextView tvSelectChannels, @NonNull TextView tvStatus,
+      @NonNull Button btnPause, @NonNull Button btnPlay, @NonNull Button btnResetAuth,
+      @NonNull LinearLayout llPlayer, @NonNull ProgressBar progressBar,
+      @NonNull RecyclerView recyclerChannels, @NonNull Spinner spinnerTime,
+      @NonNull TextView tvSelectChannels, @NonNull TextView tvStatus,
       @NonNull TextView tvTimePeriod) {
     this.rootView = rootView;
     this.btnCollectNews = btnCollectNews;
@@ -83,7 +80,6 @@ public final class ActivityMainBinding implements ViewBinding {
     this.btnOpenSettings = btnOpenSettings;
     this.btnPause = btnPause;
     this.btnPlay = btnPlay;
-    this.btnPrev = btnPrev;
     this.btnResetAuth = btnResetAuth;
     this.llPlayer = llPlayer;
     this.progressBar = progressBar;
@@ -157,12 +153,6 @@ public final class ActivityMainBinding implements ViewBinding {
         break missingId;
       }
 
-      id = R.id.btn_prev;
-      Button btnPrev = ViewBindings.findChildViewById(rootView, id);
-      if (btnPrev == null) {
-        break missingId;
-      }
-
       id = R.id.btn_reset_auth;
       Button btnResetAuth = ViewBindings.findChildViewById(rootView, id);
       if (btnResetAuth == null) {
@@ -212,7 +202,7 @@ public final class ActivityMainBinding implements ViewBinding {
       }
 
       return new ActivityMainBinding((ScrollView) rootView, btnCollectNews, btnManageHidden,
-          btnNext, btnOpenSettings, btnPause, btnPlay, btnPrev, btnResetAuth, llPlayer, progressBar,
+          btnNext, btnOpenSettings, btnPause, btnPlay, btnResetAuth, llPlayer, progressBar,
           recyclerChannels, spinnerTime, tvSelectChannels, tvStatus, tvTimePeriod);
     }
     String missingId = rootView.getResources().getResourceName(id);

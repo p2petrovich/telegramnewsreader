@@ -24,6 +24,7 @@ import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
+
     private lateinit var binding: ActivityMainBinding
     private lateinit var telegramClient: TelegramClient
     private lateinit var channelAdapter: ChannelAdapter
@@ -34,6 +35,7 @@ class MainActivity : AppCompatActivity() {
     private var isClientReady = false
 
     private var currentPlaylist: List<File> = emptyList()
+    private var currentChapters: List<Long> = emptyList()
 
     private val timePeriods = arrayOf(
         "Последние 5 минут",
@@ -136,13 +138,7 @@ class MainActivity : AppCompatActivity() {
             updatePlayerButtons(isPlaying = false)
         }
 
-        // Prev/Next
-        findViewById<View?>(R.id.btn_prev)?.setOnClickListener {
-            startService(
-                Intent(this, com.example.telegramnewsreader.services.AudioPlayerService::class.java)
-                    .setAction(com.example.telegramnewsreader.services.AudioPlayerService.ACTION_PREV)
-            )
-        }
+        // Убрали prev/next из layout: оставим только next в сервисе (уведомлении). Если у вас кнопка next в UI нужна — оставьте её:
         findViewById<View?>(R.id.btn_next)?.setOnClickListener {
             startService(
                 Intent(this, com.example.telegramnewsreader.services.AudioPlayerService::class.java)
@@ -232,7 +228,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 updateStatus("Собираем новости из ${selectedChannels.size} каналов...")
 
-                val files = newsService.collectAndSynthesizeNewsList(
+                val audio = newsService.collectAndSynthesizeWithChapters(
                     channels = selectedChannels,
                     timeHours = timeHours
                 )
@@ -241,14 +237,15 @@ class MainActivity : AppCompatActivity() {
                     binding.progressBar.visibility = View.GONE
                     binding.btnCollectNews.isEnabled = true
 
-                    if (files.isNotEmpty()) {
-                        currentPlaylist = files
+                    if (audio != null) {
+                        currentPlaylist = listOf(audio.file)
+                        currentChapters = audio.chaptersMs
                         lastUsedVoice = PreferenceManager.getTtsVoiceName(this@MainActivity)
 
                         val totalMessages = selectedChannels.sumOf { it.newMessagesCount }
                         updateStatus("Готово! Обработано сообщений: $totalMessages")
 
-                        val paths = ArrayList(files.map { it.absolutePath })
+                        val paths = arrayListOf(audio.file.absolutePath)
                         val setIntent = Intent(
                             this@MainActivity,
                             com.example.telegramnewsreader.services.AudioPlayerService::class.java
@@ -266,14 +263,14 @@ class MainActivity : AppCompatActivity() {
                                 com.example.telegramnewsreader.services.AudioPlayerService.EXTRA_TITLE,
                                 "Новости"
                             )
+                            // Передаём таймкоды глав:
+                            putExtra(
+                                com.example.telegramnewsreader.services.AudioPlayerService.EXTRA_CHAPTERS,
+                                currentChapters.toLongArray()
+                            )
                         }
                         startService(setIntent)
-                        startService(
-                            Intent(
-                                this@MainActivity,
-                                com.example.telegramnewsreader.services.AudioPlayerService::class.java
-                            ).setAction(com.example.telegramnewsreader.services.AudioPlayerService.ACTION_PLAY)
-                        )
+                        // ВАЖНО: НЕ запускаем ACTION_PLAY автоматически — старт по кнопке
 
                         channelAdapter.notifyDataSetChanged()
                         showPlayerControls()
@@ -306,13 +303,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun resetCollectionState() {
-        // Останавливаем сервис плеера
         startService(
             Intent(this, com.example.telegramnewsreader.services.AudioPlayerService::class.java)
                 .setAction(com.example.telegramnewsreader.services.AudioPlayerService.ACTION_STOP)
         )
 
         currentPlaylist = emptyList()
+        currentChapters = emptyList()
 
         try {
             binding.llPlayer.visibility = View.GONE
@@ -431,7 +428,7 @@ class MainActivity : AppCompatActivity() {
         val hiddenIds = PreferenceManager.getHiddenIds(this)
 
         val items = mutableListOf<String>()
-        val meta = mutableListOf<Pair<String, String>>() // ("u"|"i", key)
+        val meta = mutableListOf<Pair<String, String>>()
 
         hiddenUsernames.forEach { u ->
             items.add("@$u")

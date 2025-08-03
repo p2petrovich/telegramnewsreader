@@ -25,7 +25,6 @@ id btn_open_settings
 id btn_pause
 id btn_play
 id btn_play_favorite
-id btn_prev
 id btn_reset_auth
 id btn_save
 id btn_save_categories

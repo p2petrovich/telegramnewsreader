@@ -20,6 +20,7 @@ import java.io.FileInputStream
 
 class AudioPlayerService : Service() {
 
+
     companion object {
         private const val TAG = "AudioPlayerService"
 
@@ -28,80 +29,66 @@ class AudioPlayerService : Service() {
         const val ACTION_PAUSE = "player.PAUSE"
         const val ACTION_STOP = "player.STOP"
         const val ACTION_NEXT = "player.NEXT"
-        const val ACTION_PREV = "player.PREV"
 
         const val EXTRA_FILE_PATHS = "extra.FILE_PATHS"
         const val EXTRA_START_INDEX = "extra.START_INDEX"
         const val EXTRA_TITLE = "extra.TITLE"
+        const val EXTRA_CHAPTERS = "extra.CHAPTERS" // long[] таймкоды глав в мс
 
         private const val CHANNEL_ID = "audio_playback_channel"
         private const val NOTIFICATION_ID = 1001
-
-        // Persist
-        private const val PREFS = "audio_state"
-        private const val PREF_PLAYLIST = "playlist" // StringSet
-        private const val PREF_INDEX = "index"
-        private const val PREF_TITLE = "title"
     }
 
     private var mediaPlayer: MediaPlayer? = null
-    private var playlist: MutableList<String> = mutableListOf()
+    private var playlist: List<String> = emptyList()
     private var currentIndex = 0
     private var title: String = "Новости"
+
+    // Главы внутри одного файла
+    private var chapterStartsMs: List<Long> = emptyList()
+    private var currentChapter = 0
+    private var preparedButNotPlaying = false // подготовлено, но не автозапускать
 
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "onCreate")
         createChannel()
-        restoreStateIfPossible()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val action = intent?.action
-        Log.d(TAG, "onStartCommand action=$action startId=$startId flags=$flags")
+        Log.d(TAG, "onStartCommand action=${intent?.action} startId=$startId flags=$flags")
         try {
-            when (action) {
+            when (intent?.action) {
                 ACTION_SET_PLAYLIST -> {
                     val paths = intent.getStringArrayListExtra(EXTRA_FILE_PATHS) ?: arrayListOf()
                     val start = intent.getIntExtra(EXTRA_START_INDEX, 0)
                     title = intent.getStringExtra(EXTRA_TITLE) ?: "Новости"
-                    Log.d(TAG, "ACTION_SET_PLAYLIST title='$title' size=${paths.size} start=$start")
-                    setPlaylist(paths, start)
+                    val chapters = intent.getLongArrayExtra(EXTRA_CHAPTERS)?.toList() ?: emptyList()
+                    Log.d(TAG, "ACTION_SET_PLAYLIST title='$title' size=${paths.size} start=$start chapters=${chapters.size}")
+                    setPlaylist(paths, start, chapters)
                 }
                 ACTION_PLAY -> {
-                    ensureStateOrRestore()
                     Log.d(TAG, "ACTION_PLAY")
                     play()
                 }
                 ACTION_PAUSE -> {
-                    ensureStateOrRestore()
                     Log.d(TAG, "ACTION_PAUSE")
                     pause()
                 }
                 ACTION_STOP -> {
                     Log.d(TAG, "ACTION_STOP")
                     stopServiceSafely()
-                    // Не создавать foreground при стопе
-                    return START_NOT_STICKY
                 }
                 ACTION_NEXT -> {
-                    ensureStateOrRestore()
                     Log.d(TAG, "ACTION_NEXT")
                     playNext()
                 }
-                ACTION_PREV -> {
-                    ensureStateOrRestore()
-                    Log.d(TAG, "ACTION_PREV")
-                    playPrev()
-                }
                 else -> {
-                    // Поднят без экшена — просто обновим уведомление при наличии состояния
-                    Log.d(TAG, "No action")
+                    Log.d(TAG, "No action, updating notification only")
                 }
             }
-
-            // Создаём/обновляем foreground, если это не STOP
-            startForeground(NOTIFICATION_ID, buildNotification())
+            val n = buildNotification()
+            startForeground(NOTIFICATION_ID, n)
         } catch (e: Exception) {
             Log.e(TAG, "onStartCommand exception", e)
         }
@@ -116,90 +103,35 @@ class AudioPlayerService : Service() {
         releasePlayer()
     }
 
-    // ====================== State persist/restore ======================
-
-    private fun persistState() {
-        try {
-            val sp = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            sp.edit()
-                .putStringSet(PREF_PLAYLIST, playlist.toSet())
-                .putInt(PREF_INDEX, currentIndex)
-                .putString(PREF_TITLE, title)
-                .apply()
-            Log.d(TAG, "persistState: size=${playlist.size} index=$currentIndex title=$title")
-        } catch (e: Exception) {
-            Log.w(TAG, "persistState failed", e)
-        }
-    }
-
-    private fun restoreStateIfPossible() {
-        try {
-            val sp = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            val saved = sp.getStringSet(PREF_PLAYLIST, emptySet())?.toList().orEmpty()
-            val idx = sp.getInt(PREF_INDEX, 0)
-            val t = sp.getString(PREF_TITLE, "Новости") ?: "Новости"
-
-            // Фильтруем несуществующие файлы
-            val existing = saved.filter { File(it).exists() }
-            if (existing.isNotEmpty()) {
-                playlist.clear()
-                playlist.addAll(existing)
-                currentIndex = idx.coerceIn(0, (playlist.size - 1).coerceAtLeast(0))
-                title = t
-                Log.d(TAG, "restoreState: size=${playlist.size} index=$currentIndex title=$title")
-            } else {
-                Log.d(TAG, "restoreState: no valid saved playlist")
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "restoreState failed", e)
-        }
-    }
-
-    private fun ensureStateOrRestore() {
-        if (playlist.isEmpty()) {
-            Log.d(TAG, "ensureStateOrRestore: empty in-memory -> try restore")
-            restoreStateIfPossible()
-            if (playlist.isEmpty()) {
-                Log.w(TAG, "ensureStateOrRestore: no playlist to operate on")
-            }
-        }
-    }
-
-    // ====================== Core control ======================
-
-    private fun setPlaylist(paths: List<String>, startIndex: Int) {
-        playlist.clear()
-        // Фильтруем несуществующие пути
-        val filtered = paths.filter { File(it).exists() }
-        playlist.addAll(filtered)
+    private fun setPlaylist(paths: List<String>, startIndex: Int, chapters: List<Long>) {
+        playlist = paths
         currentIndex = startIndex.coerceIn(0, (playlist.size - 1).coerceAtLeast(0))
-        Log.d(TAG, "Playlist set: size=${playlist.size}, startIndex=$currentIndex")
-
-        persistState()
+        chapterStartsMs = if (paths.size == 1) chapters.sorted() else emptyList()
+        currentChapter = 0
+        preparedButNotPlaying = true // не автозапускаем
+        Log.d(TAG, "Playlist set: size=${playlist.size}, startIndex=$currentIndex, chapters=${chapterStartsMs.size}")
 
         if (playlist.isNotEmpty()) {
-            prepareAndPlayCurrent()
+            prepareCurrentSilently()
         } else {
             Log.w(TAG, "Playlist is empty -> pause()")
             pause()
         }
     }
 
-    private fun prepareAndPlayCurrent() {
+    private fun hasChapters(): Boolean {
+        return playlist.size == 1 && chapterStartsMs.size > 1
+    }
+
+    private fun prepareCurrentSilently() {
         if (playlist.isEmpty()) {
-            Log.w(TAG, "prepareAndPlayCurrent: playlist is empty")
+            Log.w(TAG, "prepareCurrentSilently: playlist is empty")
             return
         }
-
         val path = playlist[currentIndex]
         val f = File(path)
-        if (!f.exists() || f.length() == 0L) {
-            Log.w(TAG, "prepareAndPlayCurrent: file missing or empty, skip to next. path=$path")
-            playNext()
-            return
-        }
+        Log.d(TAG, "prepareCurrentSilently: index=$currentIndex path=$path exists=${f.exists()} len=${f.length()}")
 
-        Log.d(TAG, "prepareAndPlayCurrent: index=$currentIndex path=$path exists=${f.exists()} len=${f.length()}")
         releasePlayer()
 
         mediaPlayer = MediaPlayer().apply {
@@ -227,16 +159,84 @@ class AudioPlayerService : Service() {
                 }
 
                 setOnPreparedListener {
-                    Log.d(TAG, "onPrepared -> start()")
-                    it.start()
+                    Log.d(TAG, "onPrepared (silent) -> NOT starting (wait for ACTION_PLAY)")
                     updateNotification()
                 }
                 setOnCompletionListener {
-                    Log.d(TAG, "onCompletion -> next")
-                    playNext()
+                    Log.d(TAG, "onCompletion -> next or stop")
+                    onTrackCompletion()
                 }
                 setOnErrorListener { _, what, extra ->
-                    Log.e(TAG, "onError what=$what extra=$extra (will try next)")
+                    Log.e(TAG, "onError what=$what extra=$extra (will try next/stop)")
+                    playNext()
+                    true
+                }
+
+                Log.d(TAG, "prepareAsync() (silent)")
+                prepareAsync()
+            } catch (e: Exception) {
+                Log.e(TAG, "prepareCurrentSilently failed", e)
+                playNext()
+            }
+        }
+
+        updateNotification()
+    }
+
+    private fun prepareAndPlayCurrent(startFromMs: Int? = null) {
+        if (playlist.isEmpty()) {
+            Log.w(TAG, "prepareAndPlayCurrent: playlist is empty")
+            return
+        }
+
+        val path = playlist[currentIndex]
+        val f = File(path)
+        Log.d(TAG, "prepareAndPlayCurrent: index=$currentIndex path=$path exists=${f.exists()} len=${f.length()}")
+
+        releasePlayer()
+
+        mediaPlayer = MediaPlayer().apply {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build()
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    setAudioStreamType(AudioManager.STREAM_MUSIC)
+                }
+
+                try {
+                    Log.d(TAG, "setDataSource(path)")
+                    setDataSource(path)
+                } catch (e: Exception) {
+                    Log.w(TAG, "setDataSource(path) failed, try FileDescriptor", e)
+                    val fis = FileInputStream(f)
+                    setDataSource(fis.fd)
+                    try { fis.close() } catch (_: Exception) {}
+                }
+
+                setOnPreparedListener {
+                    Log.d(TAG, "onPrepared -> start() (with optional seek)")
+                    try {
+                        startFromMs?.let { ms ->
+                            seekTo(ms)
+                        }
+                        it.start()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "start() failed after prepare", e)
+                    }
+                    updateNotification()
+                }
+                setOnCompletionListener {
+                    Log.d(TAG, "onCompletion -> next or stop")
+                    onTrackCompletion()
+                }
+                setOnErrorListener { _, what, extra ->
+                    Log.e(TAG, "onError what=$what extra=$extra (will try next/stop)")
                     playNext()
                     true
                 }
@@ -252,24 +252,44 @@ class AudioPlayerService : Service() {
         updateNotification()
     }
 
-    private fun play() {
-        if (playlist.isEmpty()) {
-            Log.w(TAG, "play(): playlist empty -> nothing to play")
-            return
-        }
-
-        if (mediaPlayer == null) {
-            Log.d(TAG, "play(): player=null -> prepareAndPlayCurrent()")
-            prepareAndPlayCurrent()
-        } else {
-            val wasPlaying = mediaPlayer?.isPlaying == true
-            Log.d(TAG, "play(): calling start(), wasPlaying=$wasPlaying")
+    private fun onTrackCompletion() {
+        if (hasChapters() && currentChapter < chapterStartsMs.lastIndex) {
+            currentChapter += 1
+            val nextMs = chapterStartsMs[currentChapter].toInt()
+            Log.d(TAG, "Completion: move to next chapter=$currentChapter ms=$nextMs")
+            mediaPlayer?.seekTo(nextMs)
             try {
+                mediaPlayer?.start()
+            } catch (_: Exception) {}
+            updateNotification()
+        } else {
+            if (currentIndex < playlist.lastIndex) {
+                currentIndex += 1
+                currentChapter = 0
+                prepareAndPlayCurrent()
+            } else {
+                Log.d(TAG, "Completion: end -> stopServiceSafely()")
+                stopServiceSafely()
+            }
+        }
+    }
+
+    private fun play() {
+        if (mediaPlayer == null && playlist.isNotEmpty()) {
+            Log.d(TAG, "play(): player=null -> prepareAndPlayCurrent() from start or chapter")
+            preparedButNotPlaying = false
+            if (hasChapters() && currentChapter in chapterStartsMs.indices) {
+                prepareAndPlayCurrent(chapterStartsMs[currentChapter].toInt())
+            } else {
+                prepareAndPlayCurrent()
+            }
+        } else {
+            Log.d(TAG, "play(): calling start(), isPlaying=${mediaPlayer?.isPlaying}, preparedButNotPlaying=$preparedButNotPlaying")
+            try {
+                preparedButNotPlaying = false
                 mediaPlayer?.start()
             } catch (e: Exception) {
                 Log.e(TAG, "play(): start() failed", e)
-                // Попробуем пересоздать
-                prepareAndPlayCurrent()
             }
             updateNotification()
         }
@@ -284,53 +304,51 @@ class AudioPlayerService : Service() {
             } catch (e: Exception) {
                 Log.e(TAG, "pause(): pause() failed", e)
             }
+            updateNotification()
         }
-        updateNotification()
-        persistState()
     }
 
     private fun playNext() {
-        Log.d(TAG, "playNext() currentIndex=$currentIndex size=${playlist.size}")
-        if (playlist.isEmpty()) {
-            updateNotification()
+        Log.d(TAG, "playNext() currentIndex=$currentIndex size=${playlist.size} chapterMode=${hasChapters()} chapter=$currentChapter/${chapterStartsMs.size}")
+
+        if (playlist.isEmpty()) return
+
+        if (hasChapters()) {
+            if (mediaPlayer == null) {
+                preparedButNotPlaying = false
+                currentChapter = (currentChapter + 1).coerceAtMost(chapterStartsMs.lastIndex)
+                prepareAndPlayCurrent(chapterStartsMs[currentChapter].toInt())
+                return
+            }
+
+            if (currentChapter < chapterStartsMs.lastIndex) {
+                currentChapter += 1
+                val toMs = chapterStartsMs[currentChapter].toInt()
+                Log.d(TAG, "Next chapter -> $currentChapter at $toMs ms")
+                try {
+                    mediaPlayer?.seekTo(toMs)
+                    mediaPlayer?.start()
+                } catch (_: Exception) {}
+                updateNotification()
+            } else {
+                Log.d(TAG, "Next on last chapter -> replay current chapter")
+                try {
+                    val curMs = chapterStartsMs[currentChapter].toInt()
+                    mediaPlayer?.seekTo(curMs)
+                    mediaPlayer?.start()
+                } catch (_: Exception) {}
+                updateNotification()
+            }
             return
         }
+
         if (currentIndex < playlist.lastIndex) {
             currentIndex += 1
             Log.d(TAG, "playNext(): newIndex=$currentIndex")
-            persistState()
             prepareAndPlayCurrent()
         } else {
-            Log.d(TAG, "playNext(): end of playlist -> pause and keep service")
-            // Не останавливаем сервис, чтобы кнопки продолжали работать
-            pause()
-        }
-    }
-
-    private fun playPrev() {
-        Log.d(TAG, "playPrev() currentIndex=$currentIndex")
-        if (playlist.isEmpty()) {
-            updateNotification()
-            return
-        }
-        if (currentIndex > 0) {
-            currentIndex -= 1
-            Log.d(TAG, "playPrev(): newIndex=$currentIndex")
-            persistState()
-            prepareAndPlayCurrent()
-        } else {
-            Log.d(TAG, "playPrev(): at start -> restart current from 0")
-            mediaPlayer?.let {
-                try {
-                    it.seekTo(0)
-                    it.start()
-                } catch (_: Exception) {
-                    prepareAndPlayCurrent()
-                }
-            } ?: run {
-                prepareAndPlayCurrent()
-            }
-            updateNotification()
+            Log.d(TAG, "playNext(): end of playlist -> stopServiceSafely()")
+            stopServiceSafely()
         }
     }
 
@@ -379,7 +397,8 @@ class AudioPlayerService : Service() {
         val isPlaying = mediaPlayer?.isPlaying == true
         val total = playlist.size
         val positionText = if (total > 0) "${currentIndex + 1}/$total" else "0/0"
-        Log.d(TAG, "buildNotification(): isPlaying=$isPlaying pos=$positionText title=$title")
+        val chapterText = if (hasChapters()) " • Глава ${currentChapter + 1}/${chapterStartsMs.size}" else ""
+        Log.d(TAG, "buildNotification(): isPlaying=$isPlaying pos=$positionText chapter=$chapterText title=$title")
 
         val openIntent = PendingIntent.getActivity(
             this, 0,
@@ -387,11 +406,6 @@ class AudioPlayerService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or pendingFlag()
         )
 
-        val prevIntent = PendingIntent.getService(
-            this, 1,
-            Intent(this, AudioPlayerService::class.java).setAction(ACTION_PREV),
-            PendingIntent.FLAG_UPDATE_CURRENT or pendingFlag()
-        )
         val playPauseAction = if (isPlaying) ACTION_PAUSE else ACTION_PLAY
         val playPauseIntent = PendingIntent.getService(
             this, 2,
@@ -406,12 +420,12 @@ class AudioPlayerService : Service() {
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_headset)
-            .setContentTitle("$title — $positionText")
-            .setContentText("Управление воспроизведением")
+            .setContentTitle("$title — $positionText$chapterText")
+            .setContentText(if (isPlaying) "Воспроизведение" else "Пауза / Ожидание старта")
             .setContentIntent(openIntent)
             .setOngoing(isPlaying)
             .setOnlyAlertOnce(true)
-            .addAction(android.R.drawable.ic_media_previous, "Назад", prevIntent)
+            // Кнопка "Назад" удалена
             .addAction(
                 if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
                 if (isPlaying) "Пауза" else "Пуск",

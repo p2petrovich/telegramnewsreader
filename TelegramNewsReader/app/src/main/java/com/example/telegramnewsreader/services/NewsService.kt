@@ -18,6 +18,16 @@ class NewsService(
     }
 
 
+    data class Prepared(
+        val preparedMessages: List<String>,
+        val totalMessages: Int
+    )
+
+    data class AudioWithChapters(
+        val file: File,
+        val chaptersMs: List<Long>
+    )
+
     suspend fun collectAndProcessNews(
         channels: List<Channel>,
         timeHours: Double
@@ -27,21 +37,24 @@ class NewsService(
         ttsManager.convertToAudio(list.preparedMessages, pauseMs = 1200)
     }
 
-    // Возвращаем список из одного файла, так как TTSManager генерит единый mp3
     suspend fun collectAndSynthesizeNewsList(
         channels: List<Channel>,
         timeHours: Double
     ): List<File> = withContext(Dispatchers.IO) {
-        val list = collectAndPrepareMessages(channels, timeHours) ?: return@withContext emptyList()
-        if (list.preparedMessages.isEmpty()) return@withContext emptyList()
-        val oneFile = ttsManager.convertToAudio(list.preparedMessages, pauseMs = 1200)
-        if (oneFile != null) listOf(oneFile) else emptyList()
+        val res = collectAndSynthesizeWithChapters(channels, timeHours)
+        if (res != null) listOf(res.file) else emptyList()
     }
 
-    data class Prepared(
-        val preparedMessages: List<String>,
-        val totalMessages: Int
-    )
+    suspend fun collectAndSynthesizeWithChapters(
+        channels: List<Channel>,
+        timeHours: Double
+    ): AudioWithChapters? = withContext(Dispatchers.IO) {
+        val list = collectAndPrepareMessages(channels, timeHours) ?: return@withContext null
+        if (list.preparedMessages.isEmpty()) return@withContext null
+        val audio = ttsManager.convertToAudioWithChapters(list.preparedMessages, pauseMs = 1200)
+            ?: return@withContext null
+        AudioWithChapters(audio.file, audio.chaptersMs)
+    }
 
     private suspend fun collectAndPrepareMessages(
         channels: List<Channel>,
