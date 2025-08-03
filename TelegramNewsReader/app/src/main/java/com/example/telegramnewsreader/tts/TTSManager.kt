@@ -78,9 +78,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 tts?.setLanguage(Locale.US)
             }
 
-            // Применяем сохраненный голос сразу после инициализации
             applySavedVoice()
-
             initializationContinuation?.resume(true)
         } else {
             ttsInitialized.set(false)
@@ -90,7 +88,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         initializationContinuation = null
     }
 
-    // 🔥 Новый метод для применения сохраненного голоса
+    // Применяем сохраненный голос сразу после инициализации
     private fun applySavedVoice() {
         val availableVoices = tts?.voices
         val russianVoices = availableVoices?.filter { it.locale.language == "ru" }
@@ -116,7 +114,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             Log.w("TTSManager", "⚠️ Нет русских голосов, используется голос по умолчанию.")
         }
 
-        // Настройки тембра и скорости
         val pitch = PreferenceManager.getTtsPitch(context)
         val rate = PreferenceManager.getTtsRate(context)
         tts?.setPitch(pitch)
@@ -124,9 +121,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     }
 
     private suspend fun ensureTtsInitialized(): Boolean {
-        if (ttsInitialized.get()) {
-            return true
-        }
+        if (ttsInitialized.get()) return true
         if (tts != null && initializationContinuation == null) {
             return suspendCancellableCoroutine { continuation ->
                 initializationContinuation = continuation
@@ -200,53 +195,156 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
+    // ========== Фильтрация и подготовка текста ==========
+
+    private val NEWS_SEPARATOR = "\n\n— — —\n\n"
+
+    private fun cleanTextForTts(text: String): String {
+        var t = text
+
+        // URL
+        t = t.replace(Regex("(https?://|www\\.)\\S+"), " ")
+
+        // Хештеги и @упоминания
+        t = t.replace(Regex("(^|\\s)[#@][\\p{L}0-9_]+"), " ")
+
+        // Служебные подписи/редакторы/пересылки
+        t = t.replace(Regex("(?im)^переслано из:?\\s.*$"), "")
+        t = t.replace(Regex("(?im)^ред\\.?\\s*:?\\s*\\d{1,2}:\\d{2}.*$"), "")
+
+        // Эмодзи/символы
+        t = t.replace(Regex("[\\p{So}\\p{Sk}]"), " ")
+
+        // Markdown, кавычки
+        t = t.replace(Regex("[*_`]+"), "")
+        t = t.replace(Regex("[«»]"), "\"")
+
+        // Многоточия/мусорные пробелы
+        t = t.replace(Regex("\\.\\.\\."), "…")
+        t = t.replace(Regex("[ \\t]{2,}"), " ")
+        t = t.replace(Regex("\\n{3,}"), "\n\n")
+
+        return t.trim()
+    }
+
+    private fun deduplicateLines(text: String): String {
+        val seen = HashSet<String>()
+        val sb = StringBuilder()
+        text.lines().map { it.trim() }.filter { it.isNotEmpty() }.forEach { line ->
+            val key = line.lowercase()
+            if (seen.add(key)) {
+                if (sb.isNotEmpty()) sb.append("\n")
+                sb.append(line)
+            }
+        }
+        return sb.toString()
+    }
+
+    private fun normalizeNumbers(text: String): String {
+        var t = text
+        t = t.replace(Regex("\\b№\\s*(\\d+)"), "номер $1")
+        t = t.replace(Regex("\\b(\\d+[\\d\\s]*)(?:₽|руб\\.?|р\\.)\\b", RegexOption.IGNORE_CASE), "$1 рублей")
+        t = t.replace(Regex("\\b(\\d+[\\d\\s]*)\\s?%\\b"), "$1 процентов")
+        return t
+    }
+
     private fun formatForIntonation(text: String): String {
+        var t = text
+
+        // Даты вида "5 мая" → "пятого мая"
         val dateRegex = Regex("\\b(\\d{1,2})\\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\\b")
-        val withDatesConverted = dateRegex.replace(text) { match ->
+        t = dateRegex.replace(t) { match ->
             val day = match.groupValues[1].toIntOrNull() ?: return@replace match.value
             val month = match.groupValues[2]
             "${numberToOrdinalRu(day)} $month"
         }
 
-        return withDatesConverted
-            .replace("([а-яА-Я]{2,})([.!?])\\s+".toRegex(), "$1$2\n\n") // разбивка на абзацы по точке/воскл/вопросу
-            .replace("([а-яА-Я]{2,}):".toRegex(), "Цитата:") // Путин: → Цитата:
-            .replace(Regex(" - "), " — ") // тире с паузой
-            .replace(Regex("\\.\\.\\."), "…") // нормализуем ...
-            .replace(Regex(", "), ", ") // нормализуем запятые
-            .trim()
+        // Единицы измерения
+        t = t.replace(Regex("\\bкм/ч\\b", RegexOption.IGNORE_CASE), "километров в час")
+        t = t.replace(Regex("\\bкм\\b", RegexOption.IGNORE_CASE), "километров")
+        t = t.replace(Regex("\\bм\\b", RegexOption.IGNORE_CASE), "метров")
+
+        // Списки/маркировка
+        t = t.replace(Regex("(?m)^[-•]\\s+"), "— ")
+
+        // Тире, троеточия
+        t = t.replace(Regex(" - "), " — ")
+        t = t.replace(Regex("\\.\\.\\."), "…")
+
+        // Разбивка на абзацы по финальной пунктуации, не трогая типичные аббревиатуры
+        val abbrEnd = "(?<!т\\.д)(?<!т\\.п)(?<!млн)(?<!млрд)(?<!г)(?<!ул)(?<!просп)"
+        t = t.replace(Regex("$abbrEnd(?<=[.!?])\\s+"), "\n\n")
+
+        return t.trim()
     }
 
-    // 🔥 Новый метод для разбивки текста на части по 2800 символов
-    private fun splitTextSafely(text: String, maxChars: Int = 2800): List<String> {
-        if (text.length <= maxChars) {
-            return listOf(text)
+    private fun dropTrivial(texts: List<String>): List<String> {
+        val trivial = Regex("^(фото|видео|аудио|ссылка|репост)\\b.*$", RegexOption.IGNORE_CASE)
+        return texts.map { it.trim() }.filter { it.length >= 8 && !trivial.containsMatchIn(it) }
+    }
+
+    // Разбиваем по абзацам, собирая части до лимита
+    private fun splitByParagraphs(text: String, maxChars: Int = 2800): List<String> {
+        val paras = text.split(Regex("\\n{2,}")).map { it.trim() }.filter { it.isNotEmpty() }
+        val parts = mutableListOf<String>()
+        val cur = StringBuilder()
+
+        fun flush() {
+            if (cur.isNotEmpty()) {
+                parts.add(cur.toString().trim())
+                cur.clear()
+            }
         }
+
+        for (p in paras) {
+            if (cur.length + p.length + 2 <= maxChars) {
+                if (cur.isNotEmpty()) cur.append("\n\n")
+                cur.append(p)
+            } else if (p.length <= maxChars) {
+                flush()
+                cur.append(p)
+            } else {
+                // Абзац слишком большой — fallback на более тонкий разрез
+                splitTextSafely(p, maxChars).forEach { chunk ->
+                    if (parts.isEmpty() || parts.last().length + chunk.length + 2 > maxChars) {
+                        parts.add(chunk)
+                    } else {
+                        parts[parts.lastIndex] = parts.last() + "\n\n" + chunk
+                    }
+                }
+                cur.clear()
+            }
+        }
+        flush()
+        return parts
+    }
+
+    // Fallback-метод на случай очень длинных предложений
+    private fun splitTextSafely(text: String, maxChars: Int = 2800): List<String> {
+        if (text.length <= maxChars) return listOf(text)
 
         val parts = mutableListOf<String>()
         var currentPart = ""
         val sentences = text.split(Regex("(?<=[.!?])\\s+"))
 
         for (sentence in sentences) {
-            if ((currentPart + sentence).length <= maxChars) {
+            if ((currentPart + if (currentPart.isEmpty()) "" else " " + sentence).length <= maxChars) {
                 currentPart += if (currentPart.isEmpty()) sentence else " $sentence"
             } else {
                 if (currentPart.isNotEmpty()) {
                     parts.add(currentPart.trim())
                     currentPart = sentence
                 } else {
-                    // Если одно предложение слишком длинное, режем по словам
                     val words = sentence.split(" ")
                     var wordPart = ""
                     for (word in words) {
-                        if ((wordPart + word).length <= maxChars) {
+                        if ((wordPart + if (wordPart.isEmpty()) "" else " " + word).length <= maxChars) {
                             wordPart += if (wordPart.isEmpty()) word else " $word"
                         } else {
                             if (wordPart.isNotEmpty()) {
                                 parts.add(wordPart.trim())
                                 wordPart = word
                             } else {
-                                // Если слово слишком длинное, режем жестко
                                 parts.add(word.take(maxChars))
                                 wordPart = ""
                             }
@@ -258,15 +356,11 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 }
             }
         }
-
-        if (currentPart.isNotEmpty()) {
-            parts.add(currentPart.trim())
-        }
-
+        if (currentPart.isNotEmpty()) parts.add(currentPart.trim())
         return parts.filter { it.isNotBlank() }
     }
 
-    // 🔥 Новый метод для генерации одной части в WAV
+    // Синтез одной части в WAV
     private suspend fun synthesizePartToWav(text: String, partIndex: Int, baseUtteranceId: String): File? {
         return suspendCancellableCoroutine { continuation ->
             val utteranceId = "${baseUtteranceId}_part_${partIndex}"
@@ -275,7 +369,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
             }
 
-            // 💾 Сохраняем текст части в .txt файл
+            // Опционально сохраняем текст части (оставил для отладки)
             val textFile = File(context.cacheDir, "${utteranceId}.txt")
             try {
                 textFile.writeText(text)
@@ -294,6 +388,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 override fun onDone(id: String?) {
                     if (id == utteranceId) {
                         Log.d("TTSManager", "✅ TTS синтез завершен для части $partIndex ($utteranceId)")
+                        tts?.setOnUtteranceProgressListener(null)
                         if (continuation.isActive) {
                             continuation.resume(tempWavFile)
                         }
@@ -304,9 +399,8 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 override fun onError(id: String?) {
                     if (id == utteranceId) {
                         Log.e("TTSManager", "❌ TTS ошибка (legacy) для части $partIndex ($utteranceId)")
-                        if (continuation.isActive) {
-                            continuation.resume(null)
-                        }
+                        tts?.setOnUtteranceProgressListener(null)
+                        if (continuation.isActive) continuation.resume(null)
                         tempWavFile.delete()
                     }
                 }
@@ -314,9 +408,8 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 override fun onError(id: String?, errorCode: Int) {
                     if (id == utteranceId) {
                         Log.e("TTSManager", "❌ TTS ошибка для части $partIndex ($utteranceId). Код: $errorCode")
-                        if (continuation.isActive) {
-                            continuation.resume(null)
-                        }
+                        tts?.setOnUtteranceProgressListener(null)
+                        if (continuation.isActive) continuation.resume(null)
                         tempWavFile.delete()
                     }
                 }
@@ -324,9 +417,8 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 override fun onStop(id: String?, interrupted: Boolean) {
                     if (id == utteranceId && interrupted) {
                         Log.w("TTSManager", "⏹️ TTS остановлен (прерван) для части $partIndex ($utteranceId)")
-                        if (continuation.isActive) {
-                            continuation.resume(null)
-                        }
+                        tts?.setOnUtteranceProgressListener(null)
+                        if (continuation.isActive) continuation.resume(null)
                         tempWavFile.delete()
                     }
                 }
@@ -338,14 +430,12 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             val result = tts?.synthesizeToFile(text, params, tempWavFile, utteranceId)
 
             if (result == TextToSpeech.ERROR) {
-                Log.e("TTSManager", "❌ tts.synthesizeToFile немедленно вернул ERROR для части $partIndex ($utteranceId)")
+                Log.e("TTSManager", "❌ tts.synthesizeToFile ERROR для части $partIndex ($utteranceId)")
                 tts?.setOnUtteranceProgressListener(null)
-                if (continuation.isActive) {
-                    continuation.resume(null)
-                }
+                if (continuation.isActive) continuation.resume(null)
                 tempWavFile.delete()
             } else if (result == TextToSpeech.SUCCESS) {
-                Log.d("TTSManager", "✅ tts.synthesizeToFile успешно вызван для части $partIndex ($utteranceId)")
+                Log.d("TTSManager", "✅ tts.synthesizeToFile вызван для части $partIndex ($utteranceId)")
             }
 
             continuation.invokeOnCancellation {
@@ -357,21 +447,34 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
-    // 🔥 Обновленный основной метод convertToAudio с разбивкой на части
+    // Основной метод конвертации
     suspend fun convertToAudio(texts: List<String>): File? {
         if (!ensureTtsInitialized() || tts == null) {
             Log.e("TTSManager", "TTS не инициализирован. Невозможно конвертировать в аудио.")
             return null
         }
 
-        // 🔥 ВАЖНО: Всегда применяем актуальный сохраненный голос перед синтезом
+        // Всегда применяем актуальные настройки
         refreshVoice()
 
-        val combinedText = texts.joinToString(" ")
-        val formattedText = formatForIntonation(combinedText)
-        val baseUtteranceId = "ttsAudioConversion_${System.currentTimeMillis()}"
+        // Фильтрация входных сообщений
+        val filtered = dropTrivial(texts)
+        if (filtered.isEmpty()) {
+            Log.w("TTSManager", "Нет содержательных сообщений для синтеза.")
+            return null
+        }
 
-        // 💾 Сохраняем полный (необрезанный) текст для анализа
+        // Склеиваем с разделителями, чтобы ухо понимало границы новостей
+        val combinedText = filtered.joinToString(NEWS_SEPARATOR)
+
+        // Очистка/нормализация/интонация
+        val cleaned = cleanTextForTts(combinedText)
+        val deduped = deduplicateLines(cleaned)
+        val normalized = normalizeNumbers(deduped)
+        val formattedText = formatForIntonation(normalized)
+
+        // Сохраняем полный текст для анализа
+        val baseUtteranceId = "ttsAudioConversion_${System.currentTimeMillis()}"
         val rawTextFile = File(context.cacheDir, "${baseUtteranceId}_full.txt")
         try {
             rawTextFile.writeText(formattedText)
@@ -381,25 +484,32 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
 
         if (formattedText.isBlank()) {
-            Log.w("TTSManager", "⚠️ Невозможно синтезировать пустой текст.")
+            Log.w("TTSManager", "Нечего синтезировать: текст пуст после фильтрации.")
             return null
         }
 
-        // 🔪 Разбиваем текст на части по 2800 символов
-        val textParts = splitTextSafely(formattedText, 2800)
-        Log.d("TTSManager", "📝 Разбили текст на ${textParts.size} частей (исходный размер: ${formattedText.length} символов)")
+        // Динамическая корректировка скорости для длинных текстов
+        val savedRate = PreferenceManager.getTtsRate(context)
+        if (formattedText.length > 8000) {
+            val adjusted = (savedRate * 0.9f).coerceAtLeast(0.7f)
+            tts?.setSpeechRate(adjusted)
+            Log.d("TTSManager", "⏬ Уменьшили скорость для длинного текста: $adjusted")
+        }
 
-        // 🎤 Генерируем WAV файлы для каждой части последовательно
+        // Разбивка по абзацам на части до лимита
+        val textParts = splitByParagraphs(formattedText, 2800)
+        Log.d("TTSManager", "📝 Разбили текст на ${textParts.size} частей (длина: ${formattedText.length})")
+
+        // Генерация WAV по частям
         val wavFiles = mutableListOf<File>()
         for (i in textParts.indices) {
-            Log.d("TTSManager", "🎬 Синтезируем часть ${i + 1}/${textParts.size} (${textParts[i].length} символов)")
+            Log.d("TTSManager", "🎬 Синтезируем часть ${i + 1}/${textParts.size} (${textParts[i].length} симв.)")
             val wavFile = synthesizePartToWav(textParts[i], i + 1, baseUtteranceId)
             if (wavFile != null && wavFile.exists() && wavFile.length() > 0) {
                 wavFiles.add(wavFile)
                 Log.d("TTSManager", "✅ Часть ${i + 1} синтезирована: ${wavFile.name} (${wavFile.length()} байт)")
             } else {
                 Log.e("TTSManager", "❌ Не удалось синтезировать часть ${i + 1}")
-                // Очищаем созданные файлы при ошибке
                 wavFiles.forEach { it.delete() }
                 return null
             }
@@ -410,17 +520,16 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             return null
         }
 
-        // 🔗 Объединяем WAV файлы в один
+        // Объединяем WAV
         val combinedWavFile = File(context.cacheDir, "${baseUtteranceId}_combined.wav")
         val concatSuccess = if (wavFiles.size == 1) {
-            // Если только одна часть, просто переименовываем
             wavFiles.first().renameTo(combinedWavFile)
         } else {
-            Log.d("TTSManager", "🔗 Объединяем ${wavFiles.size} WAV файлов в один")
+            Log.d("TTSManager", "🔗 Объединяем ${wavFiles.size} WAV файлов")
             AudioUtils.concatWavFiles(wavFiles, combinedWavFile)
         }
 
-        // Удаляем временные WAV файлы частей
+        // Чистим временные WAV
         wavFiles.forEach { file ->
             if (file.exists() && file != combinedWavFile) {
                 file.delete()
@@ -436,13 +545,13 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         Log.d("TTSManager", "✅ Объединенный WAV создан: ${combinedWavFile.name} (${combinedWavFile.length()} байт)")
 
-        // 🎵 Конвертируем в MP3
+        // Конвертация в MP3
         val mp3File = convertToMp3(combinedWavFile)
         combinedWavFile.delete()
 
         if (mp3File != null) {
-            Log.d("TTSManager", "🎉 Синтез завершен успешно: ${mp3File.name} (${mp3File.length()} байт)")
-            Log.d("TTSManager", "📊 Статистика: ${textParts.size} частей, ${formattedText.length} символов → ${mp3File.length()} байт MP3")
+            Log.d("TTSManager", "🎉 Синтез завершен: ${mp3File.name} (${mp3File.length()} байт)")
+            Log.d("TTSManager", "📊 Частей: ${textParts.size}, Символов: ${formattedText.length}")
         } else {
             Log.e("TTSManager", "❌ Не удалось конвертировать в MP3")
         }
@@ -472,7 +581,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                     return null
                 }
             } else {
-                Log.e("TTSManager", "❌ Конвертация в MP3 неуспешна. Код возврата: ${session.returnCode}")
+                Log.e("TTSManager", "❌ Конвертация в MP3 неуспешна. Код: ${session.returnCode}")
                 if (mp3File.exists()) mp3File.delete()
                 return null
             }
@@ -497,15 +606,13 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         tts = null
     }
 
-    // 🔥 Улучшенный метод - применяет выбранный голос немедленно
+    // Применяет выбранный голос немедленно и сохраняет
     fun setVoiceByName(voiceName: String) {
         val voice = tts?.voices?.firstOrNull { it.name == voiceName }
         voice?.let {
             Log.d("TTSManager", "🔄 Применяем выбранный голос: ${voice.name}")
             tts?.language = voice.locale
             tts?.voice = voice
-
-            // Сохраняем в настройки
             PreferenceManager.saveTtsVoiceName(context, voiceName)
             Log.d("TTSManager", "💾 Голос сохранен и применен: $voiceName")
         } ?: run {
@@ -515,7 +622,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     fun speak(text: String) {
         if (ttsInitialized.get()) {
-            // 💡 Применяем актуальный голос перед воспроизведением
             refreshVoice()
             tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "TTS_SAMPLE")
         } else {
@@ -523,7 +629,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
-    // 🔥 Метод для принудительного обновления голоса (применяет актуальные настройки)
+    // Принудительное обновление голоса и параметров
     fun refreshVoice() {
         if (ttsInitialized.get()) {
             val savedVoiceName = PreferenceManager.getTtsVoiceName(context)
@@ -536,7 +642,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 Log.w("TTSManager", "❗ refreshVoice(): голос $savedVoiceName не найден среди доступных")
             }
 
-            // ✅ Применяем сохранённые настройки
             val pitch = PreferenceManager.getTtsPitch(context)
             val rate = PreferenceManager.getTtsRate(context)
             tts?.setPitch(pitch)
