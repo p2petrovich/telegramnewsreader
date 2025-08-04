@@ -48,6 +48,7 @@ class AudioPlayerService : Service() {
     private var chapterStartsMs: List<Long> = emptyList()
     private var currentChapter = 0
     private var preparedButNotPlaying = false // подготовлено, но не автозапускать
+    private var pendingSeekStart = false // стартовать после onSeekComplete
 
     override fun onCreate() {
         super.onCreate()
@@ -78,12 +79,10 @@ class AudioPlayerService : Service() {
                 ACTION_STOP -> {
                     Log.d(TAG, "ACTION_STOP")
                     stopServiceSafely()
-                    // ВАЖНО: не строим уведомление и не стартуем foreground после STOP
                     return START_NOT_STICKY
                 }
                 ACTION_NEXT -> {
                     Log.d(TAG, "ACTION_NEXT")
-                    // Если плейлиста нет — не поднимаем сервис зря
                     if (playlist.isEmpty()) return START_NOT_STICKY
                     playNext()
                 }
@@ -92,13 +91,11 @@ class AudioPlayerService : Service() {
                 }
             }
 
-            // Переводим в foreground только когда сервис активен
             val n = buildNotification()
             startForeground(NOTIFICATION_ID, n)
         } catch (e: Exception) {
             Log.e(TAG, "onStartCommand exception", e)
         }
-        // Сервис не должен перезапускаться автоматически
         return START_NOT_STICKY
     }
 
@@ -108,7 +105,6 @@ class AudioPlayerService : Service() {
         Log.d(TAG, "onDestroy")
         super.onDestroy()
         releasePlayer()
-        // Подстраховка: снимаем foreground (если ещё висит)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 stopForeground(Service.STOP_FOREGROUND_REMOVE)
@@ -124,7 +120,8 @@ class AudioPlayerService : Service() {
         currentIndex = startIndex.coerceIn(0, (playlist.size - 1).coerceAtLeast(0))
         chapterStartsMs = if (paths.size == 1) chapters.sorted() else emptyList()
         currentChapter = 0
-        preparedButNotPlaying = true // не автозапускаем
+        preparedButNotPlaying = true
+        pendingSeekStart = false
         Log.d(TAG, "Playlist set: size=${playlist.size}, startIndex=$currentIndex, chapters=${chapterStartsMs.size}")
 
         if (playlist.isNotEmpty()) {
@@ -137,6 +134,39 @@ class AudioPlayerService : Service() {
 
     private fun hasChapters(): Boolean {
         return playlist.size == 1 && chapterStartsMs.size > 1
+    }
+
+    private fun attachCommonListeners(mp: MediaPlayer, startFromMs: Int? = null, autoStart: Boolean) {
+        mp.setOnPreparedListener {
+            Log.d(TAG, "onPrepared -> ${if (autoStart) "start()" else "silent"} (with optional seek)")
+            try {
+                startFromMs?.let { ms -> mp.seekTo(ms) }
+                if (autoStart) mp.start()
+            } catch (e: Exception) {
+                Log.e(TAG, "start() failed after prepare", e)
+            }
+            updateNotification()
+        }
+        mp.setOnCompletionListener {
+            Log.d(TAG, "onCompletion -> next or stop")
+            onTrackCompletion()
+        }
+        mp.setOnErrorListener { _, what, extra ->
+            Log.e(TAG, "onError what=$what extra=$extra (will try next/stop)")
+            playNext()
+            true
+        }
+        mp.setOnSeekCompleteListener {
+            Log.d(TAG, "onSeekComplete pendingSeekStart=$pendingSeekStart")
+            if (pendingSeekStart) {
+                try {
+                    mp.start()
+                } catch (_: Exception) { }
+                pendingSeekStart = false
+                preparedButNotPlaying = false
+                updateNotification()
+            }
+        }
     }
 
     private fun prepareCurrentSilently() {
@@ -174,20 +204,7 @@ class AudioPlayerService : Service() {
                     try { fis.close() } catch (_: Exception) {}
                 }
 
-                setOnPreparedListener {
-                    Log.d(TAG, "onPrepared (silent) -> NOT starting (wait for ACTION_PLAY)")
-                    updateNotification()
-                }
-                setOnCompletionListener {
-                    Log.d(TAG, "onCompletion -> next or stop")
-                    onTrackCompletion()
-                }
-                setOnErrorListener { _, what, extra ->
-                    Log.e(TAG, "onError what=$what extra=$extra (will try next/stop)")
-                    playNext()
-                    true
-                }
-
+                attachCommonListeners(this, startFromMs = null, autoStart = false)
                 Log.d(TAG, "prepareAsync() (silent)")
                 prepareAsync()
             } catch (e: Exception) {
@@ -235,28 +252,7 @@ class AudioPlayerService : Service() {
                     try { fis.close() } catch (_: Exception) {}
                 }
 
-                setOnPreparedListener {
-                    Log.d(TAG, "onPrepared -> start() (with optional seek)")
-                    try {
-                        startFromMs?.let { ms ->
-                            seekTo(ms)
-                        }
-                        it.start()
-                    } catch (e: Exception) {
-                        Log.e(TAG, "start() failed after prepare", e)
-                    }
-                    updateNotification()
-                }
-                setOnCompletionListener {
-                    Log.d(TAG, "onCompletion -> next or stop")
-                    onTrackCompletion()
-                }
-                setOnErrorListener { _, what, extra ->
-                    Log.e(TAG, "onError what=$what extra=$extra (will try next/stop)")
-                    playNext()
-                    true
-                }
-
+                attachCommonListeners(this, startFromMs = startFromMs, autoStart = true)
                 Log.d(TAG, "prepareAsync()")
                 prepareAsync()
             } catch (e: Exception) {
@@ -273,15 +269,17 @@ class AudioPlayerService : Service() {
             currentChapter += 1
             val nextMs = chapterStartsMs[currentChapter].toInt()
             Log.d(TAG, "Completion: move to next chapter=$currentChapter ms=$nextMs")
-            mediaPlayer?.seekTo(nextMs)
             try {
-                mediaPlayer?.start()
-            } catch (_: Exception) {}
+                pendingSeekStart = true
+                mediaPlayer?.seekTo(nextMs)
+            } catch (_: Exception) { }
             updateNotification()
         } else {
             if (currentIndex < playlist.lastIndex) {
                 currentIndex += 1
                 currentChapter = 0
+                preparedButNotPlaying = false
+                pendingSeekStart = false
                 prepareAndPlayCurrent()
             } else {
                 Log.d(TAG, "Completion: end -> stopServiceSafely()")
@@ -299,8 +297,8 @@ class AudioPlayerService : Service() {
         }
 
         if (mediaPlayer == null) {
-            // Создаём и запускаем с учётом текущей главы
             preparedButNotPlaying = false
+            pendingSeekStart = false
             val startMs = if (hasChapters() && currentChapter in chapterStartsMs.indices) {
                 chapterStartsMs[currentChapter].toInt()
             } else null
@@ -309,14 +307,15 @@ class AudioPlayerService : Service() {
         }
 
         try {
-            // Если было молчаливое prepare после SET_PLAYLIST, стартуем с начала текущей главы
             if (preparedButNotPlaying && hasChapters() && currentChapter in chapterStartsMs.indices) {
                 val toMs = chapterStartsMs[currentChapter].toInt()
-                Log.d(TAG, "play(): preparedButNotPlaying -> seekTo currentChapter start $toMs ms, then start()")
+                Log.d(TAG, "play(): preparedButNotPlaying -> seekTo currentChapter start $toMs ms, will start onSeekComplete")
+                pendingSeekStart = true
                 mediaPlayer?.seekTo(toMs)
+            } else {
+                preparedButNotPlaying = false
+                mediaPlayer?.start()
             }
-            preparedButNotPlaying = false
-            mediaPlayer?.start()
         } catch (e: Exception) {
             Log.e(TAG, "play(): start() failed", e)
         }
@@ -332,8 +331,8 @@ class AudioPlayerService : Service() {
             } catch (e: Exception) {
                 Log.e(TAG, "pause(): pause() failed", e)
             }
-            // Мы отличаем паузу пользователя от "ещё не запускали"
             preparedButNotPlaying = false
+            pendingSeekStart = false
             updateNotification()
         }
     }
@@ -352,7 +351,10 @@ class AudioPlayerService : Service() {
             if (currentChapter < chapterStartsMs.lastIndex) {
                 currentChapter += 1
             } else {
-                Log.d(TAG, "Next on last chapter -> stay at last chapter")
+                // Новое поведение: стоп на последней главе
+                Log.d(TAG, "Next on last chapter -> stop")
+                stopServiceSafely()
+                return
             }
 
             val toMs = chapterStartsMs[currentChapter].toInt()
@@ -361,27 +363,24 @@ class AudioPlayerService : Service() {
             try {
                 if (mediaPlayer == null) {
                     preparedButNotPlaying = false
+                    pendingSeekStart = false
                     prepareAndPlayCurrent(toMs)
                     return
                 }
 
+                pendingSeekStart = wasPlaying || wasPreparedNoStart
                 mediaPlayer?.seekTo(toMs)
-
-                // Стартуем, если до этого играло, либо это первый старт после "тихой" подготовки
-                if (wasPlaying || wasPreparedNoStart) {
-                    mediaPlayer?.start()
-                }
                 preparedButNotPlaying = false
             } catch (_: Exception) { }
             updateNotification()
             return
         }
 
-        // Обычный плейлист без глав
         if (currentIndex < playlist.lastIndex) {
             currentIndex += 1
             Log.d(TAG, "playNext(): newIndex=$currentIndex")
             preparedButNotPlaying = false
+            pendingSeekStart = false
             prepareAndPlayCurrent()
         } else {
             Log.d(TAG, "playNext(): end of playlist -> stopServiceSafely()")
@@ -394,7 +393,6 @@ class AudioPlayerService : Service() {
         releasePlayer()
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                // Полностью убрать уведомление
                 stopForeground(Service.STOP_FOREGROUND_REMOVE)
             } else {
                 @Suppress("DEPRECATION")
@@ -403,7 +401,6 @@ class AudioPlayerService : Service() {
         } catch (e: Exception) {
             Log.w(TAG, "stopForeground failed", e)
         }
-        // Подстраховка на некоторых прошивках:
         try {
             (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
                 .cancel(NOTIFICATION_ID)
@@ -413,12 +410,9 @@ class AudioPlayerService : Service() {
 
     private fun releasePlayer() {
         Log.d(TAG, "releasePlayer()")
-        try {
-            mediaPlayer?.stop()
-        } catch (_: Exception) { }
-        try {
-            mediaPlayer?.release()
-        } catch (_: Exception) { }
+        pendingSeekStart = false
+        try { mediaPlayer?.stop() } catch (_: Exception) { }
+        try { mediaPlayer?.release() } catch (_: Exception) { }
         mediaPlayer = null
     }
 
