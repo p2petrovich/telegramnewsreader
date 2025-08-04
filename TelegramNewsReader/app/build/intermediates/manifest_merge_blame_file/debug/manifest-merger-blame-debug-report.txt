@@ -48,15 +48,15 @@
 27-->[androidx.work:work-runtime:2.9.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\2cf63fa163a97e1ebbca005b83cd2cf7\transformed\work-runtime-2.9.0\AndroidManifest.xml:25:22-78
 28
 29    <permission
-29-->[androidx.core:core:1.12.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\5b331c2ca5d1968b871d309d9d1af46b\transformed\core-1.12.0\AndroidManifest.xml:22:5-24:47
+29-->[androidx.core:core:1.13.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\4485ca9f997d8c8b8cf8a91d28736d19\transformed\core-1.13.0\AndroidManifest.xml:22:5-24:47
 30        android:name="com.example.telegramnewsreader.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
-30-->[androidx.core:core:1.12.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\5b331c2ca5d1968b871d309d9d1af46b\transformed\core-1.12.0\AndroidManifest.xml:23:9-81
+30-->[androidx.core:core:1.13.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\4485ca9f997d8c8b8cf8a91d28736d19\transformed\core-1.13.0\AndroidManifest.xml:23:9-81
 31        android:protectionLevel="signature" />
-31-->[androidx.core:core:1.12.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\5b331c2ca5d1968b871d309d9d1af46b\transformed\core-1.12.0\AndroidManifest.xml:24:9-44
+31-->[androidx.core:core:1.13.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\4485ca9f997d8c8b8cf8a91d28736d19\transformed\core-1.13.0\AndroidManifest.xml:24:9-44
 32
 33    <uses-permission android:name="com.example.telegramnewsreader.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
-33-->[androidx.core:core:1.12.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\5b331c2ca5d1968b871d309d9d1af46b\transformed\core-1.12.0\AndroidManifest.xml:26:5-97
-33-->[androidx.core:core:1.12.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\5b331c2ca5d1968b871d309d9d1af46b\transformed\core-1.12.0\AndroidManifest.xml:26:22-94
+33-->[androidx.core:core:1.13.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\4485ca9f997d8c8b8cf8a91d28736d19\transformed\core-1.13.0\AndroidManifest.xml:26:5-97
+33-->[androidx.core:core:1.13.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\4485ca9f997d8c8b8cf8a91d28736d19\transformed\core-1.13.0\AndroidManifest.xml:26:22-94
 34
 35    <application
 35-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:21:5-66:19
@@ -65,7 +65,7 @@
 37        android:allowBackup="true"
 37-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:23:9-35
 38        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
-38-->[androidx.core:core:1.12.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\5b331c2ca5d1968b871d309d9d1af46b\transformed\core-1.12.0\AndroidManifest.xml:28:18-86
+38-->[androidx.core:core:1.13.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\4485ca9f997d8c8b8cf8a91d28736d19\transformed\core-1.13.0\AndroidManifest.xml:28:18-86
 39        android:dataExtractionRules="@xml/data_extraction_rules"
 39-->C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:24:9-65
 40        android:debuggable="true"

@@ -78,21 +78,28 @@ class AudioPlayerService : Service() {
                 ACTION_STOP -> {
                     Log.d(TAG, "ACTION_STOP")
                     stopServiceSafely()
+                    // ВАЖНО: не строим уведомление и не стартуем foreground после STOP
+                    return START_NOT_STICKY
                 }
                 ACTION_NEXT -> {
                     Log.d(TAG, "ACTION_NEXT")
+                    // Если плейлиста нет — не поднимаем сервис зря
+                    if (playlist.isEmpty()) return START_NOT_STICKY
                     playNext()
                 }
                 else -> {
                     Log.d(TAG, "No action, updating notification only")
                 }
             }
+
+            // Переводим в foreground только когда сервис активен
             val n = buildNotification()
             startForeground(NOTIFICATION_ID, n)
         } catch (e: Exception) {
             Log.e(TAG, "onStartCommand exception", e)
         }
-        return START_STICKY
+        // Сервис не должен перезапускаться автоматически
+        return START_NOT_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -101,6 +108,15 @@ class AudioPlayerService : Service() {
         Log.d(TAG, "onDestroy")
         super.onDestroy()
         releasePlayer()
+        // Подстраховка: снимаем foreground (если ещё висит)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(Service.STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
+        } catch (_: Exception) { }
     }
 
     private fun setPlaylist(paths: List<String>, startIndex: Int, chapters: List<Long>) {
@@ -275,24 +291,36 @@ class AudioPlayerService : Service() {
     }
 
     private fun play() {
-        if (mediaPlayer == null && playlist.isNotEmpty()) {
-            Log.d(TAG, "play(): player=null -> prepareAndPlayCurrent() from start or chapter")
-            preparedButNotPlaying = false
-            if (hasChapters() && currentChapter in chapterStartsMs.indices) {
-                prepareAndPlayCurrent(chapterStartsMs[currentChapter].toInt())
-            } else {
-                prepareAndPlayCurrent()
-            }
-        } else {
-            Log.d(TAG, "play(): calling start(), isPlaying=${mediaPlayer?.isPlaying}, preparedButNotPlaying=$preparedButNotPlaying")
-            try {
-                preparedButNotPlaying = false
-                mediaPlayer?.start()
-            } catch (e: Exception) {
-                Log.e(TAG, "play(): start() failed", e)
-            }
-            updateNotification()
+        Log.d(TAG, "play(): player=${mediaPlayer != null}, isPlaying=${mediaPlayer?.isPlaying}, preparedButNotPlaying=$preparedButNotPlaying chapterMode=${hasChapters()} chapter=$currentChapter/${chapterStartsMs.size}")
+
+        if (playlist.isEmpty()) {
+            Log.w(TAG, "play(): playlist is empty")
+            return
         }
+
+        if (mediaPlayer == null) {
+            // Создаём и запускаем с учётом текущей главы
+            preparedButNotPlaying = false
+            val startMs = if (hasChapters() && currentChapter in chapterStartsMs.indices) {
+                chapterStartsMs[currentChapter].toInt()
+            } else null
+            prepareAndPlayCurrent(startMs)
+            return
+        }
+
+        try {
+            // Если было молчаливое prepare после SET_PLAYLIST, стартуем с начала текущей главы
+            if (preparedButNotPlaying && hasChapters() && currentChapter in chapterStartsMs.indices) {
+                val toMs = chapterStartsMs[currentChapter].toInt()
+                Log.d(TAG, "play(): preparedButNotPlaying -> seekTo currentChapter start $toMs ms, then start()")
+                mediaPlayer?.seekTo(toMs)
+            }
+            preparedButNotPlaying = false
+            mediaPlayer?.start()
+        } catch (e: Exception) {
+            Log.e(TAG, "play(): start() failed", e)
+        }
+        updateNotification()
     }
 
     private fun pause() {
@@ -304,6 +332,8 @@ class AudioPlayerService : Service() {
             } catch (e: Exception) {
                 Log.e(TAG, "pause(): pause() failed", e)
             }
+            // Мы отличаем паузу пользователя от "ещё не запускали"
+            preparedButNotPlaying = false
             updateNotification()
         }
     }
@@ -314,37 +344,44 @@ class AudioPlayerService : Service() {
         if (playlist.isEmpty()) return
 
         if (hasChapters()) {
-            if (mediaPlayer == null) {
-                preparedButNotPlaying = false
-                currentChapter = (currentChapter + 1).coerceAtMost(chapterStartsMs.lastIndex)
-                prepareAndPlayCurrent(chapterStartsMs[currentChapter].toInt())
-                return
-            }
+            if (chapterStartsMs.isEmpty()) return
+
+            val wasPlaying = mediaPlayer?.isPlaying == true
+            val wasPreparedNoStart = preparedButNotPlaying
 
             if (currentChapter < chapterStartsMs.lastIndex) {
                 currentChapter += 1
-                val toMs = chapterStartsMs[currentChapter].toInt()
-                Log.d(TAG, "Next chapter -> $currentChapter at $toMs ms")
-                try {
-                    mediaPlayer?.seekTo(toMs)
-                    mediaPlayer?.start()
-                } catch (_: Exception) {}
-                updateNotification()
             } else {
-                Log.d(TAG, "Next on last chapter -> replay current chapter")
-                try {
-                    val curMs = chapterStartsMs[currentChapter].toInt()
-                    mediaPlayer?.seekTo(curMs)
-                    mediaPlayer?.start()
-                } catch (_: Exception) {}
-                updateNotification()
+                Log.d(TAG, "Next on last chapter -> stay at last chapter")
             }
+
+            val toMs = chapterStartsMs[currentChapter].toInt()
+            Log.d(TAG, "Next chapter -> $currentChapter at $toMs ms (wasPlaying=$wasPlaying, wasPreparedNoStart=$wasPreparedNoStart)")
+
+            try {
+                if (mediaPlayer == null) {
+                    preparedButNotPlaying = false
+                    prepareAndPlayCurrent(toMs)
+                    return
+                }
+
+                mediaPlayer?.seekTo(toMs)
+
+                // Стартуем, если до этого играло, либо это первый старт после "тихой" подготовки
+                if (wasPlaying || wasPreparedNoStart) {
+                    mediaPlayer?.start()
+                }
+                preparedButNotPlaying = false
+            } catch (_: Exception) { }
+            updateNotification()
             return
         }
 
+        // Обычный плейлист без глав
         if (currentIndex < playlist.lastIndex) {
             currentIndex += 1
             Log.d(TAG, "playNext(): newIndex=$currentIndex")
+            preparedButNotPlaying = false
             prepareAndPlayCurrent()
         } else {
             Log.d(TAG, "playNext(): end of playlist -> stopServiceSafely()")
@@ -357,7 +394,8 @@ class AudioPlayerService : Service() {
         releasePlayer()
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                stopForeground(STOP_FOREGROUND_DETACH)
+                // Полностью убрать уведомление
+                stopForeground(Service.STOP_FOREGROUND_REMOVE)
             } else {
                 @Suppress("DEPRECATION")
                 stopForeground(true)
@@ -365,6 +403,11 @@ class AudioPlayerService : Service() {
         } catch (e: Exception) {
             Log.w(TAG, "stopForeground failed", e)
         }
+        // Подстраховка на некоторых прошивках:
+        try {
+            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                .cancel(NOTIFICATION_ID)
+        } catch (_: Exception) { }
         stopSelf()
     }
 
@@ -425,7 +468,6 @@ class AudioPlayerService : Service() {
             .setContentIntent(openIntent)
             .setOngoing(isPlaying)
             .setOnlyAlertOnce(true)
-            // Кнопка "Назад" удалена
             .addAction(
                 if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
                 if (isPlaying) "Пауза" else "Пуск",

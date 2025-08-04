@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewbinding.ViewBinding;
 import androidx.viewbinding.ViewBindings;
 import com.example.telegramnewsreader.R;
+import com.google.android.material.button.MaterialButton;
 import java.lang.NullPointerException;
 import java.lang.Override;
 import java.lang.String;
@@ -31,22 +32,22 @@ public final class ActivityMainBinding implements ViewBinding {
   public final Button btnManageHidden;
 
   @NonNull
-  public final Button btnNext;
+  public final MaterialButton btnNext;
 
   @NonNull
   public final Button btnOpenSettings;
 
   @NonNull
-  public final Button btnPause;
+  public final MaterialButton btnPause;
 
   @NonNull
-  public final Button btnPlay;
+  public final MaterialButton btnPlay;
 
   @NonNull
   public final Button btnResetAuth;
 
   @NonNull
-  public final Button btnStop;
+  public final MaterialButton btnStop;
 
   @NonNull
   public final LinearLayout llPlayer;
@@ -70,11 +71,12 @@ public final class ActivityMainBinding implements ViewBinding {
   public final TextView tvTimePeriod;
 
   private ActivityMainBinding(@NonNull ScrollView rootView, @NonNull Button btnCollectNews,
-      @NonNull Button btnManageHidden, @NonNull Button btnNext, @NonNull Button btnOpenSettings,
-      @NonNull Button btnPause, @NonNull Button btnPlay, @NonNull Button btnResetAuth,
-      @NonNull Button btnStop, @NonNull LinearLayout llPlayer, @NonNull ProgressBar progressBar,
-      @NonNull RecyclerView recyclerChannels, @NonNull Spinner spinnerTime,
-      @NonNull TextView tvSelectChannels, @NonNull TextView tvStatus,
+      @NonNull Button btnManageHidden, @NonNull MaterialButton btnNext,
+      @NonNull Button btnOpenSettings, @NonNull MaterialButton btnPause,
+      @NonNull MaterialButton btnPlay, @NonNull Button btnResetAuth,
+      @NonNull MaterialButton btnStop, @NonNull LinearLayout llPlayer,
+      @NonNull ProgressBar progressBar, @NonNull RecyclerView recyclerChannels,
+      @NonNull Spinner spinnerTime, @NonNull TextView tvSelectChannels, @NonNull TextView tvStatus,
       @NonNull TextView tvTimePeriod) {
     this.rootView = rootView;
     this.btnCollectNews = btnCollectNews;
@@ -134,7 +136,7 @@ public final class ActivityMainBinding implements ViewBinding {
       }
 
       id = R.id.btn_next;
-      Button btnNext = ViewBindings.findChildViewById(rootView, id);
+      MaterialButton btnNext = ViewBindings.findChildViewById(rootView, id);
       if (btnNext == null) {
         break missingId;
       }
@@ -146,13 +148,13 @@ public final class ActivityMainBinding implements ViewBinding {
       }
 
       id = R.id.btn_pause;
-      Button btnPause = ViewBindings.findChildViewById(rootView, id);
+      MaterialButton btnPause = ViewBindings.findChildViewById(rootView, id);
       if (btnPause == null) {
         break missingId;
       }
 
       id = R.id.btn_play;
-      Button btnPlay = ViewBindings.findChildViewById(rootView, id);
+      MaterialButton btnPlay = ViewBindings.findChildViewById(rootView, id);
       if (btnPlay == null) {
         break missingId;
       }
@@ -164,7 +166,7 @@ public final class ActivityMainBinding implements ViewBinding {
       }
 
       id = R.id.btn_stop;
-      Button btnStop = ViewBindings.findChildViewById(rootView, id);
+      MaterialButton btnStop = ViewBindings.findChildViewById(rootView, id);
       if (btnStop == null) {
         break missingId;
       }

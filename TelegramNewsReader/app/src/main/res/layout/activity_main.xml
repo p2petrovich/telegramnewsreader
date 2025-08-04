@@ -1,10 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:fillViewport="true"
-    android:padding="16dp">
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true" android:padding="16dp">
+
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -62,7 +58,7 @@
             android:visibility="gone"
             android:layout_gravity="center_horizontal" />
 
-        <!-- ПАНЕЛЬ ПЛЕЕРА: 4 одинаковые кнопки -->
+        <!-- ПАНЕЛЬ ПЛЕЕРА: 4 кнопки-иконки -->
         <LinearLayout
             android:id="@+id/ll_player"
             android:layout_width="match_parent"
@@ -72,48 +68,64 @@
             android:visibility="gone"
             android:weightSum="4">
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_play"
                 android:layout_width="0dp"
                 android:layout_height="48dp"
                 android:layout_weight="1"
-                android:text="@string/play"
-                android:textAllCaps="false"
-                android:maxLines="1"
-                android:ellipsize="end" />
+                android:minWidth="0dp"
+                android:text=""
+                android:contentDescription="@string/play"
+                app:icon="@drawable/ic_play"
+                app:iconSize="24dp"
+                app:iconPadding="0dp"
+                app:iconGravity="textStart"
+                app:cornerRadius="24dp" />
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_pause"
                 android:layout_width="0dp"
                 android:layout_height="48dp"
                 android:layout_weight="1"
                 android:layout_marginStart="8dp"
-                android:text="@string/pause"
-                android:textAllCaps="false"
-                android:maxLines="1"
-                android:ellipsize="end" />
+                android:minWidth="0dp"
+                android:text=""
+                android:contentDescription="@string/pause"
+                app:icon="@drawable/ic_pause"
+                app:iconSize="24dp"
+                app:iconPadding="0dp"
+                app:iconGravity="textStart"
+                app:cornerRadius="24dp" />
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_stop"
                 android:layout_width="0dp"
                 android:layout_height="48dp"
                 android:layout_weight="1"
                 android:layout_marginStart="8dp"
-                android:text="@string/stop"
-                android:textAllCaps="false"
-                android:maxLines="1"
-                android:ellipsize="end" />
+                android:minWidth="0dp"
+                android:text=""
+                android:contentDescription="@string/stop"
+                app:icon="@drawable/ic_stop"
+                app:iconSize="24dp"
+                app:iconPadding="0dp"
+                app:iconGravity="textStart"
+                app:cornerRadius="24dp" />
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_next"
                 android:layout_width="0dp"
                 android:layout_height="48dp"
                 android:layout_weight="1"
                 android:layout_marginStart="8dp"
-                android:text="@string/next"
-                android:textAllCaps="false"
-                android:maxLines="1"
-                android:ellipsize="end" />
+                android:minWidth="0dp"
+                android:text=""
+                android:contentDescription="@string/next"
+                app:icon="@drawable/ic_next"
+                app:iconSize="24dp"
+                app:iconPadding="0dp"
+                app:iconGravity="textStart"
+                app:cornerRadius="24dp" />
         </LinearLayout>
 
         <TextView

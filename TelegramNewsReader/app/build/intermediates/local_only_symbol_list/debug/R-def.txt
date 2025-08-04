@@ -13,6 +13,10 @@ color white
 drawable ic_channel_placeholder
 drawable ic_launcher_background
 drawable ic_launcher_foreground
+drawable ic_next
+drawable ic_pause
+drawable ic_play
+drawable ic_stop
 drawable widget_preview
 id btnPlay
 id btn_collect
