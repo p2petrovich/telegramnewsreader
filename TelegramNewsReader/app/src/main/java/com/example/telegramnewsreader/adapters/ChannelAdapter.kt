@@ -1,10 +1,15 @@
 package com.example.telegramnewsreader.adapter
 
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.example.telegramnewsreader.databinding.ItemChannelBinding
 import com.example.telegramnewsreader.model.Channel
+import coil.load
+import coil.transform.CircleCropTransformation
+import com.example.telegramnewsreader.R
+import java.io.File
 
 class ChannelAdapter(
     private val onSelectionChanged: (Channel, Boolean) -> Unit,
@@ -15,14 +20,26 @@ class ChannelAdapter(
     private val channels = mutableListOf<Channel>()
 
     fun updateChannels(newChannels: List<Channel>) {
+        Log.d("ChannelAdapter", "updateChannels: size=${newChannels.size}, instance=${System.identityHashCode(this)}")
         channels.clear()
-        channels.addAll(newChannels.sortedBy { it.title.lowercase() }) // ⬅️ сортировка по имени
+        channels.addAll(newChannels.sortedBy { it.title.lowercase() })
         notifyDataSetChanged()
     }
 
     fun getSelectedChannels(): List<Channel> = channels.filter { it.isSelected }
 
     fun getAllChannels(): List<Channel> = channels.toList()
+
+    fun updateChannelPhoto(channelId: Long, path: String) {
+        val idx = channels.indexOfFirst { it.id == channelId }
+        Log.i("ChannelAdapter", "updateChannelPhoto: id=$channelId idx=$idx path=$path instance=${System.identityHashCode(this)}")
+        if (idx >= 0) {
+            channels[idx].photoPath = path
+            notifyItemChanged(idx)
+            // На время отладки — форсируем полную перерисовку, чтобы исключить проблемы RecyclerView
+            notifyDataSetChanged()
+        }
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ChannelViewHolder {
         val binding = ItemChannelBinding.inflate(LayoutInflater.from(parent.context), parent, false)
@@ -40,17 +57,27 @@ class ChannelAdapter(
         fun bind(channel: Channel) {
             binding.textChannelName.text = channel.title
 
-            // ✅ Обновляем количество новых сообщений, если есть
             binding.textNewMessages.text = if (channel.newMessagesCount > 0) {
                 "${channel.newMessagesCount} новых"
             } else {
                 "Нет новостей"
             }
 
-            // ✅ Плейсхолдер-аватар
-            binding.ivAvatar.setImageResource(com.example.telegramnewsreader.R.drawable.ic_channel_placeholder)
+            val path = channel.photoPath
+            if (!path.isNullOrBlank()) {
+                val f = File(path)
+                binding.ivAvatar.load(f) {
+                    placeholder(R.drawable.ic_channel_placeholder)
+                    error(R.drawable.ic_channel_placeholder)
+                    transformations(CircleCropTransformation())
+                    val key = f.absolutePath + "#" + f.lastModified()
+                    memoryCacheKey(key)
+                    diskCacheKey(key)
+                }
+            } else {
+                binding.ivAvatar.setImageResource(R.drawable.ic_channel_placeholder)
+            }
 
-            // ✅ Сброс слушателя перед установкой нового
             binding.checkboxChannel.setOnCheckedChangeListener(null)
             binding.checkboxChannel.isChecked = channel.isSelected
             binding.checkboxChannel.setOnCheckedChangeListener { _, isChecked ->
@@ -58,12 +85,10 @@ class ChannelAdapter(
                 onSelectionChanged(channel, isChecked)
             }
 
-            // ✅ Клик по элементу переключает чекбокс
             binding.root.setOnClickListener {
                 binding.checkboxChannel.toggle()
             }
 
-            // ✅ Длинный тап -> запрос на скрытие
             binding.root.setOnLongClickListener {
                 onHideRequest(channel)
                 true

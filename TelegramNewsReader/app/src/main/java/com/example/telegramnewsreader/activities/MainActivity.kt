@@ -24,6 +24,7 @@ import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
+
     private lateinit var binding: ActivityMainBinding
     private lateinit var telegramClient: TelegramClient
     private lateinit var channelAdapter: ChannelAdapter
@@ -35,6 +36,8 @@ class MainActivity : AppCompatActivity() {
 
     private var currentPlaylist: List<File> = emptyList()
     private var currentChapters: List<Long> = emptyList()
+
+    private val pendingPhotos = mutableMapOf<Long, String>()
 
     private val timePeriods = arrayOf(
         "Последние 5 минут",
@@ -78,6 +81,7 @@ class MainActivity : AppCompatActivity() {
             onSelectionChanged = { _, _ -> updateNewsCollectionButton() },
             onHideRequest = { channel -> confirmHideChannel(channel) }
         )
+        Log.d("MainActivity", "adapter instance=${System.identityHashCode(channelAdapter)}")
 
         binding.recyclerChannels.layoutManager = LinearLayoutManager(this)
         binding.recyclerChannels.adapter = channelAdapter
@@ -88,6 +92,21 @@ class MainActivity : AppCompatActivity() {
             Log.d("MainActivity", "CLIENT READY: TelegramClient готов")
             isClientReady = true
             runOnUiThread {
+                telegramClient.onChannelPhotoUpdated = { channelId, path ->
+                    Log.d("MainActivity", "onChannelPhotoUpdated: id=$channelId path=$path")
+                    runOnUiThread {
+                        val all = channelAdapter.getAllChannels()
+                        val idx = all.indexOfFirst { it.id == channelId }
+                        Log.i("MainActivity", "photo apply: id=$channelId idx=$idx size=${all.size} adapter=${System.identityHashCode(channelAdapter)}")
+                        if (idx >= 0) {
+                            channelAdapter.updateChannelPhoto(channelId, path)
+                        } else {
+                            pendingPhotos[channelId] = path
+                            Log.d("MainActivity", "photo buffered: id=$channelId pending=${pendingPhotos.size}")
+                        }
+                    }
+                }
+
                 loadChannels()
                 updateUIForReadyClient()
             }
@@ -96,6 +115,22 @@ class MainActivity : AppCompatActivity() {
         if (telegramClient.checkAuthState()) {
             Log.d("MainActivity", "CLIENT READY: Клиент уже готов")
             isClientReady = true
+
+            telegramClient.onChannelPhotoUpdated = { channelId, path ->
+                Log.d("MainActivity", "onChannelPhotoUpdated: id=$channelId path=$path")
+                runOnUiThread {
+                    val all = channelAdapter.getAllChannels()
+                    val idx = all.indexOfFirst { it.id == channelId }
+                    Log.i("MainActivity", "photo apply: id=$channelId idx=$idx size=${all.size} adapter=${System.identityHashCode(channelAdapter)}")
+                    if (idx >= 0) {
+                        channelAdapter.updateChannelPhoto(channelId, path)
+                    } else {
+                        pendingPhotos[channelId] = path
+                        Log.d("MainActivity", "photo buffered: id=$channelId pending=${pendingPhotos.size}")
+                    }
+                }
+            }
+
             loadChannels()
             updateUIForReadyClient()
         } else {
@@ -121,9 +156,7 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<View?>(R.id.btn_manage_hidden)?.setOnClickListener { showHiddenManager() }
 
-        // Управление сервисом плеера
         binding.btnPlay.setOnClickListener {
-            // защита: не запускать PLAY, если нет плейлиста (после STOP)
             if (currentPlaylist.isEmpty()) {
                 Toast.makeText(this, "Сначала соберите новости", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
@@ -149,7 +182,6 @@ class MainActivity : AppCompatActivity() {
                     .setAction(com.example.telegramnewsreader.services.AudioPlayerService.ACTION_STOP)
             )
             resetPlayerButtons()
-            // Блокируем управление до нового плейлиста и скрываем панель
             binding.btnPlay.isEnabled = false
             findViewById<View?>(R.id.btn_next)?.isEnabled = false
             try {
@@ -185,10 +217,8 @@ class MainActivity : AppCompatActivity() {
             binding.btnPause.visibility = View.GONE
         }
 
-        // Изначально блокируем Play/Next до первой установки плейлиста
         binding.btnPlay.isEnabled = false
         findViewById<View?>(R.id.btn_next)?.isEnabled = false
-        // Пауза выключена, пока ничего не играет
         binding.btnPause.isEnabled = false
     }
 
@@ -214,6 +244,22 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     channelAdapter.updateChannels(filtered)
+
+                    // Перезапускаем загрузку фоток на всякий случай после установки списка
+                    telegramClient.redownloadPendingPhotos()
+
+                    // Применяем отложенные фото
+                    if (pendingPhotos.isNotEmpty()) {
+                        Log.d("MainActivity", "apply pending photos: ${pendingPhotos.size}")
+                        pendingPhotos.forEach { (id, p) ->
+                            Log.d("MainActivity", "apply pending -> id=$id")
+                            channelAdapter.updateChannelPhoto(id, p)
+                        }
+                        pendingPhotos.clear()
+                    } else {
+                        Log.d("MainActivity", "no pending photos to apply")
+                    }
+
                     updateChannelStats()
                     Log.d("MainActivity", "Загружено каналов: ${filtered.size}")
                 } else {
@@ -296,11 +342,9 @@ class MainActivity : AppCompatActivity() {
                             )
                         }
                         startService(setIntent)
-                        // НЕ запускаем ACTION_PLAY автоматически — старт по кнопке
 
                         channelAdapter.notifyDataSetChanged()
 
-                        // показать панель, сбросить кнопки и разрешить Play/Next
                         showPlayerControls()
                         resetPlayerButtons()
                         binding.btnPlay.isEnabled = true
@@ -342,7 +386,6 @@ class MainActivity : AppCompatActivity() {
         currentPlaylist = emptyList()
         currentChapters = emptyList()
 
-        // Скрываем панель и блокируем Play/Next до нового плейлиста
         try {
             binding.llPlayer.visibility = View.GONE
         } catch (_: Exception) {

@@ -11,15 +11,13 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
+import java.util.concurrent.ConcurrentHashMap
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-
-
 class TelegramClient(private val context: Context) {
+
 
     private var client: Client? = null
     private var isInitialized = false
@@ -35,11 +33,19 @@ class TelegramClient(private val context: Context) {
 
     private val authLatch = CountDownLatch(1)
 
+    // Для загрузки аватаров
+    private val fileIdToChatId = ConcurrentHashMap<Int, Long>()
+    private val chatIdToChannel = ConcurrentHashMap<Long, Channel>()
+    private val chatIdToSmallId = ConcurrentHashMap<Long, Int>()
+
+    // UI-колбэк: фото обновилось
+    var onChannelPhotoUpdated: ((channelId: Long, photoPath: String) -> Unit)? = null
+
     var onClientReady: (() -> Unit)? = null
     var onPasswordRequired: (() -> Unit)? = null
 
     init {
-        Log.d(TAG, "=== INIT TRACKING === Constructor called")
+        Log.d(TAG, "=== INIT TRACKING === Constructor called; clientHolder=${System.identityHashCode(this)}")
         initStartTime = System.currentTimeMillis()
         initializeClient()
         Log.d(TAG, "=== INIT TRACKING === Constructor completed in ${System.currentTimeMillis() - initStartTime}ms")
@@ -55,7 +61,7 @@ class TelegramClient(private val context: Context) {
             }, null, null)
 
             Log.d(TAG, "=== INIT TRACKING === Client.create() completed in ${System.currentTimeMillis() - clientCreateTime}ms")
-            Log.d(TAG, "=== INIT TRACKING === Client object is null: ${client == null}")
+            Log.d(TAG, "=== INIT TRACKING === Client object is null: ${client == null}, clientHash=${System.identityHashCode(client)}")
 
             if (client == null) {
                 Log.e(TAG, "=== INIT TRACKING === CRITICAL: Client.create() returned null!")
@@ -65,22 +71,24 @@ class TelegramClient(private val context: Context) {
             parametersSetTime = System.currentTimeMillis()
             Log.d(TAG, "=== INIT TRACKING === About to send TdlibParameters...")
 
-            client?.send(TdApi.SetTdlibParameters(
-                false,
-                context.filesDir.absolutePath + "/" + ApiConfig.DATABASE_DIRECTORY,
-                context.filesDir.absolutePath + "/" + ApiConfig.FILES_DIRECTORY,
-                byteArrayOf(),
-                true,
-                true,
-                true,
-                true,
-                ApiConfig.API_ID,
-                ApiConfig.API_HASH,
-                "ru",
-                "Android Device",
-                android.os.Build.VERSION.RELEASE,
-                "1.0"
-            ), { result ->
+            client?.send(
+                TdApi.SetTdlibParameters(
+                    false,
+                    context.filesDir.absolutePath + "/" + ApiConfig.DATABASE_DIRECTORY,
+                    context.filesDir.absolutePath + "/" + ApiConfig.FILES_DIRECTORY,
+                    byteArrayOf(),
+                    true,
+                    true,
+                    true,
+                    true,
+                    ApiConfig.API_ID,
+                    ApiConfig.API_HASH,
+                    "ru",
+                    "Android Device",
+                    android.os.Build.VERSION.RELEASE,
+                    "1.0"
+                )
+            ) { result ->
                 Log.d(TAG, "=== INIT TRACKING === SetTdlibParameters callback received in ${System.currentTimeMillis() - parametersSetTime}ms")
                 when (result) {
                     is TdApi.Ok -> {
@@ -95,7 +103,7 @@ class TelegramClient(private val context: Context) {
                         Log.e(TAG, "Unknown result when setting TDLib parameters: $result")
                     }
                 }
-            })
+            }
 
             Log.d(TAG, "=== INIT TRACKING === SetTdlibParameters sent successfully")
         } catch (e: Exception) {
@@ -107,6 +115,24 @@ class TelegramClient(private val context: Context) {
         when (update) {
             is TdApi.UpdateAuthorizationState -> handleAuthUpdate(update.authorizationState)
             is TdApi.UpdateNewChat -> Log.d(TAG, "New chat received: ${update.chat.title}")
+            is TdApi.UpdateFile -> {
+                val f = update.file
+                Log.v(TAG, "UpdateFile: id=${f.id}, completed=${f.local.isDownloadingCompleted}, active=${f.local.isDownloadingActive}, downloaded=${f.local.downloadedSize}/${f.size}, path=${f.local.path}")
+                val mappedChat = fileIdToChatId[f.id]
+                Log.v(TAG, "UpdateFile: map lookup chatId=$mappedChat for fileId=${f.id}")
+                if (f.local.isDownloadingCompleted) {
+                    val chatId = fileIdToChatId.remove(f.id) ?: mappedChat
+                    Log.d(TAG, "📥 File downloaded: id=${f.id}, path=${f.local.path}, chatId=$chatId")
+                    if (chatId != null) {
+                        chatIdToChannel[chatId]?.let { ch ->
+                            ch.photoPath = f.local.path
+                            onChannelPhotoUpdated?.invoke(chatId, f.local.path)
+                        }
+                    }
+                } else {
+                    Log.v(TAG, "… downloading file id=${f.id}, downloaded=${f.local.downloadedSize}/${f.size}")
+                }
+            }
         }
     }
 
@@ -149,6 +175,9 @@ class TelegramClient(private val context: Context) {
                 isAuthorized = true
                 isReady = true
                 PreferenceManager.setAuthorized(context, true)
+                client?.send(TdApi.SetNetworkType(TdApi.NetworkTypeOther())) { r ->
+                    Log.d(TAG, "SetNetworkType result: ${r?.javaClass?.simpleName}")
+                }
                 authLatch.countDown()
                 onClientReady?.invoke()
             }
@@ -169,7 +198,7 @@ class TelegramClient(private val context: Context) {
     }
 
     fun sendCode(phone: String, callback: (Boolean) -> Unit) {
-        Log.d(TAG, "=== INIT TRACKING === sendCode called")
+        Log.d(TAG, "=== INIT TRACKING === sendCode called; clientHash=${System.identityHashCode(client)}")
         Log.d(TAG, getInitializationStatus())
 
         if (!isInitialized) {
@@ -197,7 +226,7 @@ class TelegramClient(private val context: Context) {
     }
 
     fun verifyCode(code: String, callback: (Boolean) -> Unit) {
-        Log.d(TAG, "=== INIT TRACKING === verifyCode called")
+        Log.d(TAG, "=== INIT TRACKING === verifyCode called; clientHash=${System.identityHashCode(client)}")
         Log.d(TAG, getInitializationStatus())
 
         if (!isInitialized) {
@@ -249,9 +278,8 @@ class TelegramClient(private val context: Context) {
         }
     }
 
-
     fun loadChannels(callback: (List<Channel>) -> Unit) {
-        Log.d(TAG, "=== INIT TRACKING === loadChannels called")
+        Log.d(TAG, "=== INIT TRACKING === loadChannels called; clientHash=${System.identityHashCode(client)}")
         Log.d(TAG, getInitializationStatus())
 
         if (!isInitialized) {
@@ -273,7 +301,6 @@ class TelegramClient(private val context: Context) {
                 return@Thread
             }
 
-            // Получаем до 100 чатов (можно и больше, чтобы найти 5 каналов)
             client?.send(TdApi.GetChats(TdApi.ChatListMain(), 200)) { result ->
                 when (result) {
                     is TdApi.Chats -> {
@@ -286,12 +313,62 @@ class TelegramClient(private val context: Context) {
                                 if (chatResult is TdApi.Chat) {
                                     val type = chatResult.type
                                     if (type is TdApi.ChatTypeSupergroup && type.isChannel) {
-                                        channels.add(Channel(chatId, 0, chatResult.title, "", false))
+                                        val small = chatResult.photo?.small
+                                        if (small != null) {
+                                            chatIdToSmallId[chatId] = small.id
+                                            fileIdToChatId[small.id] = chatId
+
+                                            Log.v(
+                                                TAG,
+                                                "Photo small for chat $chatId -> id=${small.id}, remoteId=${small.remote?.id}, unique=${small.remote?.uniqueId}, size=${small.size}, local=${small.local?.path}"
+                                            )
+
+                                            client?.send(TdApi.GetFile(small.id)) { before ->
+                                                Log.v(TAG, "GetFile BEFORE download ${small.id}: $before")
+
+                                                // NEW: если файл уже локально завершен — применяем сразу
+                                                val localReady = (before is TdApi.File)
+                                                        && before.local.isDownloadingCompleted
+                                                        && before.local.path.isNotBlank()
+                                                val file = before as? TdApi.File
+                                                val isLocalReady = file?.local?.isDownloadingCompleted == true && !file.local.path.isNullOrBlank()
+                                                if (isLocalReady) {
+                                                    val path = file!!.local.path
+                                                    Log.d(TAG, "Local small is already ready for chat=$chatId -> $path")
+                                                    chatIdToChannel[chatId]?.let { ch ->
+                                                        ch.photoPath = path
+                                                    }
+                                                    onChannelPhotoUpdated?.invoke(chatId, path)
+                                                } else {
+                                                    client?.send(TdApi.DownloadFile(small.id, 32, 0, 0, true)) {
+                                                        Log.v(TAG, "DownloadFile sent for photoId=${small.id} chatId=$chatId (prio=32)")
+                                                        client?.send(TdApi.GetFile(small.id)) { after ->
+                                                            Log.v(TAG, "GetFile AFTER download ${small.id}: $after")
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            Log.v(TAG, "🖼 no photo for '${chatResult.title}'")
+                                        }
+
+                                        val channel = Channel(
+                                            id = chatId,
+                                            accessHash = 0,
+                                            title = chatResult.title,
+                                            username = "",
+                                            isSelected = false,
+                                            newMessagesCount = 0,
+                                            photoPath = null
+                                        )
+                                        chatIdToChannel[chatId] = channel
+                                        channels.add(channel)
                                     }
                                 }
 
                                 processed++
                                 if (processed == total) {
+                                    Log.d(TAG, "RETURN channels=${channels.size}")
                                     callback(channels)
                                 }
                             }
@@ -306,30 +383,33 @@ class TelegramClient(private val context: Context) {
         }.start()
     }
 
-
-    fun getMessages(channelId: Long, fromDate: Long, callback: (List<String>) -> Unit) {
-        if (!isInitialized || !isAuthorized) {
-            Log.e(TAG, "Client not initialized or not authorized")
-            callback(emptyList())
-            return
-        }
-
-        client?.send(TdApi.GetChatHistory(channelId, 0, 0, 100, false)) { result ->
-            when (result) {
-                is TdApi.Messages -> {
-                    val texts = result.messages
-                        .filter { it.date > fromDate && it.content is TdApi.MessageText }
-                        .map { (it.content as TdApi.MessageText).text.text }
-                    callback(texts)
-                }
-                else -> {
-                    callback(emptyList())
+    fun redownloadPendingPhotos() {
+        Log.d(TAG, "redownloadPendingPhotos start; knownChats=${chatIdToSmallId.size}")
+        chatIdToSmallId.forEach { (chatId, smallId) ->
+            val ch = chatIdToChannel[chatId]
+            val need = ch == null || ch.photoPath.isNullOrBlank()
+            if (need) {
+                fileIdToChatId[smallId] = chatId
+                client?.send(TdApi.GetFile(smallId)) { before ->
+                    val file = before as? TdApi.File
+                    val already = file?.local?.isDownloadingCompleted == true && !file.local.path.isNullOrBlank()
+                    if (already) {
+                        val path = file!!.local.path
+                        Log.d(TAG, "Reapply local small ready for chat=$chatId -> $path")
+                        chatIdToChannel[chatId]?.let { c -> c.photoPath = path }
+                        onChannelPhotoUpdated?.invoke(chatId, path)
+                    } else {
+                        client?.send(TdApi.DownloadFile(smallId, 32, 0, 0, true)) {
+                            Log.v(TAG, "Re-DownloadFile sent smallId=$smallId chatId=$chatId (prio=32)")
+                            client?.send(TdApi.GetFile(smallId)) { after ->
+                                Log.v(TAG, "GetFile AFTER re-download $smallId: $after")
+                            }
+                        }
+                    }
                 }
             }
         }
     }
-
-    // Добавьте этот улучшенный метод в TelegramClient.kt
 
     suspend fun getChannelMessagesSuspend(
         channelId: Long,
@@ -350,7 +430,6 @@ class TelegramClient(private val context: Context) {
 
         Log.d(TAG, "📡 Запрос истории для канала $channelId (fromDate=$fromDate)")
 
-        // ✅ УЛУЧШЕНИЕ: Увеличиваем лимит до 1000 сообщений
         client?.send(TdApi.GetChatHistory(channelId, 0, 0, 1000, false)) { response ->
             try {
                 when (response) {
@@ -359,7 +438,6 @@ class TelegramClient(private val context: Context) {
 
                         val messages = response.messages
                             .filter { message ->
-                                // ✅ ИСПРАВЛЕНИЕ: добавляем буфер 5 минут (300 секунд)
                                 val bufferTime = 0
                                 val isRecent = message.date >= (fromDate - bufferTime)
                                 if (!isRecent) {
@@ -368,54 +446,32 @@ class TelegramClient(private val context: Context) {
                                 isRecent
                             }
                             .mapNotNull { message ->
-                                // ✅ Форматируем время
                                 val time = try {
-                                    java.time.Instant.ofEpochSecond(message.date.toLong())
-                                        .atZone(java.time.ZoneId.systemDefault())
-                                        .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                                    Instant.ofEpochSecond(message.date.toLong())
+                                        .atZone(ZoneId.systemDefault())
+                                        .format(DateTimeFormatter.ofPattern("HH:mm"))
                                 } catch (e: Exception) {
                                     Log.w(TAG, "Ошибка форматирования времени для сообщения ${message.id}", e)
                                     "??:??"
                                 }
 
-                                // ✅ Обрабатываем разные типы контента
                                 when (val content = message.content) {
                                     is TdApi.MessageText -> {
                                         val text = content.text.text.trim()
                                         if (text.isNotBlank()) "$time — $text" else null
                                     }
-
                                     is TdApi.MessagePhoto -> {
                                         val caption = content.caption?.text?.trim()
-                                        if (!caption.isNullOrBlank()) {
-                                            "$time — $caption"
-                                        } else {
-                                            Log.v(TAG, "Пропускаем фото без подписи")
-                                            null
-                                        }
+                                        if (!caption.isNullOrBlank()) "$time — $caption" else null
                                     }
-
                                     is TdApi.MessageVideo -> {
                                         val caption = content.caption?.text?.trim()
-                                        if (!caption.isNullOrBlank()) {
-                                            "$time — $caption"
-                                        } else {
-                                            Log.v(TAG, "Пропускаем видео без подписи")
-                                            null
-                                        }
+                                        if (!caption.isNullOrBlank()) "$time — $caption" else null
                                     }
-
                                     is TdApi.MessageDocument -> {
                                         val caption = content.caption?.text?.trim()
-                                        if (!caption.isNullOrBlank()) {
-                                            "$time — $caption"
-                                        } else {
-                                            Log.v(TAG, "Пропускаем документ без подписи")
-                                            null
-                                        }
+                                        if (!caption.isNullOrBlank()) "$time — $caption" else null
                                     }
-
-                                    // ✅ Пропускаем медиа без текста
                                     is TdApi.MessageSticker,
                                     is TdApi.MessageVoiceNote,
                                     is TdApi.MessageVideoNote,
@@ -423,7 +479,6 @@ class TelegramClient(private val context: Context) {
                                         Log.v(TAG, "Пропускаем медиа-сообщение: ${content.javaClass.simpleName}")
                                         null
                                     }
-
                                     else -> {
                                         Log.v(TAG, "Неизвестный тип сообщения: ${content.javaClass.simpleName}")
                                         null
@@ -436,38 +491,30 @@ class TelegramClient(private val context: Context) {
                             Log.d(TAG, "🔍 Примеры из канала $channelId: ${messages.take(2)}")
                         }
 
-                        if (cont.isActive) {
-                            cont.resume(messages)
-                        }
+                        if (cont.isActive) cont.resume(messages)
                     }
 
                     is TdApi.Error -> {
                         Log.e(TAG, "❌ Ошибка получения истории канала $channelId: ${response.message}")
-                        if (cont.isActive) {
-                            cont.resume(emptyList())
-                        }
+                        if (cont.isActive) cont.resume(emptyList())
                     }
 
                     else -> {
                         Log.w(TAG, "⚠️ Канал $channelId: неожиданный ответ ${response?.javaClass?.simpleName}")
-                        if (cont.isActive) {
-                            cont.resume(emptyList())
-                        }
+                        if (cont.isActive) cont.resume(emptyList())
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Исключение при обработке ответа для канала $channelId", e)
-                if (cont.isActive) {
-                    cont.resume(emptyList())
-                }
+                if (cont.isActive) cont.resume(emptyList())
             }
         }
 
-        // ✅ Обработка отмены корутины
         cont.invokeOnCancellation {
             Log.d(TAG, "🚫 Запрос для канала $channelId отменен")
         }
     }
+
     suspend fun getChannelMessagesPaginated(
         channelId: Long,
         fromDate: Long,
@@ -507,9 +554,9 @@ class TelegramClient(private val context: Context) {
                                 break
                             }
 
-                            val time = java.time.Instant.ofEpochSecond(msg.date.toLong())
-                                .atZone(java.time.ZoneId.systemDefault())
-                                .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                            val time = Instant.ofEpochSecond(msg.date.toLong())
+                                .atZone(ZoneId.systemDefault())
+                                .format(DateTimeFormatter.ofPattern("HH:mm"))
 
                             val content = msg.content
                             val text = when (content) {
@@ -552,7 +599,6 @@ class TelegramClient(private val context: Context) {
         loadNextPage()
     }
 
-
     private fun waitForReady(timeoutSeconds: Long = 10): Boolean {
         return try {
             if (isReady) true else authLatch.await(timeoutSeconds, TimeUnit.SECONDS)
@@ -563,19 +609,18 @@ class TelegramClient(private val context: Context) {
 
     fun getInitializationStatus(): String {
         return """
-            === TELEGRAM CLIENT STATUS ===
-            Time since constructor: ${System.currentTimeMillis() - initStartTime}ms
-            Client object: ${if (client != null) "EXISTS" else "NULL"}
-            isInitialized: $isInitialized
-            isAuthorized: $isAuthorized
-            isReady: $isReady
-            authorizationState: ${authorizationState?.javaClass?.simpleName ?: "null"}
-        """.trimIndent()
+=== TELEGRAM CLIENT STATUS ===
+Time since constructor: ${System.currentTimeMillis() - initStartTime}ms
+Client object: ${if (client != null) "EXISTS" else "NULL"}
+isInitialized: $isInitialized
+isAuthorized: $isAuthorized
+isReady: $isReady
+authorizationState: ${authorizationState?.javaClass?.simpleName ?: "null"}
+""".trimIndent()
     }
 
-    fun checkAuthState(): Boolean {
-        return isReady && isAuthorized
-    }
+
+    fun checkAuthState(): Boolean = isReady && isAuthorized
 
     fun close() {
         client?.send(TdApi.Close(), null)
