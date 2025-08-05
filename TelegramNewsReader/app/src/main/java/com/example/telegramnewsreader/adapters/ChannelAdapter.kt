@@ -20,7 +20,7 @@ class ChannelAdapter(
     private val channels = mutableListOf<Channel>()
 
     fun updateChannels(newChannels: List<Channel>) {
-        Log.d("ChannelAdapter", "updateChannels: size=${newChannels.size}, instance=${System.identityHashCode(this)}")
+        Log.d("ChannelAdapter", "updateChannels: size=${newChannels.size}")
         channels.clear()
         channels.addAll(newChannels.sortedBy { it.title.lowercase() })
         notifyDataSetChanged()
@@ -32,12 +32,9 @@ class ChannelAdapter(
 
     fun updateChannelPhoto(channelId: Long, path: String) {
         val idx = channels.indexOfFirst { it.id == channelId }
-        Log.i("ChannelAdapter", "updateChannelPhoto: id=$channelId idx=$idx path=$path instance=${System.identityHashCode(this)}")
         if (idx >= 0) {
             channels[idx].photoPath = path
             notifyItemChanged(idx)
-            // На время отладки — форсируем полную перерисовку, чтобы исключить проблемы RecyclerView
-            notifyDataSetChanged()
         }
     }
 
