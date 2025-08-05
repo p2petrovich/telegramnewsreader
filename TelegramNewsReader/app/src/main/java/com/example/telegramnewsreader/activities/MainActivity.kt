@@ -1,6 +1,7 @@
 package com.example.telegramnewsreader.activities
 
 import android.content.Intent
+import android.media.MediaPlayer
 import android.os.Bundle
 import android.util.Log
 import android.view.View
@@ -245,10 +246,8 @@ class MainActivity : AppCompatActivity() {
 
                     channelAdapter.updateChannels(filtered)
 
-                    // Перезапускаем загрузку фоток на всякий случай после установки списка
                     telegramClient.redownloadPendingPhotos()
 
-                    // Применяем отложенные фото
                     if (pendingPhotos.isNotEmpty()) {
                         Log.d("MainActivity", "apply pending photos: ${pendingPhotos.size}")
                         pendingPhotos.forEach { (id, p) ->
@@ -316,7 +315,27 @@ class MainActivity : AppCompatActivity() {
                         lastUsedVoice = PreferenceManager.getTtsVoiceName(this@MainActivity)
 
                         val totalMessages = selectedChannels.sumOf { it.newMessagesCount }
-                        updateStatus("Готово! Обработано сообщений: $totalMessages")
+
+                        // Определяем примерную длительность файла
+                        val durationMin = try {
+                            val player = MediaPlayer().apply {
+                                setDataSource(audio.file.absolutePath)
+                                prepare()
+                            }
+                            val minutes = player.duration / 1000 / 60
+                            player.release()
+                            minutes
+                        } catch (e: Exception) {
+                            Log.w("MainActivity", "Не удалось определить длительность аудио", e)
+                            null
+                        }
+
+                        val baseStatus = "Готово! Обработано сообщений: $totalMessages"
+                        if (durationMin != null) {
+                            updateStatus("$baseStatus\nПримерная длительность: ~${durationMin} минут")
+                        } else {
+                            updateStatus(baseStatus)
+                        }
 
                         val paths = arrayListOf(audio.file.absolutePath)
                         val setIntent = Intent(
