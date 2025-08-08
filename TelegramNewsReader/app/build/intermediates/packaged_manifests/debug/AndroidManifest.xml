@@ -76,6 +76,11 @@
         <activity
             android:name="com.example.telegramnewsreader.activities.FavoritesActivity"
             android:exported="false" />
+        <activity
+            android:name="com.example.telegramnewsreader.activities.VoiceSelectionActivity"
+            android:exported="false"
+            android:label="Настройки голоса"
+            android:parentActivityName="com.example.telegramnewsreader.activities.MainActivity" />
 
         <service
             android:name="com.example.telegramnewsreader.services.TelegramService"
