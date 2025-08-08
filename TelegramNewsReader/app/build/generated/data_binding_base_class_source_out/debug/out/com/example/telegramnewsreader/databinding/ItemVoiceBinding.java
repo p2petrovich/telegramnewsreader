@@ -8,6 +8,7 @@ import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.SeekBar;
+import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.viewbinding.ViewBinding;
@@ -33,13 +34,18 @@ public final class ItemVoiceBinding implements ViewBinding {
   @NonNull
   public final SeekBar seekRate;
 
+  @NonNull
+  public final TextView tvGenderIcon;
+
   private ItemVoiceBinding(@NonNull LinearLayout rootView, @NonNull ImageButton btnPlay,
-      @NonNull RadioButton radioVoice, @NonNull SeekBar seekPitch, @NonNull SeekBar seekRate) {
+      @NonNull RadioButton radioVoice, @NonNull SeekBar seekPitch, @NonNull SeekBar seekRate,
+      @NonNull TextView tvGenderIcon) {
     this.rootView = rootView;
     this.btnPlay = btnPlay;
     this.radioVoice = radioVoice;
     this.seekPitch = seekPitch;
     this.seekRate = seekRate;
+    this.tvGenderIcon = tvGenderIcon;
   }
 
   @Override
@@ -93,8 +99,14 @@ public final class ItemVoiceBinding implements ViewBinding {
         break missingId;
       }
 
-      return new ItemVoiceBinding((LinearLayout) rootView, btnPlay, radioVoice, seekPitch,
-          seekRate);
+      id = R.id.tvGenderIcon;
+      TextView tvGenderIcon = ViewBindings.findChildViewById(rootView, id);
+      if (tvGenderIcon == null) {
+        break missingId;
+      }
+
+      return new ItemVoiceBinding((LinearLayout) rootView, btnPlay, radioVoice, seekPitch, seekRate,
+          tvGenderIcon);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

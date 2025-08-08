@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.widget.ArrayAdapter
+import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -22,9 +23,9 @@ import com.example.telegramnewsreader.tts.TTSManagerSingleton
 import com.example.telegramnewsreader.utils.PreferenceManager
 import kotlinx.coroutines.launch
 import java.io.File
+import com.example.telegramnewsreader.activities.VoiceSelectionActivity
 
 class MainActivity : AppCompatActivity() {
-
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var telegramClient: TelegramClient
@@ -65,6 +66,7 @@ class MainActivity : AppCompatActivity() {
 
         initComponents()
         setupUI()
+        setupClickListeners() // 🔥 НОВОЕ: добавляем обработчики событий
         initializeTelegramClient()
 
         lastUsedVoice = PreferenceManager.getTtsVoiceName(this)
@@ -151,10 +153,7 @@ class MainActivity : AppCompatActivity() {
         binding.spinnerTime.adapter = adapter
 
         binding.btnCollectNews.setOnClickListener { collectNews() }
-        binding.btnOpenSettings.setOnClickListener {
-            startActivity(Intent(this, SettingsActivity::class.java))
-        }
-
+        
         findViewById<View?>(R.id.btn_manage_hidden)?.setOnClickListener { showHiddenManager() }
 
         binding.btnPlay.setOnClickListener {
@@ -221,6 +220,24 @@ class MainActivity : AppCompatActivity() {
         binding.btnPlay.isEnabled = false
         findViewById<View?>(R.id.btn_next)?.isEnabled = false
         binding.btnPause.isEnabled = false
+    }
+
+    // 🔥 НОВОЕ: Настройка обработчиков событий
+    private fun setupClickListeners() {
+        // Обработчик для кнопки "Настройки TTS"
+        binding.btnOpenSettings.setOnClickListener {
+            Log.d("MainActivity", "🔧 Открываем настройки TTS")
+            openVoiceSettings()
+        }
+    }
+    
+    /**
+     * 🔥 НОВЫЙ МЕТОД: Открытие настроек голоса
+     */
+    private fun openVoiceSettings() {
+        val intent = Intent(this, VoiceSelectionActivity::class.java)
+        startActivity(intent)
+        Log.d("MainActivity", "🎯 VoiceSelectionActivity запущена")
     }
 
     private fun loadChannels() {

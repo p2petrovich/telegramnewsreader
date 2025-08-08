@@ -3,13 +3,25 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="12dp">
+    android:padding="12dp"
+    android:background="?attr/selectableItemBackground">
 
+    <!-- Заголовок голоса с иконкой и кнопкой воспроизведения -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical">
+
+        <!-- 🔥 НОВОЕ: Иконка пола -->
+        <TextView
+            android:id="@+id/tvGenderIcon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="👨"
+            android:textSize="20sp"
+            android:layout_marginEnd="8dp"
+            android:visibility="gone" />
 
         <RadioButton
             android:id="@+id/radioVoice"
@@ -17,59 +29,98 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Голос"
-            android:textSize="16sp" />
+            android:textSize="16sp"
+            android:textStyle="bold" />
 
         <ImageButton
             android:id="@+id/btnPlay"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:contentDescription="Прослушать"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:contentDescription="Прослушать голос"
             android:src="@android:drawable/ic_media_play"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:tint="?android:attr/textColorPrimary" />
+            android:tint="?android:attr/colorAccent" />
     </LinearLayout>
 
-    <!-- Тембр -->
+    <!-- Контролы тембра и скорости -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:paddingTop="8dp"
-        android:gravity="center_vertical">
+        android:orientation="vertical"
+        android:paddingTop="12dp">
 
-        <TextView
-            android:layout_width="wrap_content"
+        <!-- Тембр -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Тембр"
-            android:layout_marginEnd="8dp"/>
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingBottom="8dp">
 
-        <SeekBar
-            android:id="@+id/seekPitch"
-            android:layout_width="0dp"
+            <TextView
+                android:layout_width="80dp"
+                android:layout_height="wrap_content"
+                android:text="Тембр"
+                android:textSize="14sp"
+                android:textColor="?android:attr/textColorSecondary" />
+
+            <SeekBar
+                android:id="@+id/seekPitch"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="200"
+                android:progress="100"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:layout_width="40dp"
+                android:layout_height="wrap_content"
+                android:text="1.0"
+                android:textSize="12sp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:gravity="center" />
+        </LinearLayout>
+
+        <!-- Скорость -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:max="200"/>
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="80dp"
+                android:layout_height="wrap_content"
+                android:text="Скорость"
+                android:textSize="14sp"
+                android:textColor="?android:attr/textColorSecondary" />
+
+            <SeekBar
+                android:id="@+id/seekRate"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="200"
+                android:progress="100"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:layout_width="40dp"
+                android:layout_height="wrap_content"
+                android:text="1.0"
+                android:textSize="12sp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:gravity="center" />
+        </LinearLayout>
     </LinearLayout>
 
-    <!-- Скорость -->
-    <LinearLayout
+    <!-- Разделитель -->
+    <View
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:paddingTop="8dp"
-        android:gravity="center_vertical">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Скорость"
-            android:layout_marginEnd="8dp"/>
-
-        <SeekBar
-            android:id="@+id/seekRate"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:max="200"/>
-    </LinearLayout>
+        android:layout_height="1dp"
+        android:layout_marginTop="12dp"
+        android:background="?android:attr/listDivider" />
 </LinearLayout>

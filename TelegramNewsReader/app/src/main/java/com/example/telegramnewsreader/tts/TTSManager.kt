@@ -19,6 +19,8 @@ import android.speech.tts.Voice
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import com.example.telegramnewsreader.models.VoiceMappings
+import com.example.telegramnewsreader.models.VoiceEntry
 
 object TTSManagerSingleton {
     @Volatile
@@ -96,17 +98,21 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         val matchedVoice = availableVoices?.find { it.name == savedVoiceName }
 
         russianVoices?.forEach { voice ->
-            Log.d("TTSManager", "🔍 Voice found: name=${voice.name}, locale=${voice.locale}, quality=${voice.quality}")
+            val voiceEntry = VoiceMappings.mapVoice(voice)
+            Log.d("TTSManager", "🔍 Voice found: name=${voice.name} -> ${voiceEntry.displayName} (${voiceEntry.getGenderDescription()})")
         }
 
         if (matchedVoice != null) {
-            Log.d("TTSManager", "🔊 Применяем сохранённый голос: ${matchedVoice.name}")
+            val voiceEntry = VoiceMappings.mapVoice(matchedVoice)
+            Log.d("TTSManager", "🔊 Применяем сохранённый голос: ${matchedVoice.name} -> ${voiceEntry.displayName}")
             tts?.language = matchedVoice.locale
             tts?.voice = matchedVoice
         } else if (!russianVoices.isNullOrEmpty()) {
-            Log.d("TTSManager", "🟡 Голос не найден, выбираем первый доступный: ${russianVoices.first().name}")
-            tts?.language = russianVoices.first().locale
-            tts?.voice = russianVoices.first()
+            val firstVoice = russianVoices.first()
+            val voiceEntry = VoiceMappings.mapVoice(firstVoice)
+            Log.d("TTSManager", "🟡 Голос не найден, выбираем первый доступный: ${firstVoice.name} -> ${voiceEntry.displayName}")
+            tts?.language = firstVoice.locale
+            tts?.voice = firstVoice
         } else {
             Log.w("TTSManager", "⚠️ Нет русских голосов, используется голос по умолчанию.")
         }
@@ -139,6 +145,31 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         return tts?.voices?.filter {
             (it.locale.language == "ru" || it.locale.language == "en") && !it.name.contains("network")
         }?.toList() ?: emptyList()
+    }
+
+    /**
+     * 🔥 НОВЫЙ МЕТОД: Получить доступные голоса как VoiceEntry с понятными названиями
+     */
+    fun getAvailableVoiceEntries(): List<VoiceEntry> {
+        val systemVoices = tts?.voices?.filter {
+            it.locale.language == "ru" || it.locale.language == "en"
+        }?.toList() ?: emptyList()
+        
+        val voiceEntries = VoiceMappings.mapVoices(systemVoices)
+        
+        Log.d("TTSManager", "📋 Найдено голосов: ${systemVoices.size} системных -> ${voiceEntries.size} с понятными названиями")
+        voiceEntries.forEach { entry ->
+            Log.d("TTSManager", "  ${entry.getGenderIcon()} ${entry.displayName} (${entry.systemName})")
+        }
+        
+        return voiceEntries
+    }
+
+    /**
+     * 🔥 НОВЫЙ МЕТОД: Установить голос по VoiceEntry
+     */
+    fun setVoiceByEntry(voiceEntry: VoiceEntry) {
+        setVoiceByName(voiceEntry.systemName)
     }
 
     fun updatePitch(pitch: Float) {
@@ -640,7 +671,8 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     fun setVoiceByName(voiceName: String) {
         val voice = tts?.voices?.firstOrNull { it.name == voiceName }
         voice?.let {
-            Log.d("TTSManager", "🔄 Применяем выбранный голос: ${voice.name}")
+            val voiceEntry = VoiceMappings.mapVoice(voice)
+            Log.d("TTSManager", "🔄 Применяем выбранный голос: ${voice.name} -> ${voiceEntry.displayName}")
             tts?.language = voice.locale
             tts?.voice = voice
             PreferenceManager.saveTtsVoiceName(context, voiceName)
@@ -664,7 +696,8 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             val savedVoiceName = PreferenceManager.getTtsVoiceName(context)
             val selectedVoice = tts?.voices?.find { it.name == savedVoiceName }
             selectedVoice?.let {
-                Log.d("TTSManager", "🔁 refreshVoice(): применяем голос ${it.name}")
+                val voiceEntry = VoiceMappings.mapVoice(it)
+                Log.d("TTSManager", "🔁 refreshVoice(): применяем голос ${it.name} -> ${voiceEntry.displayName}")
                 tts?.language = it.locale
                 tts?.voice = it
             } ?: run {

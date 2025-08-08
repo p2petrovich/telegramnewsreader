@@ -15,6 +15,37 @@
     <string name="voice_female">Женский голос</string>
     <string name="processing">Обработка...</string>
     <string name="error_auth">Ошибка авторизации</string>
-    <string name="preview_text">Найдено %1\$d новостей, ~%2\$d мин</string>
+    <string name="preview_text">Найдено %1$d новостей, ~%2$d мин</string>
     <string name="favorites">Избранные</string>
+    
+    <!-- 🔥 НОВЫЕ СТРОКИ для голосов TTS -->
+    <string name="tts_settings">Настройки TTS</string>
+    <string name="voice_selection">Выбор голоса</string>
+    <string name="voice_test">Тестировать голос</string>
+    <string name="voice_pitch">Тембр</string>
+    <string name="voice_speed">Скорость</string>
+    <string name="voice_saved">Голос сохранен</string>
+    <string name="voice_testing">Тестирую голос...</string>
+    <string name="no_voices_available">Голоса TTS не найдены</string>
+    
+    <!-- Предопределенные названия голосов -->
+    <string name="voice_alexander">Александр</string>
+    <string name="voice_elena">Елена</string>
+    <string name="voice_maxim">Максим</string>
+    <string name="voice_anna">Анна</string>
+    <string name="voice_dmitry">Дмитрий</string>
+    <string name="voice_sofia">София</string>
+    <string name="voice_andrey">Андрей</string>
+    <string name="voice_maria">Мария</string>
+    <string name="voice_mikhail">Михаил</string>
+    <string name="voice_ekaterina">Екатерина</string>
+    <string name="voice_nikolay">Николай</string>
+    
+    <!-- Описания голосов -->
+    <string name="gender_male">Мужской голос</string>
+    <string name="gender_female">Женский голос</string>
+    <string name="gender_neutral">Нейтральный голос</string>
+    <string name="voice_local">локально</string>
+    <string name="voice_network">сеть</string>
+    <string name="voice_hd">HD</string>
 </resources>

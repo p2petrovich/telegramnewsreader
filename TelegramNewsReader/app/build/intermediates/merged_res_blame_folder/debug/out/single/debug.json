@@ -8,6 +8,10 @@
         "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\layout\\activity_favorites.xml"
     },
     {
+        "merged": "com.example.telegramnewsreader.app-merged_res-4:/layout_item_voice.xml.flat",
+        "source": "com.example.telegramnewsreader.app-main-6:/layout/item_voice.xml"
+    },
+    {
         "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\drawable_widget_preview.xml.flat",
         "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\drawable\\widget_preview.xml"
     },
@@ -72,10 +76,6 @@
         "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\xml\\data_extraction_rules.xml"
     },
     {
-        "merged": "com.example.telegramnewsreader.app-merged_res-4:/layout_item_channel.xml.flat",
-        "source": "com.example.telegramnewsreader.app-main-6:/layout/item_channel.xml"
-    },
-    {
         "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\drawable_ic_launcher_background.xml.flat",
         "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\drawable\\ic_launcher_background.xml"
     },
@@ -90,6 +90,10 @@
     {
         "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\layout_activity_auth.xml.flat",
         "source": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-main-6:\\layout\\activity_auth.xml"
+    },
+    {
+        "merged": "com.example.telegramnewsreader.app-merged_res-4:/layout_activity_voice_selection.xml.flat",
+        "source": "com.example.telegramnewsreader.app-main-6:/layout/activity_voice_selection.xml"
     },
     {
         "merged": "C:\\Users\\Admin\\.gradle\\daemon\\9.0-milestone-1\\com.example.telegramnewsreader.app-merged_res-4:\\drawable_ic_pause.xml.flat",

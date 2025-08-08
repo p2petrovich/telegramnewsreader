@@ -12,9 +12,10 @@ import com.example.telegramnewsreader.tts.TTSManagerSingleton // 🔥 НОВЫЙ
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
 import com.example.telegramnewsreader.adapters.VoiceAdapter
+import com.example.telegramnewsreader.models.VoiceMappings
+import com.example.telegramnewsreader.models.VoiceEntry // 🔥 ИСПРАВЛЕН ИМПОРТ
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -36,17 +37,13 @@ class SettingsActivity : AppCompatActivity() {
         // Ждём инициализации TTS
         lifecycleScope.launch(Dispatchers.Main) {
             delay(500) // подождём немного, чтобы TTS успел инициализироваться
-            val voiceList = ttsManager.getAvailableVoices().filter {
-                it.locale.language == "ru"
-            }
-
-            val voiceNames = voiceList.map { voice -> voice.name }
+            
+            // 🔥 ИСПРАВЛЕНИЕ: Используем новый метод для получения VoiceEntry
+            val voiceEntries = ttsManager.getAvailableVoiceEntries()
 
             val selectedVoiceName = PreferenceManager.getTtsVoiceName(this@SettingsActivity)
 
-            if (voiceList.isNotEmpty()) {
-                val selectedVoiceName = PreferenceManager.getTtsVoiceName(this@SettingsActivity)
-
+            if (voiceEntries.isNotEmpty()) {
                 layout.addView(TextView(this@SettingsActivity).apply {
                     text = "Выберите голос TTS:"
                     textSize = 16f
@@ -64,32 +61,32 @@ class SettingsActivity : AppCompatActivity() {
                 layout.addView(recyclerView)
 
                 val adapter = VoiceAdapter(
-                    voiceList,
-                    selectedVoiceName,
-                    onVoiceSelected = { selected ->
-                        android.util.Log.d("SettingsActivity", "🎯 onVoiceSelected вызван для: ${selected.name}")
+                    voiceEntries = voiceEntries, // 🔥 ИСПРАВЛЕНО: передаем voiceEntries
+                    selectedVoiceName = selectedVoiceName,
+                    onVoiceSelected = { voiceEntry -> // 🔥 ИСПРАВЛЕНО: параметр voiceEntry
+                        android.util.Log.d("SettingsActivity", "🎯 onVoiceSelected вызван для: ${voiceEntry.displayName} (${voiceEntry.systemName})")
 
-                        // Сохраняем в настройки
-                        PreferenceManager.saveTtsVoiceName(this@SettingsActivity, selected.name)
-                        android.util.Log.d("SettingsActivity", "💾 Голос сохранен в PreferenceManager: ${selected.name}")
+                        // Сохраняем в настройки системное имя
+                        PreferenceManager.saveTtsVoiceName(this@SettingsActivity, voiceEntry.systemName)
+                        android.util.Log.d("SettingsActivity", "💾 Голос сохранен в PreferenceManager: ${voiceEntry.systemName}")
 
                         // 🔥 ВАЖНО: Сразу применяем выбранный голос в TTS
-                        ttsManager.setVoiceByName(selected.name)
-                        android.util.Log.d("SettingsActivity", "🔄 setVoiceByName вызван для: ${selected.name}")
+                        ttsManager.setVoiceByEntry(voiceEntry) // 🔥 ИСПРАВЛЕНО: используем setVoiceByEntry
+                        android.util.Log.d("SettingsActivity", "🔄 setVoiceByEntry вызван для: ${voiceEntry.displayName}")
 
                         // 🔥 ДОПОЛНИТЕЛЬНО: Принудительно обновляем голос
                         ttsManager.refreshVoice()
                         android.util.Log.d("SettingsActivity", "✅ refreshVoice завершен")
                     },
-                    onVoicePlay = { voice ->
-                        android.util.Log.d("SettingsActivity", "▶️ onVoicePlay для: ${voice.name}")
+                    onVoicePlay = { voiceEntry -> // 🔥 ИСПРАВЛЕНО: параметр voiceEntry
+                        android.util.Log.d("SettingsActivity", "▶️ onVoicePlay для: ${voiceEntry.displayName}")
 
                         // 🔥 ВРЕМЕННО: Сохраняем текущий выбранный голос
                         val currentSelectedVoice = PreferenceManager.getTtsVoiceName(this@SettingsActivity)
                         android.util.Log.d("SettingsActivity", "📌 Текущий сохраненный голос: $currentSelectedVoice")
 
                         // Применяем голос для тестирования
-                        ttsManager.setVoiceByName(voice.name)
+                        ttsManager.setVoiceByEntry(voiceEntry) // 🔥 ИСПРАВЛЕНО: используем setVoiceByEntry
                         ttsManager.speak("Пример сообщения этим голосом.")
 
                         // 🔥 ВОССТАНАВЛИВАЕМ: Возвращаем ранее выбранный голос после тестирования

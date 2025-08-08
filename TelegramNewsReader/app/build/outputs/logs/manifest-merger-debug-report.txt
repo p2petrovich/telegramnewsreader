@@ -1,9 +1,9 @@
 -- Merging decision tree log ---
 manifest
-ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:2:1-67:12
-INJECTED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:2:1-67:12
-INJECTED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:2:1-67:12
-INJECTED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:2:1-67:12
+ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:2:1-73:12
+INJECTED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:2:1-73:12
+INJECTED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:2:1-73:12
+INJECTED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:2:1-73:12
 MERGED from [FFmpegAndroid-0.3.2.aar] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\0b658548690dadac487068ef61b7dea7\transformed\jetified-FFmpegAndroid-0.3.2\AndroidManifest.xml:2:1-14:12
 MERGED from [tdlib-android.aar] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\cb0a7738fae73b4259e37165e40d608f\transformed\jetified-tdlib-android\AndroidManifest.xml:2:1-7:12
 MERGED from [ffmpeg-kit-full-gpl-6.0-2.LTS.aar] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\69aee5859ceb46fb5c8b893dd4c61d85\transformed\jetified-ffmpeg-kit-full-gpl-6.0-2.LTS\AndroidManifest.xml:2:1-7:12
@@ -127,8 +127,8 @@ ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:
 	android:name
 		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:19:22-89
 application
-ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:21:5-66:19
-INJECTED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:21:5-66:19
+ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:21:5-72:19
+INJECTED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:21:5-72:19
 MERGED from [FFmpegAndroid-0.3.2.aar] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\0b658548690dadac487068ef61b7dea7\transformed\jetified-FFmpegAndroid-0.3.2\AndroidManifest.xml:12:5-20
 MERGED from [FFmpegAndroid-0.3.2.aar] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\0b658548690dadac487068ef61b7dea7\transformed\jetified-FFmpegAndroid-0.3.2\AndroidManifest.xml:12:5-20
 MERGED from [com.google.android.material:material:1.12.0] C:\Users\Admin\.gradle\caches\9.0-milestone-1\transforms\b4dcf0e844acd9a0dceb863ddf89226c\transformed\material-1.12.0\AndroidManifest.xml:22:5-20
@@ -235,32 +235,42 @@ ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:
 		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:48:64-88
 	android:name
 		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:48:19-63
-service#com.example.telegramnewsreader.services.TelegramService
-ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:50:9-52:40
+activity#com.example.telegramnewsreader.activities.VoiceSelectionActivity
+ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:50:9-54:69
+	android:parentActivityName
+		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:54:13-66
+	android:label
+		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:53:13-45
 	android:exported
 		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:52:13-37
 	android:name
-		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:51:13-53
+		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:51:13-62
+service#com.example.telegramnewsreader.services.TelegramService
+ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:56:9-58:40
+	android:exported
+		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:58:13-37
+	android:name
+		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:57:13-53
 service#com.example.telegramnewsreader.services.TTSService
-ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:54:9-56:40
+ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:60:9-62:40
 	android:exported
-		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:56:13-37
+		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:62:13-37
 	android:name
-		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:55:13-48
+		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:61:13-48
 service#com.example.telegramnewsreader.services.NewsCollectorService
-ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:58:9-60:40
+ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:64:9-66:40
 	android:exported
-		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:60:13-37
+		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:66:13-37
 	android:name
-		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:59:13-58
-service#com.example.telegramnewsreader.services.AudioPlayerService
-ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:62:9-65:61
-	android:exported
-		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:64:13-37
-	android:foregroundServiceType
 		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:65:13-58
+service#com.example.telegramnewsreader.services.AudioPlayerService
+ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:68:9-71:61
+	android:exported
+		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:70:13-37
+	android:foregroundServiceType
+		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:71:13-58
 	android:name
-		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:63:13-56
+		ADDED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml:69:13-56
 uses-sdk
 INJECTED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from C:\Telegram_grok\TelegramNewsReader\app\src\main\AndroidManifest.xml

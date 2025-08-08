@@ -47,6 +47,12 @@
         <activity android:name=".activities.PreviewActivity" android:exported="false" />
         <activity android:name=".activities.FavoritesActivity" android:exported="false" />
 
+        <activity
+            android:name=".activities.VoiceSelectionActivity"
+            android:exported="false"
+            android:label="Настройки голоса"
+            android:parentActivityName=".activities.MainActivity" />
+
         <service
             android:name=".services.TelegramService"
             android:exported="false" />
