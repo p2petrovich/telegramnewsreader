@@ -17,6 +17,7 @@ import androidx.core.app.NotificationCompat
 import com.example.telegramnewsreader.activities.MainActivity
 import java.io.File
 import java.io.FileInputStream
+import com.example.telegramnewsreader.utils.TTSDebugTracker
 
 class AudioPlayerService : Service() {
 
@@ -33,7 +34,7 @@ class AudioPlayerService : Service() {
         const val EXTRA_FILE_PATHS = "extra.FILE_PATHS"
         const val EXTRA_START_INDEX = "extra.START_INDEX"
         const val EXTRA_TITLE = "extra.TITLE"
-        const val EXTRA_CHAPTERS = "extra.CHAPTERS" // long[] таймкоды глав в мс
+        const val EXTRA_CHAPTERS = "extra.CHAPTERS"
 
         private const val CHANNEL_ID = "audio_playback_channel"
         private const val NOTIFICATION_ID = 1001
@@ -44,11 +45,10 @@ class AudioPlayerService : Service() {
     private var currentIndex = 0
     private var title: String = "Новости"
 
-    // Главы внутри одного файла
     private var chapterStartsMs: List<Long> = emptyList()
     private var currentChapter = 0
-    private var preparedButNotPlaying = false // подготовлено, но не автозапускать
-    private var pendingSeekStart = false // стартовать после onSeekComplete
+    private var preparedButNotPlaying = false
+    private var pendingSeekStart = false
 
     override fun onCreate() {
         super.onCreate()
@@ -66,23 +66,28 @@ class AudioPlayerService : Service() {
                     title = intent.getStringExtra(EXTRA_TITLE) ?: "Новости"
                     val chapters = intent.getLongArrayExtra(EXTRA_CHAPTERS)?.toList() ?: emptyList()
                     Log.d(TAG, "ACTION_SET_PLAYLIST title='$title' size=${paths.size} start=$start chapters=${chapters.size}")
+                    TTSDebugTracker.trackChannelSwitch("SET_PLAYLIST title='$title' size=${paths.size} start=$start chapters=${chapters.size}")
                     setPlaylist(paths, start, chapters)
                 }
                 ACTION_PLAY -> {
                     Log.d(TAG, "ACTION_PLAY")
+                    TTSDebugTracker.trackChannelSwitch("ACTION_PLAY")
                     play()
                 }
                 ACTION_PAUSE -> {
                     Log.d(TAG, "ACTION_PAUSE")
+                    TTSDebugTracker.trackChannelSwitch("ACTION_PAUSE")
                     pause()
                 }
                 ACTION_STOP -> {
                     Log.d(TAG, "ACTION_STOP")
+                    TTSDebugTracker.trackChannelSwitch("ACTION_STOP")
                     stopServiceSafely()
                     return START_NOT_STICKY
                 }
                 ACTION_NEXT -> {
                     Log.d(TAG, "ACTION_NEXT")
+                    TTSDebugTracker.trackChannelSwitch("ACTION_NEXT")
                     if (playlist.isEmpty()) return START_NOT_STICKY
                     playNext()
                 }
@@ -123,6 +128,7 @@ class AudioPlayerService : Service() {
         preparedButNotPlaying = true
         pendingSeekStart = false
         Log.d(TAG, "Playlist set: size=${playlist.size}, startIndex=$currentIndex, chapters=${chapterStartsMs.size}")
+        TTSDebugTracker.trackChannelSwitch("PLAYLIST SET size=${playlist.size} startIndex=$currentIndex chapters=${chapterStartsMs.size}")
 
         if (playlist.isNotEmpty()) {
             prepareCurrentSilently()
@@ -145,14 +151,17 @@ class AudioPlayerService : Service() {
             } catch (e: Exception) {
                 Log.e(TAG, "start() failed after prepare", e)
             }
+            TTSDebugTracker.trackChannelSwitch("PREPARED index=$currentIndex duration=${mp.duration}ms autoStart=$autoStart seekTo=${startFromMs ?: -1}")
             updateNotification()
         }
         mp.setOnCompletionListener {
             Log.d(TAG, "onCompletion -> next or stop")
+            TTSDebugTracker.trackChannelSwitch("COMPLETE index=$currentIndex chapterMode=${hasChapters()} currentChapter=$currentChapter")
             onTrackCompletion()
         }
         mp.setOnErrorListener { _, what, extra ->
             Log.e(TAG, "onError what=$what extra=$extra (will try next/stop)")
+            TTSDebugTracker.trackChannelSwitch("ERROR what=$what extra=$extra at index=$currentIndex")
             playNext()
             true
         }
@@ -177,6 +186,7 @@ class AudioPlayerService : Service() {
         val path = playlist[currentIndex]
         val f = File(path)
         Log.d(TAG, "prepareCurrentSilently: index=$currentIndex path=$path exists=${f.exists()} len=${f.length()}")
+        TTSDebugTracker.trackChannelSwitch("PREPARE(silent) index=$currentIndex path=$path")
 
         releasePlayer()
 
@@ -225,6 +235,7 @@ class AudioPlayerService : Service() {
         val path = playlist[currentIndex]
         val f = File(path)
         Log.d(TAG, "prepareAndPlayCurrent: index=$currentIndex path=$path exists=${f.exists()} len=${f.length()}")
+        TTSDebugTracker.trackChannelSwitch("PREPARE&PLAY index=$currentIndex path=$path startFrom=${startFromMs ?: -1}")
 
         releasePlayer()
 
@@ -290,6 +301,7 @@ class AudioPlayerService : Service() {
 
     private fun play() {
         Log.d(TAG, "play(): player=${mediaPlayer != null}, isPlaying=${mediaPlayer?.isPlaying}, preparedButNotPlaying=$preparedButNotPlaying chapterMode=${hasChapters()} chapter=$currentChapter/${chapterStartsMs.size}")
+        TTSDebugTracker.trackChannelSwitch("PLAY requested: idx=$currentIndex chaptersMode=${hasChapters()} chapter=$currentChapter")
 
         if (playlist.isEmpty()) {
             Log.w(TAG, "play(): playlist is empty")
@@ -339,6 +351,7 @@ class AudioPlayerService : Service() {
 
     private fun playNext() {
         Log.d(TAG, "playNext() currentIndex=$currentIndex size=${playlist.size} chapterMode=${hasChapters()} chapter=$currentChapter/${chapterStartsMs.size}")
+        TTSDebugTracker.trackChannelSwitch("NEXT requested: idx=$currentIndex chapterMode=${hasChapters()} chapter=$currentChapter")
 
         if (playlist.isEmpty()) return
 
@@ -351,8 +364,8 @@ class AudioPlayerService : Service() {
             if (currentChapter < chapterStartsMs.lastIndex) {
                 currentChapter += 1
             } else {
-                // Новое поведение: стоп на последней главе
                 Log.d(TAG, "Next on last chapter -> stop")
+                TTSDebugTracker.trackChannelSwitch("NEXT on last chapter -> STOP")
                 stopServiceSafely()
                 return
             }
@@ -379,17 +392,20 @@ class AudioPlayerService : Service() {
         if (currentIndex < playlist.lastIndex) {
             currentIndex += 1
             Log.d(TAG, "playNext(): newIndex=$currentIndex")
+            TTSDebugTracker.trackChannelSwitch("NEXT track -> index=$currentIndex")
             preparedButNotPlaying = false
             pendingSeekStart = false
             prepareAndPlayCurrent()
         } else {
             Log.d(TAG, "playNext(): end of playlist -> stopServiceSafely()")
+            TTSDebugTracker.trackChannelSwitch("NEXT at end -> STOP")
             stopServiceSafely()
         }
     }
 
     private fun stopServiceSafely() {
         Log.d(TAG, "stopServiceSafely()")
+        TTSDebugTracker.trackChannelSwitch("STOP service")
         releasePlayer()
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {

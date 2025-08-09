@@ -13,6 +13,7 @@ import android.widget.TextView
 import com.example.telegramnewsreader.tts.TTSManagerSingleton
 import com.example.telegramnewsreader.utils.PreferenceManager
 import com.example.telegramnewsreader.models.VoiceEntry
+import com.example.telegramnewsreader.utils.TTSDebugTracker // 🔥 ДОБАВЛЕНО
 
 class VoiceAdapter(
     private val voiceEntries: List<VoiceEntry>,
@@ -95,6 +96,8 @@ class VoiceAdapter(
         Log.d("VoiceAdapter", "📋 onBindViewHolder: position=$position, voice=${voiceEntry.displayName} (${voiceEntry.systemName}), isChecked=${holder.radio.isChecked}")
 
         holder.radio.setOnClickListener {
+                        // 🔥 ДОБАВЛЕНО: Отслеживание пользовательского действия
+            TTSDebugTracker.trackUserAction("Voice selected via RadioButton: ${voiceEntry.displayName}")
             Log.d("VoiceAdapter", "🔘 === RadioButton НАЖАТ ===")
             Log.d("VoiceAdapter", "   position=$position, voice=${voiceEntry.displayName}")
             val stackTrace = Thread.currentThread().stackTrace
@@ -157,6 +160,7 @@ class VoiceAdapter(
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
                     val newPitch = progress / 100f
+                    TTSDebugTracker.trackUserAction("SeekBar pitch changed to $newPitch")  // 🔥 ДОБАВИТЬ
                     Log.d("VoiceAdapter", "🎚️ Изменен тембр: $newPitch для ${voiceEntry.displayName}")
                     ttsManager.updatePitch(newPitch)
 
@@ -172,6 +176,7 @@ class VoiceAdapter(
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
                     val newRate = progress / 100f
+                    TTSDebugTracker.trackUserAction("SeekBar rate changed to $newRate")  // 🔥 ДОБАВИТЬ
                     Log.d("VoiceAdapter", "⏩ Изменена скорость: $newRate для ${voiceEntry.displayName}")
                     ttsManager.updateRate(newRate)
 

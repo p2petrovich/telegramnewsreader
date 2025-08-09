@@ -6,6 +6,7 @@ import com.example.telegramnewsreader.telegram.TelegramClient
 import com.example.telegramnewsreader.tts.TTSManager
 import kotlinx.coroutines.*
 import java.io.File
+import com.example.telegramnewsreader.utils.TTSDebugTracker
 
 class NewsService(
     private val telegramClient: TelegramClient,
@@ -32,15 +33,27 @@ class NewsService(
         channels: List<Channel>,
         timeHours: Double
     ): File? = withContext(Dispatchers.IO) {
+        // Начинаем новую сессию — очищаем историю отладчика
+        TTSDebugTracker.clearHistory()
+        TTSDebugTracker.trackSystemAction("NEWS START collectAndProcessNews channels=${channels.size} hours=$timeHours")
+
         val list = collectAndPrepareMessages(channels, timeHours) ?: return@withContext null
         if (list.preparedMessages.isEmpty()) return@withContext null
-        ttsManager.convertToAudio(list.preparedMessages, pauseMs = 1200)
+
+        TTSDebugTracker.trackSystemAction("SYNTH START (no chapters) messages=${list.preparedMessages.size}")
+        val out = ttsManager.convertToAudio(list.preparedMessages, pauseMs = 1200)
+        TTSDebugTracker.trackSystemAction("SYNTH DONE (no chapters) fileExists=${out != null}")
+        out
     }
 
     suspend fun collectAndSynthesizeNewsList(
         channels: List<Channel>,
         timeHours: Double
     ): List<File> = withContext(Dispatchers.IO) {
+        // Новая сессия
+        TTSDebugTracker.clearHistory()
+        TTSDebugTracker.trackSystemAction("NEWS START collectAndSynthesizeNewsList channels=${channels.size} hours=$timeHours")
+
         val res = collectAndSynthesizeWithChapters(channels, timeHours)
         if (res != null) listOf(res.file) else emptyList()
     }
@@ -49,10 +62,18 @@ class NewsService(
         channels: List<Channel>,
         timeHours: Double
     ): AudioWithChapters? = withContext(Dispatchers.IO) {
+        // Новая сессия
+        TTSDebugTracker.clearHistory()
+        TTSDebugTracker.trackSystemAction("NEWS START collectAndSynthesizeWithChapters channels=${channels.size} hours=$timeHours")
+
         val list = collectAndPrepareMessages(channels, timeHours) ?: return@withContext null
         if (list.preparedMessages.isEmpty()) return@withContext null
+
+        TTSDebugTracker.trackSystemAction("SYNTH START (with chapters) messages=${list.preparedMessages.size}")
         val audio = ttsManager.convertToAudioWithChapters(list.preparedMessages, pauseMs = 1200)
             ?: return@withContext null
+
+        TTSDebugTracker.trackSystemAction("SYNTH DONE (with chapters) file='${audio.file.name}' chapters=${audio.chaptersMs.size}")
         AudioWithChapters(audio.file, audio.chaptersMs)
     }
 
@@ -111,7 +132,7 @@ class NewsService(
         }
     }
 
-private fun prepareMessages(messages: List<String>): List<String> {
+    private fun prepareMessages(messages: List<String>): List<String> {
         Log.d(TAG, "🧪 prepareMessages: обрабатываем ${messages.size} сообщений")
 
         // RAW лог первых 10 элементов (переносы → \n)
@@ -131,8 +152,8 @@ private fun prepareMessages(messages: List<String>): List<String> {
             "^Фото:.*",
             "^Фото.*",
             "^Видео.*",
-            "^\$$.*\$$$",                 // [Фото], [Видео] и т.д.
-            "^\\d{2}:\\d{2}\\s*—\\s*\$$.*\$$$", // "12:34 — [Стикер]"
+            "^\$$.*\$$$",
+            "^\\d{2}:\\d{2}\\s*—\\s*\$$.*\$$$",
 
             // Явные ссылки/приглашения
             "t\\.me/\\S+",
@@ -140,25 +161,17 @@ private fun prepareMessages(messages: List<String>): List<String> {
             "наш tg.*",
             "читать(ь)? больше.*",
 
-            // Усиленные подписочные паттерны:
-            // 1) Любая строка, где встречается подписочная форма
+            // Усиленные подписочные паттерны
             ".*\\bподпис(аться|ывай(ся|тесь)?|ка)\\b.*",
-
-            // 2) С эмодзи/символами в начале
             "^(?:[\\p{So}\\p{Sk}❗️!❤️💚💙💛💜🖤🤍🤎•·▫️◽️◾️▪️🔹🔸]\\s*)*подпис(аться|ывай(ся|тесь)?|ка)\\b.*",
-
-            // 3) “все наши каналы”
             ".*\\bвсе\\s+наши\\s+каналы\\b.*",
-
-            // 4) Комбинированные варианты через слэш/вертикальную черту/точку/тире
             ".*подпис(аться|ывай(ся|тесь)?)\\b.*[\\\\/|•·—–-].*",
-            ".*\\bзеркал[оа]\\b.*" // “Зеркало/Зеркала”
+            ".*\\bзеркал[оа]\\b.*"
         )
 
         val filtered = messages.mapNotNull { original ->
             val trimmed = original.trim()
 
-            // Базовые фильтры
             when {
                 trimmed.length <= 3 -> {
                     Log.v(TAG, "⛔ Слишком короткое: \"$trimmed\"")
@@ -178,7 +191,6 @@ private fun prepareMessages(messages: List<String>): List<String> {
                 }
             }
 
-            // Проверка на промо-паттерны с логом совпавшего паттерна
             var dropByPromo = false
             promoPatterns.forEach { pattern ->
                 if (!dropByPromo && trimmed.matches(Regex(pattern, setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE)))) {
@@ -188,26 +200,18 @@ private fun prepareMessages(messages: List<String>): List<String> {
             }
             if (dropByPromo) return@mapNotNull null
 
-            // Очистка
             var cleaned = trimmed
-                // Удаляем медиа-префиксы типа "12:34 — фото/видео …"
                 .replace(
                     Regex("^\\d{2}:\\d{2}\\s*—\\s*(фото|видео|аудио|документ|gif|голосовое сообщение)[\\p{P}\\s]*", RegexOption.IGNORE_CASE),
                     ""
                 )
-                // Нормализуем переносы
                 .replace(Regex("\\n{3,}"), "\n\n")
-                // Удаляем ссылки
                 .replace(Regex("https?://\\S+"), "")
-                // Удаляем хэштеги и упоминания
                 .replace(Regex("(^|\\s)[#@][\\p{L}0-9_]+"), " ")
-                // Удаляем одиночные пачки эмодзи/восклицаний
                 .replace(Regex("[\\p{So}\\p{Sk}❗️!❤️💚💙💛💜🖤🤍🤎]+"), " ")
-                // Внутренние подписочные фразы
                 .replace(Regex("(?i)подпис(аться|ывай(ся|тесь)?)\\s+на\\s+[^\\n.]+"), "")
                 .trim()
 
-            // Срез промо‑хвостов после основного текста (на случай, если matches не сработал)
             cleaned = cleaned
                 .replace(Regex("(?i)[\\s\\p{So}\\p{Sk}]*[\\\\/|•·—–-]\\s*подпис(аться|ывай(ся|тесь)?|ка)\\b.*$"), "")
                 .replace(Regex("(?i)[\\s\\p{So}\\p{Sk}]*[\\\\/|•·—–-]\\s*все\\s+наши\\s+каналы\\b.*$"), "")

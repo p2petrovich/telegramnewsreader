@@ -21,10 +21,12 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import com.example.telegramnewsreader.models.VoiceMappings
 import com.example.telegramnewsreader.models.VoiceEntry
+import com.example.telegramnewsreader.utils.TTSDebugTracker
 
 object TTSManagerSingleton {
     @Volatile
     private var INSTANCE: TTSManager? = null
+
 
     fun getInstance(context: Context): TTSManager {
         return INSTANCE ?: synchronized(this) {
@@ -46,17 +48,18 @@ object TTSManagerSingleton {
 
 class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
+
     private var tts: TextToSpeech? = null
     private var isMale = true
     private var ttsInitialized = AtomicBoolean(false)
     private var initializationContinuation: CancellableContinuation<Boolean>? = null
 
-    // 🔥 НОВОЕ: Флаги для контроля применения настроек
+    // Флаги/параметры
     private var voiceParametersApplied = false
     private var currentAppliedPitch: Float? = null
     private var currentAppliedRate: Float? = null
 
-    // 🔥 НОВОЕ: Счетчик для отслеживания вызовов методов
+    // Счетчики
     private var pitchChangeCount = 0
     private var rateChangeCount = 0
     private var voiceChangeCount = 0
@@ -72,6 +75,8 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     }
 
     private fun findBestEngine(): String? {
+        // В этом месте tts ещё null; оставляем как есть, чтобы не ломать логику.
+        // Детальное логирование текущего движка добавлено в onInit().
         tts?.engines?.let { engines ->
             val preferredEngines = listOf(
                 "com.google.android.tts",
@@ -89,6 +94,8 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     }
 
     override fun onInit(status: Int) {
+        TTSDebugTracker.trackTTSInit("status: $status")
+
         Log.d("TTSManager", "🎬 onInit() вызван со статусом: $status")
         val stackTrace = Thread.currentThread().stackTrace
         Log.d("TTSManager", "📍 Стек вызовов onInit:")
@@ -99,8 +106,18 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         if (status == TextToSpeech.SUCCESS) {
             ttsInitialized.set(true)
             Log.d("TTSManager", "✅ TTS Initialized successfully.")
-            val result = tts?.setLanguage(Locale("ru"))
 
+            // Логируем выбранный движок и голос
+            try {
+                val engine = tts?.defaultEngine
+                Log.d("TTSManager", "🛠️ TTS defaultEngine: $engine")
+                val voices = tts?.voices?.size ?: -1
+                Log.d("TTSManager", "🛠️ Доступных голосов: $voices")
+            } catch (e: Exception) {
+                Log.w("TTSManager", "Не удалось получить информацию о движке/голосах", e)
+            }
+
+            val result = tts?.setLanguage(Locale("ru"))
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                 Log.w("TTSManager", "Russian language not supported, falling back to US English.")
                 tts?.setLanguage(Locale.US)
@@ -144,6 +161,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             tts?.language = matchedVoice.locale
             tts?.voice = matchedVoice
             voiceChangeCount++
+            TTSDebugTracker.trackVoiceChange(matchedVoice.name, "applySavedVoice - matched voice")
         } else if (!russianVoices.isNullOrEmpty()) {
             val firstVoice = russianVoices.first()
             val voiceEntry = VoiceMappings.mapVoice(firstVoice)
@@ -151,17 +169,16 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             tts?.language = firstVoice.locale
             tts?.voice = firstVoice
             voiceChangeCount++
+            TTSDebugTracker.trackVoiceChange(firstVoice.name, "applySavedVoice - first available")
         } else {
             Log.w("TTSManager", "⚠️ Нет русских голосов, используется голос по умолчанию.")
         }
 
-        // 🔥 ИСПРАВЛЕНО: Применяем параметры только один раз при инициализации
         Log.d("TTSManager", "🎚️ Вызываем applyVoiceParametersOnce() из applySavedVoice")
         applyVoiceParametersOnce()
         Log.d("TTSManager", "🎯 === applySavedVoice() КОНЕЦ ===")
     }
 
-    // 🔥 НОВЫЙ МЕТОД: Применить параметры голоса только один раз
     private fun applyVoiceParametersOnce() {
         Log.d("TTSManager", "🎯 === applyVoiceParametersOnce() НАЧАЛО ===")
         val stackTrace = Thread.currentThread().stackTrace
@@ -183,6 +200,9 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             val rateResult = tts?.setSpeechRate(rate)
             pitchChangeCount++
             rateChangeCount++
+
+            TTSDebugTracker.trackPitchChange(pitch, "applyVoiceParametersOnce - system init")
+            TTSDebugTracker.trackRateChange(rate, "applyVoiceParametersOnce - system init")
 
             Log.d("TTSManager", "🎚️ Результат setPitch($pitch): $pitchResult")
             Log.d("TTSManager", "⏩ Результат setSpeechRate($rate): $rateResult")
@@ -229,6 +249,8 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             pitchChangeCount++
             currentAppliedPitch = newPitch
 
+            TTSDebugTracker.trackPitchChange(newPitch, "setVoiceGender - automatic gender adjustment")
+
             Log.d("TTSManager", "⚠️ ПОТЕНЦИАЛЬНАЯ ПРОБЛЕМА! setVoiceGender изменил pitch на $newPitch")
             Log.d("TTSManager", "📊 Счетчик изменений pitch: $pitchChangeCount")
         }
@@ -240,9 +262,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }?.toList() ?: emptyList()
     }
 
-    /**
-     * 🔥 НОВЫЙ МЕТОД: Получить доступные голоса как VoiceEntry с понятными названиями
-     */
     fun getAvailableVoiceEntries(): List<VoiceEntry> {
         Log.d("TTSManager", "📋 getAvailableVoiceEntries() вызван")
         val systemVoices = tts?.voices?.filter {
@@ -259,16 +278,14 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         return voiceEntries
     }
 
-    /**
-     * 🔥 НОВЫЙ МЕТОД: Установить голос по VoiceEntry
-     */
     fun setVoiceByEntry(voiceEntry: VoiceEntry) {
         Log.d("TTSManager", "🎤 setVoiceByEntry(${voiceEntry.displayName}) вызван")
         setVoiceByName(voiceEntry.systemName)
     }
 
-    // 🔥 ИСПРАВЛЕНО: updatePitch применяет параметры только при изменении пользователем
     fun updatePitch(pitch: Float) {
+        TTSDebugTracker.trackPitchChange(pitch, "updatePitch method - user change")
+
         Log.d("TTSManager", "🎚️ === updatePitch($pitch) НАЧАЛО ===")
         val stackTrace = Thread.currentThread().stackTrace
         Log.d("TTSManager", "📍 Стек вызовов updatePitch:")
@@ -291,8 +308,9 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         Log.d("TTSManager", "🎚️ === updatePitch($pitch) КОНЕЦ ===")
     }
 
-    // 🔥 ИСПРАВЛЕНО: updateRate применяет параметры только при изменении пользователем
     fun updateRate(rate: Float) {
+        TTSDebugTracker.trackRateChange(rate, "updateRate method - user change")
+
         Log.d("TTSManager", "⏩ === updateRate($rate) НАЧАЛО ===")
         val stackTrace = Thread.currentThread().stackTrace
         Log.d("TTSManager", "📍 Стек вызовов updateRate:")
@@ -498,14 +516,38 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 val bitsPerSample = buf.getShort(34).toInt()
                 val channels = buf.getShort(22).toInt()
                 val byteRate = sampleRate * channels * bitsPerSample / 8
-
-                raf.seek(40)
                 val dataSize = buf.getInt(40)
                 val durationSec = dataSize.toDouble() / byteRate.toDouble()
                 (durationSec * 1000).toLong()
             }
         } catch (e: Exception) {
             Log.w("TTSManager", "Не удалось прочитать длительность WAV: ${file.name}", e)
+            null
+        }
+    }
+
+    // Новое: чтение полного формата WAV
+    private data class WavMeta(val sampleRate: Int, val channels: Int, val bitsPerSample: Int, val durationMs: Long?)
+    private fun readWavMeta(file: File): WavMeta? {
+        return try {
+            RandomAccessFile(file, "r").use { raf ->
+                val header = ByteArray(44)
+                raf.readFully(header)
+                val buf = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN)
+                if (String(header.copyOfRange(0, 4)) != "RIFF" || String(header.copyOfRange(8, 12)) != "WAVE") {
+                    return null
+                }
+                val channels = buf.getShort(22).toInt()
+                val sampleRate = buf.getInt(24)
+                val bitsPerSample = buf.getShort(34).toInt()
+                val byteRate = sampleRate * channels * bitsPerSample / 8
+                val dataSize = buf.getInt(40)
+                val durationSec = if (byteRate > 0) dataSize.toDouble() / byteRate.toDouble() else 0.0
+                val durMs = (durationSec * 1000).toLong()
+                WavMeta(sampleRate, channels, bitsPerSample, durMs)
+            }
+        } catch (e: Exception) {
+            Log.w("TTSManager", "Не удалось прочитать метаданные WAV: ${file.name}", e)
             null
         }
     }
@@ -517,7 +559,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         val dataSize = numSamples * blockAlign
         val totalSize = 36 + dataSize
 
-        val file = File(context.cacheDir, "silence_${durationMs}ms_${sampleRate}hz.wav")
+        val file = File(context.cacheDir, "silence_${durationMs}ms_${sampleRate}hz_${channels}ch_${bitsPerSample}bit.wav")
         file.outputStream().use { os ->
             fun writeLE(value: Int, bytes: Int) {
                 repeat(bytes) { i -> os.write((value shr (8 * i)) and 0xFF) }
@@ -540,7 +582,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             var remaining = dataSize
             while (remaining > 0) {
                 val writeNow = minOf(remaining, buf.size)
-                os.write(buf, 0, writeNow) // нули = тишина
+                os.write(buf, 0, writeNow)
                 remaining -= writeNow
             }
         }
@@ -635,6 +677,39 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         val chaptersMs: List<Long>
     )
 
+    // Новое: утилита для печати логов FFmpeg-сессии
+    private fun logFfmpegSession(prefix: String, session: com.arthenica.ffmpegkit.Session) {
+        try {
+            session.logs.forEach { logLine ->
+                Log.d("TTSManager", "$prefix FFmpeg: ${logLine.message}")
+            }
+        } catch (_: Exception) { }
+    }
+
+    // Новое: ресемплинг WAV под эталонный формат
+    private fun resampleWavToFormat(input: File, sampleRate: Int, channels: Int, bitsPerSample: Int): File? {
+        val fmt = when (bitsPerSample) {
+            8 -> "u8"
+            16 -> "s16"
+            24 -> "s32" // ближайший безопасный для ffmpeg sample_fmt
+            32 -> "s32"
+            else -> "s16"
+        }
+        val out = File(input.parentFile, input.nameWithoutExtension + "_resampled.wav")
+        val cmd = arrayOf("-y", "-i", input.absolutePath, "-ar", sampleRate.toString(), "-ac", channels.toString(), "-sample_fmt", fmt, out.absolutePath)
+        Log.d("TTSManager", "🎛️ Ресемплинг: ${input.name} -> ${out.name} (sr=$sampleRate, ch=$channels, bps=$bitsPerSample, fmt=$fmt)")
+        val session = FFmpegKit.executeWithArguments(cmd)
+        logFfmpegSession("RESAMPLE", session)
+        return if (ReturnCode.isSuccess(session.returnCode) && out.exists() && out.length() > 0) {
+            Log.d("TTSManager", "✅ Ресемплинг успешен: ${out.name} (${out.length()} байт)")
+            out
+        } else {
+            Log.e("TTSManager", "❌ Ресемплинг не удался. Код: ${session.returnCode}")
+            if (out.exists()) out.delete()
+            null
+        }
+    }
+
     // Новый метод: возвращает аудиофайл и таймкоды начала каждой новости
     suspend fun convertToAudioWithChapters(texts: List<String>, pauseMs: Int = 1200): AudioWithChapters? {
         Log.d("TTSManager", "🎵 === convertToAudioWithChapters() НАЧАЛО ===")
@@ -649,7 +724,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             return null
         }
 
-        // 🔥 ИСПРАВЛЕНО: НЕ вызываем refreshVoice, чтобы не переприменять параметры
         Log.d("TTSManager", "🎯 Начинаем конвертацию с уже установленными параметрами:")
         Log.d("TTSManager", "   pitch=${currentAppliedPitch}, rate=${currentAppliedRate}")
         Log.d("TTSManager", "   voiceParametersApplied=$voiceParametersApplied")
@@ -665,7 +739,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         val wavFiles = mutableListOf<File>()
         var silenceFile: File? = null
-        var detectedSampleRate: Int? = null
+        var baselineFormat: WavMeta? = null
 
         val chaptersMs = mutableListOf<Long>()
         var offsetMs = 0L
@@ -696,19 +770,58 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                     return null
                 }
 
-                wavFiles.add(wav)
+                // Читаем метаданные части
+                val meta = readWavMeta(wav)
+                if (meta == null) {
+                    Log.e("TTSManager", "❌ Не удалось прочитать формат WAV части ${i + 1}")
+                    wavFiles.forEach { if (it.exists()) it.delete() }
+                    silenceFile?.delete()
+                    return null
+                }
 
-                if (detectedSampleRate == null) {
-                    detectedSampleRate = readWavSampleRate(wav) ?: 22050
-                    Log.d("TTSManager", "📡 Определён sampleRate синтеза: $detectedSampleRate Гц")
+                Log.d("TTSManager", "📄 WAV часть: file=${wav.name} sr=${meta.sampleRate}Hz ch=${meta.channels} bps=${meta.bitsPerSample} dur=${meta.durationMs}ms")
+
+                // Фиксируем эталонный формат на первой части
+                if (baselineFormat == null) {
+                    baselineFormat = meta
+                    Log.d("TTSManager", "📌 Эталонный формат: sr=${baselineFormat!!.sampleRate} ch=${baselineFormat!!.channels} bps=${baselineFormat!!.bitsPerSample}")
                     if (pauseMs > 0) {
-                        silenceFile = createSilenceWav(pauseMs, sampleRate = detectedSampleRate!!)
+                        silenceFile = createSilenceWav(pauseMs, sampleRate = baselineFormat!!.sampleRate, channels = baselineFormat!!.channels, bitsPerSample = baselineFormat!!.bitsPerSample)
                         Log.d("TTSManager", "🤫 Сгенерирован файл тишины: ${silenceFile?.name}")
                     }
                 }
 
+                // Если формат части отличается — пересэмплируем
+                val usesBaseline = meta.sampleRate == baselineFormat!!.sampleRate &&
+                        meta.channels == baselineFormat!!.channels &&
+                        meta.bitsPerSample == baselineFormat!!.bitsPerSample
+
+                val usedWav = if (!usesBaseline) {
+                    Log.w("TTSManager", "⚠️ Формат части отличается от эталона. Будет выполнен ресемплинг.")
+                    val resampled = resampleWavToFormat(
+                        input = wav,
+                        sampleRate = baselineFormat!!.sampleRate,
+                        channels = baselineFormat!!.channels,
+                        bitsPerSample = baselineFormat!!.bitsPerSample
+                    )
+                    if (resampled != null) {
+                        // удаляем оригинал, используем ресемплированный
+                        try { wav.delete() } catch (_: Exception) {}
+                        resampled
+                    } else {
+                        Log.e("TTSManager", "❌ Ресемплинг части не удался")
+                        wavFiles.forEach { if (it.exists()) it.delete() }
+                        silenceFile?.delete()
+                        return null
+                    }
+                } else {
+                    wav
+                }
+
+                wavFiles.add(usedWav)
+
                 // Прибавим длительность части к offset
-                val dur = readWavDurationMs(wav) ?: 0L
+                val dur = readWavDurationMs(usedWav) ?: meta.durationMs ?: 0L
                 offsetMs += dur
             }
 
@@ -779,6 +892,9 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             val cmd = arrayOf("-y", "-i", wavFile.absolutePath, "-acodec", "libmp3lame", "-b:a", "64k", "-vn", mp3File.absolutePath)
             val session = FFmpegKit.executeWithArguments(cmd)
 
+            // Дополнительные логи FFmpeg
+            logFfmpegSession("MP3", session)
+
             if (ReturnCode.isSuccess(session.returnCode)) {
                 if (mp3File.exists() && mp3File.length() > 0) {
                     Log.d("TTSManager", "✅ Конвертация в MP3 успешна: ${mp3File.absolutePath}")
@@ -821,7 +937,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         tts?.shutdown()
         tts = null
 
-        // 🔥 НОВОЕ: Сброс флагов при выключении
         voiceParametersApplied = false
         currentAppliedPitch = null
         currentAppliedRate = null
@@ -833,6 +948,8 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     }
 
     fun setVoiceByName(voiceName: String) {
+        TTSDebugTracker.trackVoiceChange(voiceName, "setVoiceByName method")
+
         Log.d("TTSManager", "🎤 === setVoiceByName($voiceName) НАЧАЛО ===")
         val stackTrace = Thread.currentThread().stackTrace
         Log.d("TTSManager", "📍 Стек вызовов setVoiceByName:")
@@ -849,8 +966,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             voiceChangeCount++
             PreferenceManager.saveTtsVoiceName(context, voiceName)
 
-            // 🔥 ИСПРАВЛЕНО: НЕ переприменяем параметры pitch/rate при смене голоса
-            // Они остаются теми же, что установил пользователь
             Log.d("TTSManager", "💾 Голос сохранен и применен: $voiceName (параметры НЕ изменены)")
             Log.d("TTSManager", "📊 Текущие параметры остаются: pitch=${currentAppliedPitch}, rate=${currentAppliedRate}")
             Log.d("TTSManager", "📊 Счетчики: pitch=$pitchChangeCount, rate=$rateChangeCount, voice=$voiceChangeCount")
@@ -869,8 +984,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
 
         if (ttsInitialized.get()) {
-            // 🔥 ИСПРАВЛЕНО: НЕ вызываем refreshVoice перед speak
-            // Используем уже установленные параметры
             val result = tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "TTS_SAMPLE")
             Log.d("TTSManager", "🗣️ Говорим с текущими параметрами:")
             Log.d("TTSManager", "   pitch=${currentAppliedPitch}, rate=${currentAppliedRate}")
@@ -882,8 +995,9 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         Log.d("TTSManager", "🗣️ === speak() КОНЕЦ ===")
     }
 
-    // 🔥 ИСПРАВЛЕНО: refreshVoice теперь НЕ переприменяет параметры
     fun refreshVoice() {
+        TTSDebugTracker.trackTTSRefresh("refreshVoice method called")
+
         Log.d("TTSManager", "🔁 === refreshVoice() НАЧАЛО ===")
         val stackTrace = Thread.currentThread().stackTrace
         Log.d("TTSManager", "📍 Стек вызовов refreshVoice:")
@@ -906,8 +1020,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 Log.w("TTSManager", "❗ refreshVoice(): голос $savedVoiceName не найден среди доступных")
             }
 
-            // 🔥 ГЛАВНОЕ ИСПРАВЛЕНИЕ: НЕ переприменяем параметры pitch и rate!
-            // Они остаются теми, что уже установлены
             Log.d("TTSManager", "🔄 refreshVoice() завершен: голос обновлен, параметры НЕ ИЗМЕНЕНЫ")
             Log.d("TTSManager", "   pitch=${currentAppliedPitch}, rate=${currentAppliedRate}")
             Log.d("TTSManager", "   Счетчики: pitch=$pitchChangeCount, rate=$rateChangeCount, voice=$voiceChangeCount")
