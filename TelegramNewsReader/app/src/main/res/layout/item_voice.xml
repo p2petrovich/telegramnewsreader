@@ -75,6 +75,7 @@
                 android:layout_marginEnd="8dp" />
 
             <TextView
+                android:id="@+id/tvPitchValue"
                 android:layout_width="40dp"
                 android:layout_height="wrap_content"
                 android:text="1.0"
@@ -108,6 +109,7 @@
                 android:layout_marginEnd="8dp" />
 
             <TextView
+                android:id="@+id/tvSpeedValue"
                 android:layout_width="40dp"
                 android:layout_height="wrap_content"
                 android:text="1.0"

@@ -39,7 +39,11 @@ class VoiceAdapter(
         val play: ImageButton = view.findViewById(R.id.btnPlay)
         val seekPitch: SeekBar = view.findViewById(R.id.seekPitch)
         val seekRate: SeekBar = view.findViewById(R.id.seekRate)
-        
+
+        // 🔥 НОВОЕ: Добавляем TextView для отображения значений ползунков
+        val pitchValue: TextView? = view.findViewById(R.id.tvPitchValue)
+        val speedValue: TextView? = view.findViewById(R.id.tvSpeedValue)
+
         // 🔥 НОВОЕ: Добавляем TextView для иконки пола (если есть в layout)
         val genderIcon: TextView? = view.findViewById(R.id.tvGenderIcon)
     }
@@ -58,7 +62,7 @@ class VoiceAdapter(
         // 🔥 НОВОЕ: Используем понятные названия из VoiceEntry
         val displayText = "${voiceEntry.getGenderIcon()} ${voiceEntry.displayName}"
         val engineInfo = if (voiceEntry.isNetwork) "сеть" else "локально"
-        
+
         holder.radio.text = "$displayText ($engineInfo)"
         holder.radio.isChecked = position == selectedIndex
 
@@ -89,7 +93,7 @@ class VoiceAdapter(
             Log.d("VoiceAdapter", "▶️ Play button clicked для: ${voiceEntry.displayName}")
             onVoicePlay(voiceEntry)
         }
-        
+
         val context = holder.itemView.context
         val ttsManager = TTSManagerSingleton.getInstance(context)
 
@@ -100,12 +104,19 @@ class VoiceAdapter(
         holder.seekPitch.progress = (savedPitch * 100).toInt()
         holder.seekRate.progress = (savedRate * 100).toInt()
 
+        // 🔥 НОВОЕ: Устанавливаем начальные значения для TextView
+        updatePitchValue(holder, savedPitch)
+        updateSpeedValue(holder, savedRate)
+
         holder.seekPitch.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
                     val newPitch = progress / 100f
                     Log.d("VoiceAdapter", "🎚️ Изменен тембр: $newPitch для ${voiceEntry.displayName}")
                     ttsManager.updatePitch(newPitch)
+
+                    // 🔥 НОВОЕ: Обновляем отображаемое значение
+                    updatePitchValue(holder, newPitch)
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -118,11 +129,27 @@ class VoiceAdapter(
                     val newRate = progress / 100f
                     Log.d("VoiceAdapter", "⏩ Изменена скорость: $newRate для ${voiceEntry.displayName}")
                     ttsManager.updateRate(newRate)
+
+                    // 🔥 НОВОЕ: Обновляем отображаемое значение
+                    updateSpeedValue(holder, newRate)
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
+    }
+
+    // 🔥 НОВЫЕ МЕТОДЫ: Для обновления отображаемых значений ползунков
+    private fun updatePitchValue(holder: VoiceViewHolder, pitch: Float) {
+        val pitchText = String.format("%.1f", pitch)
+        holder.pitchValue?.text = pitchText
+        Log.d("VoiceAdapter", "🎚️ Обновлено значение тембра: $pitchText")
+    }
+
+    private fun updateSpeedValue(holder: VoiceViewHolder, rate: Float) {
+        val rateText = String.format("%.1f", rate)
+        holder.speedValue?.text = rateText
+        Log.d("VoiceAdapter", "⏩ Обновлено значение скорости: $rateText")
     }
 
     // 🔥 НОВЫЙ МЕТОД: Для принудительного обновления выбранного голоса извне

@@ -32,26 +32,27 @@ class SettingsActivity : AppCompatActivity() {
             setPadding(32, 64, 32, 64)
         }
 
-        setContentView(layout) // сразу показываем пустой layout
+        setContentView(layout)
 
-        // 🔥 ДИАГНОСТИКА: Выводим все доступные голоса в логи
-        diagnosticsAllVoices()
-
-        // Используем синглтон TTSManager
         ttsManager = TTSManagerSingleton.getInstance(this)
 
-        // Ждём инициализации TTS
         lifecycleScope.launch(Dispatchers.Main) {
-            delay(500) // подождём немного, чтобы TTS успел инициализироваться
+            delay(500)
 
-            // Используем новый метод для получения VoiceEntry
-            val voiceEntries = ttsManager.getAvailableVoiceEntries()
+            val allVoiceEntries = ttsManager.getAvailableVoiceEntries()
+
+            // 🔥 ФИЛЬТРУЕМ ТОЛЬКО РУССКИЕ ГОЛОСА
+            val russianVoices = allVoiceEntries.filter { voice ->
+                voice.language == "ru" || voice.language.startsWith("ru", ignoreCase = true)
+            }
+
+            Log.d("SettingsActivity", "🇷🇺 Найдено русских голосов: ${russianVoices.size}")
 
             val selectedVoiceName = PreferenceManager.getTtsVoiceName(this@SettingsActivity)
 
-            if (voiceEntries.isNotEmpty()) {
+            if (russianVoices.isNotEmpty()) {
                 layout.addView(TextView(this@SettingsActivity).apply {
-                    text = "Выберите голос TTS:"
+                    text = "Выберите русский голос TTS:"
                     textSize = 16f
                     setPadding(0, 0, 0, 8)
                 })
@@ -67,40 +68,29 @@ class SettingsActivity : AppCompatActivity() {
                 layout.addView(recyclerView)
 
                 val adapter = VoiceAdapter(
-                    voiceEntries = voiceEntries,
+                    voiceEntries = russianVoices, // 🔥 ТОЛЬКО РУССКИЕ ГОЛОСА
                     selectedVoiceName = selectedVoiceName,
                     onVoiceSelected = { voiceEntry ->
-                        Log.d("SettingsActivity", "🎯 onVoiceSelected вызван для: ${voiceEntry.displayName} (${voiceEntry.systemName})")
+                        Log.d("SettingsActivity", "🎯 Выбран русский голос: ${voiceEntry.displayName}")
 
-                        // Сохраняем в настройки системное имя
                         PreferenceManager.saveTtsVoiceName(this@SettingsActivity, voiceEntry.systemName)
-                        Log.d("SettingsActivity", "💾 Голос сохранен в PreferenceManager: ${voiceEntry.systemName}")
-
-                        // Сразу применяем выбранный голос в TTS
                         ttsManager.setVoiceByEntry(voiceEntry)
-                        Log.d("SettingsActivity", "🔄 setVoiceByEntry вызван для: ${voiceEntry.displayName}")
-
-                        // Принудительно обновляем голос
                         ttsManager.refreshVoice()
-                        Log.d("SettingsActivity", "✅ refreshVoice завершен")
+
+                        Toast.makeText(this@SettingsActivity, "Выбран голос: ${voiceEntry.displayName}", Toast.LENGTH_SHORT).show()
                     },
                     onVoicePlay = { voiceEntry ->
-                        Log.d("SettingsActivity", "▶️ onVoicePlay для: ${voiceEntry.displayName}")
+                        Log.d("SettingsActivity", "▶️ Тест русского голоса: ${voiceEntry.displayName}")
 
-                        // Сохраняем текущий выбранный голос
                         val currentSelectedVoice = PreferenceManager.getTtsVoiceName(this@SettingsActivity)
-                        Log.d("SettingsActivity", "📌 Текущий сохраненный голос: $currentSelectedVoice")
 
-                        // Применяем голос для тестирования
                         ttsManager.setVoiceByEntry(voiceEntry)
-                        ttsManager.speak("Пример сообщения этим голосом.")
+                        ttsManager.speak("Привет! Это голос ${voiceEntry.displayName}. Как вам звучание?")
 
-                        // Возвращаем ранее выбранный голос после тестирования
                         lifecycleScope.launch {
-                            delay(100) // небольшая задержка, чтобы speak успел запуститься
+                            delay(100)
                             currentSelectedVoice?.let {
                                 ttsManager.setVoiceByName(it)
-                                Log.d("SettingsActivity", "🔙 Голос восстановлен: $it")
                             }
                         }
                     }
@@ -108,7 +98,7 @@ class SettingsActivity : AppCompatActivity() {
                 recyclerView.adapter = adapter
             } else {
                 layout.addView(TextView(this@SettingsActivity).apply {
-                    text = "❗ Доступные голоса TTS не найдены.\nУбедитесь, что установлен голосовой движок (например, Google TTS)"
+                    text = "❗ Русские голоса TTS не найдены.\nУбедитесь, что установлен голосовой движок с поддержкой русского языка"
                     textSize = 16f
                 })
             }
