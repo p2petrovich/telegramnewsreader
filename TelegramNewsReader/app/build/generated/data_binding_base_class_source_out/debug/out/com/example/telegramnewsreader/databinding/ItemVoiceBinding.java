@@ -37,15 +37,24 @@ public final class ItemVoiceBinding implements ViewBinding {
   @NonNull
   public final TextView tvGenderIcon;
 
+  @NonNull
+  public final TextView tvPitchValue;
+
+  @NonNull
+  public final TextView tvSpeedValue;
+
   private ItemVoiceBinding(@NonNull LinearLayout rootView, @NonNull ImageButton btnPlay,
       @NonNull RadioButton radioVoice, @NonNull SeekBar seekPitch, @NonNull SeekBar seekRate,
-      @NonNull TextView tvGenderIcon) {
+      @NonNull TextView tvGenderIcon, @NonNull TextView tvPitchValue,
+      @NonNull TextView tvSpeedValue) {
     this.rootView = rootView;
     this.btnPlay = btnPlay;
     this.radioVoice = radioVoice;
     this.seekPitch = seekPitch;
     this.seekRate = seekRate;
     this.tvGenderIcon = tvGenderIcon;
+    this.tvPitchValue = tvPitchValue;
+    this.tvSpeedValue = tvSpeedValue;
   }
 
   @Override
@@ -105,8 +114,20 @@ public final class ItemVoiceBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.tvPitchValue;
+      TextView tvPitchValue = ViewBindings.findChildViewById(rootView, id);
+      if (tvPitchValue == null) {
+        break missingId;
+      }
+
+      id = R.id.tvSpeedValue;
+      TextView tvSpeedValue = ViewBindings.findChildViewById(rootView, id);
+      if (tvSpeedValue == null) {
+        break missingId;
+      }
+
       return new ItemVoiceBinding((LinearLayout) rootView, btnPlay, radioVoice, seekPitch, seekRate,
-          tvGenderIcon);
+          tvGenderIcon, tvPitchValue, tvSpeedValue);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

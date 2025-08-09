@@ -3692,6 +3692,8 @@ id transition_scene_layoutid_cache
 id transition_transform
 id triangle
 id tvGenderIcon
+id tvPitchValue
+id tvSpeedValue
 id tv_categories
 id tv_current_channel
 id tv_error

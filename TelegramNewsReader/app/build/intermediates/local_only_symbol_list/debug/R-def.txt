@@ -62,6 +62,8 @@ id spinner_time
 id textChannelName
 id textNewMessages
 id tvGenderIcon
+id tvPitchValue
+id tvSpeedValue
 id tv_categories
 id tv_current_channel
 id tv_error

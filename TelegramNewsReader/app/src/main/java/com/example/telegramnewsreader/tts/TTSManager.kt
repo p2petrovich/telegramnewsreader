@@ -26,15 +26,18 @@ object TTSManagerSingleton {
     @Volatile
     private var INSTANCE: TTSManager? = null
 
-
     fun getInstance(context: Context): TTSManager {
         return INSTANCE ?: synchronized(this) {
-            INSTANCE ?: TTSManager(context.applicationContext).also { INSTANCE = it }
+            INSTANCE ?: TTSManager(context.applicationContext).also {
+                INSTANCE = it
+                Log.d("TTSManagerSingleton", "🏗️ Создан новый экземпляр TTSManager")
+            }
         }
     }
 
     fun clearInstance() {
         synchronized(this) {
+            Log.d("TTSManagerSingleton", "🗑️ Очистка экземпляра TTSManager")
             INSTANCE?.shutdown()
             INSTANCE = null
         }
@@ -43,13 +46,28 @@ object TTSManagerSingleton {
 
 class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
-
     private var tts: TextToSpeech? = null
     private var isMale = true
     private var ttsInitialized = AtomicBoolean(false)
     private var initializationContinuation: CancellableContinuation<Boolean>? = null
 
+    // 🔥 НОВОЕ: Флаги для контроля применения настроек
+    private var voiceParametersApplied = false
+    private var currentAppliedPitch: Float? = null
+    private var currentAppliedRate: Float? = null
+
+    // 🔥 НОВОЕ: Счетчик для отслеживания вызовов методов
+    private var pitchChangeCount = 0
+    private var rateChangeCount = 0
+    private var voiceChangeCount = 0
+
     init {
+        val stackTrace = Thread.currentThread().stackTrace
+        Log.d("TTSManager", "🚀 ИНИЦИАЛИЗАЦИЯ TTSManager")
+        Log.d("TTSManager", "📍 Стек вызовов TTSManager init:")
+        stackTrace.take(10).forEach { element ->
+            Log.d("TTSManager", "   ${element.className}.${element.methodName}(${element.fileName}:${element.lineNumber})")
+        }
         tts = TextToSpeech(context, this, findBestEngine())
     }
 
@@ -71,9 +89,16 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     }
 
     override fun onInit(status: Int) {
+        Log.d("TTSManager", "🎬 onInit() вызван со статусом: $status")
+        val stackTrace = Thread.currentThread().stackTrace
+        Log.d("TTSManager", "📍 Стек вызовов onInit:")
+        stackTrace.take(8).forEach { element ->
+            Log.d("TTSManager", "   ${element.className}.${element.methodName}(${element.fileName}:${element.lineNumber})")
+        }
+
         if (status == TextToSpeech.SUCCESS) {
             ttsInitialized.set(true)
-            Log.d("TTSManager", "TTS Initialized successfully.")
+            Log.d("TTSManager", "✅ TTS Initialized successfully.")
             val result = tts?.setLanguage(Locale("ru"))
 
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
@@ -81,6 +106,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 tts?.setLanguage(Locale.US)
             }
 
+            Log.d("TTSManager", "🔄 Вызываем applySavedVoice() из onInit")
             applySavedVoice()
             initializationContinuation?.resume(true)
         } else {
@@ -92,10 +118,20 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     }
 
     private fun applySavedVoice() {
+        Log.d("TTSManager", "🎯 === applySavedVoice() НАЧАЛО ===")
+        val stackTrace = Thread.currentThread().stackTrace
+        Log.d("TTSManager", "📍 Стек вызовов applySavedVoice:")
+        stackTrace.take(8).forEach { element ->
+            Log.d("TTSManager", "   ${element.className}.${element.methodName}(${element.fileName}:${element.lineNumber})")
+        }
+
         val availableVoices = tts?.voices
         val russianVoices = availableVoices?.filter { it.locale.language == "ru" }
         val savedVoiceName = PreferenceManager.getTtsVoiceName(context)
         val matchedVoice = availableVoices?.find { it.name == savedVoiceName }
+
+        Log.d("TTSManager", "💾 Сохраненное имя голоса: $savedVoiceName")
+        Log.d("TTSManager", "🔍 Найдено русских голосов: ${russianVoices?.size}")
 
         russianVoices?.forEach { voice ->
             val voiceEntry = VoiceMappings.mapVoice(voice)
@@ -107,23 +143,65 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             Log.d("TTSManager", "🔊 Применяем сохранённый голос: ${matchedVoice.name} -> ${voiceEntry.displayName}")
             tts?.language = matchedVoice.locale
             tts?.voice = matchedVoice
+            voiceChangeCount++
         } else if (!russianVoices.isNullOrEmpty()) {
             val firstVoice = russianVoices.first()
             val voiceEntry = VoiceMappings.mapVoice(firstVoice)
             Log.d("TTSManager", "🟡 Голос не найден, выбираем первый доступный: ${firstVoice.name} -> ${voiceEntry.displayName}")
             tts?.language = firstVoice.locale
             tts?.voice = firstVoice
+            voiceChangeCount++
         } else {
             Log.w("TTSManager", "⚠️ Нет русских голосов, используется голос по умолчанию.")
         }
 
-        val pitch = PreferenceManager.getTtsPitch(context)
-        val rate = PreferenceManager.getTtsRate(context)
-        tts?.setPitch(pitch)
-        tts?.setSpeechRate(rate)
+        // 🔥 ИСПРАВЛЕНО: Применяем параметры только один раз при инициализации
+        Log.d("TTSManager", "🎚️ Вызываем applyVoiceParametersOnce() из applySavedVoice")
+        applyVoiceParametersOnce()
+        Log.d("TTSManager", "🎯 === applySavedVoice() КОНЕЦ ===")
+    }
+
+    // 🔥 НОВЫЙ МЕТОД: Применить параметры голоса только один раз
+    private fun applyVoiceParametersOnce() {
+        Log.d("TTSManager", "🎯 === applyVoiceParametersOnce() НАЧАЛО ===")
+        val stackTrace = Thread.currentThread().stackTrace
+        Log.d("TTSManager", "📍 Стек вызовов applyVoiceParametersOnce:")
+        stackTrace.take(8).forEach { element ->
+            Log.d("TTSManager", "   ${element.className}.${element.methodName}(${element.fileName}:${element.lineNumber})")
+        }
+
+        Log.d("TTSManager", "🔍 Текущий статус: voiceParametersApplied=$voiceParametersApplied")
+        Log.d("TTSManager", "🔍 Текущие параметры: currentAppliedPitch=$currentAppliedPitch, currentAppliedRate=$currentAppliedRate")
+
+        if (!voiceParametersApplied) {
+            val pitch = PreferenceManager.getTtsPitch(context)
+            val rate = PreferenceManager.getTtsRate(context)
+
+            Log.d("TTSManager", "📖 Считанные настройки: pitch=$pitch, rate=$rate")
+
+            val pitchResult = tts?.setPitch(pitch)
+            val rateResult = tts?.setSpeechRate(rate)
+            pitchChangeCount++
+            rateChangeCount++
+
+            Log.d("TTSManager", "🎚️ Результат setPitch($pitch): $pitchResult")
+            Log.d("TTSManager", "⏩ Результат setSpeechRate($rate): $rateResult")
+
+            currentAppliedPitch = pitch
+            currentAppliedRate = rate
+            voiceParametersApplied = true
+
+            Log.d("TTSManager", "🎯 Параметры голоса применены ЕДИНОКРАТНО: pitch=$pitch, rate=$rate")
+            Log.d("TTSManager", "📊 Счетчики изменений: pitch=$pitchChangeCount, rate=$rateChangeCount, voice=$voiceChangeCount")
+        } else {
+            Log.d("TTSManager", "✅ Параметры голоса уже применены, пропускаем повторное применение")
+            Log.d("TTSManager", "📊 Текущие счетчики: pitch=$pitchChangeCount, rate=$rateChangeCount, voice=$voiceChangeCount")
+        }
+        Log.d("TTSManager", "🎯 === applyVoiceParametersOnce() КОНЕЦ ===")
     }
 
     private suspend fun ensureTtsInitialized(): Boolean {
+        Log.d("TTSManager", "🔄 ensureTtsInitialized() вызван. Текущий статус: ${ttsInitialized.get()}")
         if (ttsInitialized.get()) return true
         if (tts != null && initializationContinuation == null) {
             return suspendCancellableCoroutine { continuation ->
@@ -135,9 +213,24 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     }
 
     fun setVoiceGender(isMale: Boolean) {
+        Log.d("TTSManager", "🚻 setVoiceGender($isMale) вызван")
+        val stackTrace = Thread.currentThread().stackTrace
+        Log.d("TTSManager", "📍 Стек вызовов setVoiceGender:")
+        stackTrace.take(6).forEach { element ->
+            Log.d("TTSManager", "   ${element.className}.${element.methodName}(${element.fileName}:${element.lineNumber})")
+        }
+
         this.isMale = isMale
         if (ttsInitialized.get()) {
-            tts?.setPitch(if (isMale) 0.8f else 1.2f)
+            val newPitch = if (isMale) 0.8f else 1.2f
+            Log.d("TTSManager", "🎚️ ВНИМАНИЕ! setVoiceGender устанавливает pitch=$newPitch (было ${currentAppliedPitch})")
+
+            val result = tts?.setPitch(newPitch)
+            pitchChangeCount++
+            currentAppliedPitch = newPitch
+
+            Log.d("TTSManager", "⚠️ ПОТЕНЦИАЛЬНАЯ ПРОБЛЕМА! setVoiceGender изменил pitch на $newPitch")
+            Log.d("TTSManager", "📊 Счетчик изменений pitch: $pitchChangeCount")
         }
     }
 
@@ -151,17 +244,18 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
      * 🔥 НОВЫЙ МЕТОД: Получить доступные голоса как VoiceEntry с понятными названиями
      */
     fun getAvailableVoiceEntries(): List<VoiceEntry> {
+        Log.d("TTSManager", "📋 getAvailableVoiceEntries() вызван")
         val systemVoices = tts?.voices?.filter {
             it.locale.language == "ru" || it.locale.language == "en"
         }?.toList() ?: emptyList()
-        
+
         val voiceEntries = VoiceMappings.mapVoices(systemVoices)
-        
+
         Log.d("TTSManager", "📋 Найдено голосов: ${systemVoices.size} системных -> ${voiceEntries.size} с понятными названиями")
         voiceEntries.forEach { entry ->
             Log.d("TTSManager", "  ${entry.getGenderIcon()} ${entry.displayName} (${entry.systemName})")
         }
-        
+
         return voiceEntries
     }
 
@@ -169,19 +263,56 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
      * 🔥 НОВЫЙ МЕТОД: Установить голос по VoiceEntry
      */
     fun setVoiceByEntry(voiceEntry: VoiceEntry) {
+        Log.d("TTSManager", "🎤 setVoiceByEntry(${voiceEntry.displayName}) вызван")
         setVoiceByName(voiceEntry.systemName)
     }
 
+    // 🔥 ИСПРАВЛЕНО: updatePitch применяет параметры только при изменении пользователем
     fun updatePitch(pitch: Float) {
+        Log.d("TTSManager", "🎚️ === updatePitch($pitch) НАЧАЛО ===")
+        val stackTrace = Thread.currentThread().stackTrace
+        Log.d("TTSManager", "📍 Стек вызовов updatePitch:")
+        stackTrace.take(8).forEach { element ->
+            Log.d("TTSManager", "   ${element.className}.${element.methodName}(${element.fileName}:${element.lineNumber})")
+        }
+
+        Log.d("TTSManager", "🔍 Было: currentAppliedPitch=$currentAppliedPitch")
+        Log.d("TTSManager", "🔍 Устанавливаем: pitch=$pitch")
+
         PreferenceManager.saveTtsPitch(context, pitch)
-        tts?.setPitch(pitch)
-        Log.d("TTSManager", "🎚 Тембр речи обновлён: $pitch")
+        val result = tts?.setPitch(pitch)
+        pitchChangeCount++
+        currentAppliedPitch = pitch
+
+        Log.d("TTSManager", "💾 Сохранили в настройки: pitch=$pitch")
+        Log.d("TTSManager", "🎚️ Результат setPitch: $result")
+        Log.d("TTSManager", "📊 Счетчик изменений pitch: $pitchChangeCount")
+        Log.d("TTSManager", "🎚️ Тембр речи обновлён ПОЛЬЗОВАТЕЛЕМ: $pitch")
+        Log.d("TTSManager", "🎚️ === updatePitch($pitch) КОНЕЦ ===")
     }
 
+    // 🔥 ИСПРАВЛЕНО: updateRate применяет параметры только при изменении пользователем
     fun updateRate(rate: Float) {
+        Log.d("TTSManager", "⏩ === updateRate($rate) НАЧАЛО ===")
+        val stackTrace = Thread.currentThread().stackTrace
+        Log.d("TTSManager", "📍 Стек вызовов updateRate:")
+        stackTrace.take(8).forEach { element ->
+            Log.d("TTSManager", "   ${element.className}.${element.methodName}(${element.fileName}:${element.lineNumber})")
+        }
+
+        Log.d("TTSManager", "🔍 Было: currentAppliedRate=$currentAppliedRate")
+        Log.d("TTSManager", "🔍 Устанавливаем: rate=$rate")
+
         PreferenceManager.saveTtsRate(context, rate)
-        tts?.setSpeechRate(rate)
-        Log.d("TTSManager", "⏩ Скорость речи обновлена: $rate")
+        val result = tts?.setSpeechRate(rate)
+        rateChangeCount++
+        currentAppliedRate = rate
+
+        Log.d("TTSManager", "💾 Сохранили в настройки: rate=$rate")
+        Log.d("TTSManager", "⏩ Результат setSpeechRate: $result")
+        Log.d("TTSManager", "📊 Счетчик изменений rate: $rateChangeCount")
+        Log.d("TTSManager", "⏩ Скорость речи обновлена ПОЛЬЗОВАТЕЛЕМ: $rate")
+        Log.d("TTSManager", "⏩ === updateRate($rate) КОНЕЦ ===")
     }
 
     private fun numberToOrdinalRu(number: Int): String {
@@ -506,12 +637,23 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     // Новый метод: возвращает аудиофайл и таймкоды начала каждой новости
     suspend fun convertToAudioWithChapters(texts: List<String>, pauseMs: Int = 1200): AudioWithChapters? {
+        Log.d("TTSManager", "🎵 === convertToAudioWithChapters() НАЧАЛО ===")
+        val stackTrace = Thread.currentThread().stackTrace
+        Log.d("TTSManager", "📍 Стек вызовов convertToAudioWithChapters:")
+        stackTrace.take(8).forEach { element ->
+            Log.d("TTSManager", "   ${element.className}.${element.methodName}(${element.fileName}:${element.lineNumber})")
+        }
+
         if (!ensureTtsInitialized() || tts == null) {
             Log.e("TTSManager", "TTS не инициализирован. Невозможно конвертировать в аудио.")
             return null
         }
 
-        refreshVoice()
+        // 🔥 ИСПРАВЛЕНО: НЕ вызываем refreshVoice, чтобы не переприменять параметры
+        Log.d("TTSManager", "🎯 Начинаем конвертацию с уже установленными параметрами:")
+        Log.d("TTSManager", "   pitch=${currentAppliedPitch}, rate=${currentAppliedRate}")
+        Log.d("TTSManager", "   voiceParametersApplied=$voiceParametersApplied")
+        Log.d("TTSManager", "   Счетчики: pitch=$pitchChangeCount, rate=$rateChangeCount, voice=$voiceChangeCount")
 
         val filteredNews = dropTrivial(texts)
         if (filteredNews.isEmpty()) {
@@ -612,7 +754,10 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         if (mp3File != null) {
             Log.d("TTSManager", "🎉 Синтез завершен успешно: ${mp3File.name} (${mp3File.length()} байт)")
-            Log.d("TTSManager", "📊 Статистика: новостей=${chaptersMs.size}, пауза=${pauseMs}мс")
+            Log.d("TTSManager", "📊 Итоговая статистика:")
+            Log.d("TTSManager", "   Новостей: ${chaptersMs.size}, пауза: ${pauseMs}мс")
+            Log.d("TTSManager", "   Счетчики изменений: pitch=$pitchChangeCount, rate=$rateChangeCount, voice=$voiceChangeCount")
+            Log.d("TTSManager", "🎵 === convertToAudioWithChapters() КОНЕЦ ===")
             return AudioWithChapters(mp3File, chaptersMs)
         } else {
             Log.e("TTSManager", "❌ Не удалось конвертировать в MP3")
@@ -659,57 +804,114 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     }
 
     fun shutdown() {
-        Log.d("TTSManager", "🔌 Выключаем TTS движок.")
+        Log.d("TTSManager", "🔌 === shutdown() НАЧАЛО ===")
+        val stackTrace = Thread.currentThread().stackTrace
+        Log.d("TTSManager", "📍 Стек вызовов shutdown:")
+        stackTrace.take(6).forEach { element ->
+            Log.d("TTSManager", "   ${element.className}.${element.methodName}(${element.fileName}:${element.lineNumber})")
+        }
+
+        Log.d("TTSManager", "📊 Финальные счетчики: pitch=$pitchChangeCount, rate=$rateChangeCount, voice=$voiceChangeCount")
+        Log.d("TTSManager", "🔄 Выключаем TTS движок.")
+
         ttsInitialized.set(false)
         initializationContinuation?.cancel()
         initializationContinuation = null
         tts?.stop()
         tts?.shutdown()
         tts = null
+
+        // 🔥 НОВОЕ: Сброс флагов при выключении
+        voiceParametersApplied = false
+        currentAppliedPitch = null
+        currentAppliedRate = null
+        pitchChangeCount = 0
+        rateChangeCount = 0
+        voiceChangeCount = 0
+
+        Log.d("TTSManager", "🔌 === shutdown() КОНЕЦ ===")
     }
 
     fun setVoiceByName(voiceName: String) {
+        Log.d("TTSManager", "🎤 === setVoiceByName($voiceName) НАЧАЛО ===")
+        val stackTrace = Thread.currentThread().stackTrace
+        Log.d("TTSManager", "📍 Стек вызовов setVoiceByName:")
+        stackTrace.take(8).forEach { element ->
+            Log.d("TTSManager", "   ${element.className}.${element.methodName}(${element.fileName}:${element.lineNumber})")
+        }
+
         val voice = tts?.voices?.firstOrNull { it.name == voiceName }
         voice?.let {
             val voiceEntry = VoiceMappings.mapVoice(voice)
             Log.d("TTSManager", "🔄 Применяем выбранный голос: ${voice.name} -> ${voiceEntry.displayName}")
             tts?.language = voice.locale
             tts?.voice = voice
+            voiceChangeCount++
             PreferenceManager.saveTtsVoiceName(context, voiceName)
-            Log.d("TTSManager", "💾 Голос сохранен и применен: $voiceName")
+
+            // 🔥 ИСПРАВЛЕНО: НЕ переприменяем параметры pitch/rate при смене голоса
+            // Они остаются теми же, что установил пользователь
+            Log.d("TTSManager", "💾 Голос сохранен и применен: $voiceName (параметры НЕ изменены)")
+            Log.d("TTSManager", "📊 Текущие параметры остаются: pitch=${currentAppliedPitch}, rate=${currentAppliedRate}")
+            Log.d("TTSManager", "📊 Счетчики: pitch=$pitchChangeCount, rate=$rateChangeCount, voice=$voiceChangeCount")
         } ?: run {
             Log.w("TTSManager", "❗ Голос '$voiceName' не найден среди доступных")
         }
+        Log.d("TTSManager", "🎤 === setVoiceByName($voiceName) КОНЕЦ ===")
     }
 
     fun speak(text: String) {
+        Log.d("TTSManager", "🗣️ === speak() НАЧАЛО ===")
+        val stackTrace = Thread.currentThread().stackTrace
+        Log.d("TTSManager", "📍 Стек вызовов speak:")
+        stackTrace.take(6).forEach { element ->
+            Log.d("TTSManager", "   ${element.className}.${element.methodName}(${element.fileName}:${element.lineNumber})")
+        }
+
         if (ttsInitialized.get()) {
-            refreshVoice()
-            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "TTS_SAMPLE")
+            // 🔥 ИСПРАВЛЕНО: НЕ вызываем refreshVoice перед speak
+            // Используем уже установленные параметры
+            val result = tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "TTS_SAMPLE")
+            Log.d("TTSManager", "🗣️ Говорим с текущими параметрами:")
+            Log.d("TTSManager", "   pitch=${currentAppliedPitch}, rate=${currentAppliedRate}")
+            Log.d("TTSManager", "   Результат speak: $result")
+            Log.d("TTSManager", "   Счетчики: pitch=$pitchChangeCount, rate=$rateChangeCount, voice=$voiceChangeCount")
         } else {
             Log.w("TTSManager", "⚠️ TTS не инициализирован, speak пропущен.")
         }
+        Log.d("TTSManager", "🗣️ === speak() КОНЕЦ ===")
     }
 
+    // 🔥 ИСПРАВЛЕНО: refreshVoice теперь НЕ переприменяет параметры
     fun refreshVoice() {
+        Log.d("TTSManager", "🔁 === refreshVoice() НАЧАЛО ===")
+        val stackTrace = Thread.currentThread().stackTrace
+        Log.d("TTSManager", "📍 Стек вызовов refreshVoice:")
+        stackTrace.take(8).forEach { element ->
+            Log.d("TTSManager", "   ${element.className}.${element.methodName}(${element.fileName}:${element.lineNumber})")
+        }
+
         if (ttsInitialized.get()) {
             val savedVoiceName = PreferenceManager.getTtsVoiceName(context)
+            Log.d("TTSManager", "💾 Сохраненное имя голоса: $savedVoiceName")
+
             val selectedVoice = tts?.voices?.find { it.name == savedVoiceName }
             selectedVoice?.let {
                 val voiceEntry = VoiceMappings.mapVoice(it)
                 Log.d("TTSManager", "🔁 refreshVoice(): применяем голос ${it.name} -> ${voiceEntry.displayName}")
                 tts?.language = it.locale
                 tts?.voice = it
+                voiceChangeCount++
             } ?: run {
                 Log.w("TTSManager", "❗ refreshVoice(): голос $savedVoiceName не найден среди доступных")
             }
 
-            val pitch = PreferenceManager.getTtsPitch(context)
-            val rate = PreferenceManager.getTtsRate(context)
-            tts?.setPitch(pitch)
-            tts?.setSpeechRate(rate)
-
-            Log.d("TTSManager", "🔄 Голос и параметры обновлены: pitch=$pitch, rate=$rate")
+            // 🔥 ГЛАВНОЕ ИСПРАВЛЕНИЕ: НЕ переприменяем параметры pitch и rate!
+            // Они остаются теми, что уже установлены
+            Log.d("TTSManager", "🔄 refreshVoice() завершен: голос обновлен, параметры НЕ ИЗМЕНЕНЫ")
+            Log.d("TTSManager", "   pitch=${currentAppliedPitch}, rate=${currentAppliedRate}")
+            Log.d("TTSManager", "   Счетчики: pitch=$pitchChangeCount, rate=$rateChangeCount, voice=$voiceChangeCount")
         }
+        Log.d("TTSManager", "🔁 === refreshVoice() КОНЕЦ ===")
     }
 }

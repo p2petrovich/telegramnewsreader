@@ -3691,6 +3691,8 @@ int id transition_scene_layoutid_cache 0x7f08020d
 int id transition_transform 0x7f08020e
 int id triangle 0x7f08020f
 int id tvGenderIcon 0x7f080236
+int id tvPitchValue 0x7f080237
+int id tvSpeedValue 0x7f080238
 int id tv_categories 0x7f080210
 int id tv_current_channel 0x7f080211
 int id tv_error 0x7f080212

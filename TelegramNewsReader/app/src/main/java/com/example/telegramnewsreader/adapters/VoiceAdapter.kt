@@ -26,12 +26,31 @@ class VoiceAdapter(
         if (index == -1 && voiceEntries.isNotEmpty()) 0 else index // если не найден, выбираем первый
     }
 
+    // 🔥 НОВОЕ: Счетчики для отслеживания операций
+    private var pitchChangeCount = 0
+    private var rateChangeCount = 0
+    private var voiceSelectionCount = 0
+
     init {
+        Log.d("VoiceAdapter", "🏗️ === VoiceAdapter ИНИЦИАЛИЗАЦИЯ ===")
+        val stackTrace = Thread.currentThread().stackTrace
+        Log.d("VoiceAdapter", "📍 Стек вызовов VoiceAdapter init:")
+        stackTrace.take(8).forEach { element ->
+            Log.d("VoiceAdapter", "   ${element.className}.${element.methodName}(${element.fileName}:${element.lineNumber})")
+        }
+
         Log.d("VoiceAdapter", "🎯 Инициализация: selectedVoiceName=$selectedVoiceName, selectedIndex=$selectedIndex")
+        Log.d("VoiceAdapter", "📋 Всего голосов: ${voiceEntries.size}")
+
+        voiceEntries.forEachIndexed { index, voice ->
+            Log.d("VoiceAdapter", "   [$index] ${voice.displayName} (${voice.systemName})")
+        }
+
         if (selectedIndex >= 0 && selectedIndex < voiceEntries.size) {
             val selectedVoice = voiceEntries[selectedIndex]
             Log.d("VoiceAdapter", "✅ Выбранный голос: ${selectedVoice.displayName} (${selectedVoice.systemName})")
         }
+        Log.d("VoiceAdapter", "🏗️ === VoiceAdapter ИНИЦИАЛИЗАЦИЯ ЗАВЕРШЕНА ===")
     }
 
     inner class VoiceViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -41,14 +60,15 @@ class VoiceAdapter(
         val seekRate: SeekBar = view.findViewById(R.id.seekRate)
 
         // 🔥 НОВОЕ: Добавляем TextView для отображения значений ползунков
-        val pitchValue: TextView? = view.findViewById(R.id.tvPitchValue)
-        val speedValue: TextView? = view.findViewById(R.id.tvSpeedValue)
+        val pitchValue: TextView? = try { view.findViewById(R.id.tvPitchValue) } catch (e: Exception) { null }
+        val speedValue: TextView? = try { view.findViewById(R.id.tvSpeedValue) } catch (e: Exception) { null }
 
         // 🔥 НОВОЕ: Добавляем TextView для иконки пола (если есть в layout)
-        val genderIcon: TextView? = view.findViewById(R.id.tvGenderIcon)
+        val genderIcon: TextView? = try { view.findViewById(R.id.tvGenderIcon) } catch (e: Exception) { null }
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VoiceViewHolder {
+        Log.d("VoiceAdapter", "🏗️ onCreateViewHolder вызван")
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_voice, parent, false)
         return VoiceViewHolder(view)
@@ -58,6 +78,8 @@ class VoiceAdapter(
 
     override fun onBindViewHolder(holder: VoiceViewHolder, position: Int) {
         val voiceEntry = voiceEntries[position]
+        Log.d("VoiceAdapter", "🔗 === onBindViewHolder для позиции $position ===")
+        Log.d("VoiceAdapter", "   Голос: ${voiceEntry.displayName} (${voiceEntry.systemName})")
 
         // 🔥 НОВОЕ: Используем понятные названия из VoiceEntry
         val displayText = "${voiceEntry.getGenderIcon()} ${voiceEntry.displayName}"
@@ -73,25 +95,46 @@ class VoiceAdapter(
         Log.d("VoiceAdapter", "📋 onBindViewHolder: position=$position, voice=${voiceEntry.displayName} (${voiceEntry.systemName}), isChecked=${holder.radio.isChecked}")
 
         holder.radio.setOnClickListener {
-            Log.d("VoiceAdapter", "🔘 RadioButton clicked: position=$position, voice=${voiceEntry.displayName}")
+            Log.d("VoiceAdapter", "🔘 === RadioButton НАЖАТ ===")
+            Log.d("VoiceAdapter", "   position=$position, voice=${voiceEntry.displayName}")
+            val stackTrace = Thread.currentThread().stackTrace
+            Log.d("VoiceAdapter", "📍 Стек вызовов RadioButton click:")
+            stackTrace.take(6).forEach { element ->
+                Log.d("VoiceAdapter", "   ${element.className}.${element.methodName}(${element.fileName}:${element.lineNumber})")
+            }
 
             val previousIndex = selectedIndex
             selectedIndex = position
+            voiceSelectionCount++
+
+            Log.d("VoiceAdapter", "🔄 Изменение выбора: $previousIndex -> $selectedIndex")
+            Log.d("VoiceAdapter", "📊 Счетчик выбора голосов: $voiceSelectionCount")
 
             // 🔥 ИСПРАВЛЕНИЕ: Обновляем только нужные элементы вместо notifyDataSetChanged()
             if (previousIndex != -1 && previousIndex < voiceEntries.size) {
+                Log.d("VoiceAdapter", "🔄 Обновляем предыдущий элемент: $previousIndex")
                 notifyItemChanged(previousIndex) // снимаем выделение с предыдущего
             }
+            Log.d("VoiceAdapter", "🔄 Обновляем текущий элемент: $selectedIndex")
             notifyItemChanged(selectedIndex) // устанавливаем выделение на новый
 
             // 🔥 ВАЖНО: Вызываем коллбэк ПОСЛЕ обновления UI
             Log.d("VoiceAdapter", "🔄 Вызываем onVoiceSelected для: ${voiceEntry.displayName}")
             onVoiceSelected(voiceEntry)
+            Log.d("VoiceAdapter", "✅ === RadioButton обработан ===")
         }
 
         holder.play.setOnClickListener {
-            Log.d("VoiceAdapter", "▶️ Play button clicked для: ${voiceEntry.displayName}")
+            Log.d("VoiceAdapter", "▶️ === Play button НАЖАТ ===")
+            Log.d("VoiceAdapter", "   Голос: ${voiceEntry.displayName}")
+            val stackTrace = Thread.currentThread().stackTrace
+            Log.d("VoiceAdapter", "📍 Стек вызовов Play button:")
+            stackTrace.take(6).forEach { element ->
+                Log.d("VoiceAdapter", "   ${element.className}.${element.methodName}(${element.fileName}:${element.lineNumber})")
+            }
+
             onVoicePlay(voiceEntry)
+            Log.d("VoiceAdapter", "✅ === Play button обработан ===")
         }
 
         val context = holder.itemView.context
@@ -100,12 +143,14 @@ class VoiceAdapter(
         val savedPitch = PreferenceManager.getTtsPitch(context)
         val savedRate = PreferenceManager.getTtsRate(context)
 
-        // 🔥 ИСПРАВЛЕНИЕ: Корректная настройка SeekBar (0-200, значение по умолчанию 100)
-        holder.seekPitch.progress = (savedPitch * 100).toInt()
-        holder.seekRate.progress = (savedRate * 100).toInt()
+        Log.d("VoiceAdapter", "📖 Считанные настройки из PreferenceManager:")
+        Log.d("VoiceAdapter", "   savedPitch=$savedPitch, savedRate=$savedRate")
+                // 🔥 ИСПРАВЛЕНИЕ: Корректная настройка SeekBar (0-200, значение по умолчанию 100)
+                holder.seekPitch.progress = (savedPitch * 100).toInt()
+                holder.seekRate.progress = (savedRate * 100).toInt()
 
-        // 🔥 НОВОЕ: Устанавливаем начальные значения для TextView
-        updatePitchValue(holder, savedPitch)
+                // 🔥 НОВОЕ: Устанавливаем начальные значения для TextView
+                updatePitchValue(holder, savedPitch)
         updateSpeedValue(holder, savedRate)
 
         holder.seekPitch.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
