@@ -42,15 +42,7 @@ object VoiceMappings {
     /**
      * Получить VoiceEntry по системному имени голоса
      */
-    fun getVoiceEntry(systemName: String): VoiceEntry? {
-        val entry = voiceMappings[systemName]
-        if (entry != null) {
-            Log.d("VoiceMappings", "✅ Найден маппинг: $systemName -> ${entry.displayName}")
-        } else {
-            Log.w("VoiceMappings", "⚠️ Маппинг не найден для: $systemName")
-        }
-        return entry
-    }
+
 
     /**
      * Преобразовать системный Voice в VoiceEntry с понятным названием
@@ -152,26 +144,5 @@ object VoiceMappings {
 
         val suffix = if (isNetwork) " HD" else ""
         return baseName + suffix
-    }
-
-    /**
-     * Получить все предопределенные русские голоса
-     */
-    fun getAllRussianVoices(): List<VoiceEntry> {
-        return voiceMappings.values.toList()
-    }
-
-    /**
-     * Проверить, есть ли маппинг для данного системного имени
-     */
-    fun hasMappingFor(systemName: String): Boolean {
-        return voiceMappings.containsKey(systemName)
-    }
-
-    /**
-     * Получить количество предопределенных маппингов
-     */
-    fun getMappingsCount(): Int {
-        return voiceMappings.size
     }
 }

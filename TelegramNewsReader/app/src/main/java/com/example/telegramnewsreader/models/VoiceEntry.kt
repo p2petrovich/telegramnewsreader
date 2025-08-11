@@ -38,12 +38,5 @@ data class VoiceEntry(
             Gender.NEUTRAL -> "Нейтральный голос"
         }
     }
-    
-    /**
-     * Получить полное отображаемое название с дополнительной информацией
-     */
-    fun getFullDisplayName(): String {
-        val networkIndicator = if (isNetwork) " (сеть)" else " (локально)"
-        return "$displayName$networkIndicator"
-    }
+
 }
