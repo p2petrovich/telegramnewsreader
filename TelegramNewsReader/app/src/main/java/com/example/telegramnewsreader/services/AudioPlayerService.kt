@@ -11,16 +11,19 @@ import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
+import com.example.telegramnewsreader.R
 import com.example.telegramnewsreader.activities.MainActivity
 import java.io.File
 import java.io.FileInputStream
 import com.example.telegramnewsreader.utils.TTSDebugTracker
 
 class AudioPlayerService : Service() {
-
 
     companion object {
         private const val TAG = "AudioPlayerService"
@@ -36,6 +39,12 @@ class AudioPlayerService : Service() {
         const val EXTRA_TITLE = "extra.TITLE"
         const val EXTRA_CHAPTERS = "extra.CHAPTERS"
 
+        // Новое: прогресс для UI
+        const val ACTION_PROGRESS = "com.example.telegramnewsreader.services.AudioPlayerService.PROGRESS"
+        const val EXTRA_CURRENT_ITEM = "extra_current_item"
+        const val EXTRA_TOTAL_ITEMS = "extra_total_items"
+        const val EXTRA_IS_PLAYING = "extra_is_playing"
+
         private const val CHANNEL_ID = "audio_playback_channel"
         private const val NOTIFICATION_ID = 1001
     }
@@ -49,6 +58,19 @@ class AudioPlayerService : Service() {
     private var currentChapter = 0
     private var preparedButNotPlaying = false
     private var pendingSeekStart = false
+
+    // Новое: таймер прогресса
+    private val progressHandler = Handler(Looper.getMainLooper())
+    private val progressRunnable = object : Runnable {
+        override fun run() {
+            try {
+                val (cur, total) = computeProgress()
+                val isPlaying = mediaPlayer?.isPlaying == true
+                sendProgress(cur, total, isPlaying)
+            } catch (_: Exception) { }
+            progressHandler.postDelayed(this, 500)
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -109,6 +131,7 @@ class AudioPlayerService : Service() {
     override fun onDestroy() {
         Log.d(TAG, "onDestroy")
         super.onDestroy()
+        stopProgressUpdates()
         releasePlayer()
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -123,12 +146,25 @@ class AudioPlayerService : Service() {
     private fun setPlaylist(paths: List<String>, startIndex: Int, chapters: List<Long>) {
         playlist = paths
         currentIndex = startIndex.coerceIn(0, (playlist.size - 1).coerceAtLeast(0))
-        chapterStartsMs = if (paths.size == 1) chapters.sorted() else emptyList()
+
+        // Нормализация глав: единственный 0, сортировка, удаление дубликатов
+        chapterStartsMs = if (paths.size == 1) {
+            val withZero = if (chapters.contains(0L)) chapters else listOf(0L) + chapters
+            val normalized = withZero.sorted().distinct()
+            Log.d(TAG, "Chapters normalized: raw=${chapters.joinToString()} -> ${normalized.joinToString()}")
+            TTSDebugTracker.trackChannelSwitch("CHAPTERS NORMALIZED raw=${chapters.size} -> unique=${normalized.size}")
+            normalized
+        } else emptyList()
+
         currentChapter = 0
         preparedButNotPlaying = true
         pendingSeekStart = false
         Log.d(TAG, "Playlist set: size=${playlist.size}, startIndex=$currentIndex, chapters=${chapterStartsMs.size}")
         TTSDebugTracker.trackChannelSwitch("PLAYLIST SET size=${playlist.size} startIndex=$currentIndex chapters=${chapterStartsMs.size}")
+
+        // Отправим стартовый прогресс (плеер ещё не играет)
+        val (cur, total) = computeProgress()
+        sendProgress(cur, total, false)
 
         if (playlist.isNotEmpty()) {
             prepareCurrentSilently()
@@ -153,6 +189,12 @@ class AudioPlayerService : Service() {
             }
             TTSDebugTracker.trackChannelSwitch("PREPARED index=$currentIndex duration=${mp.duration}ms autoStart=$autoStart seekTo=${startFromMs ?: -1}")
             updateNotification()
+            if (autoStart) {
+                startProgressUpdates()
+            } else {
+                val (cur, total) = computeProgress()
+                sendProgress(cur, total, false)
+            }
         }
         mp.setOnCompletionListener {
             Log.d(TAG, "onCompletion -> next or stop")
@@ -174,6 +216,10 @@ class AudioPlayerService : Service() {
                 pendingSeekStart = false
                 preparedButNotPlaying = false
                 updateNotification()
+                startProgressUpdates()
+            } else {
+                val (cur, total) = computeProgress()
+                sendProgress(cur, total, mediaPlayer?.isPlaying == true)
             }
         }
     }
@@ -275,27 +321,48 @@ class AudioPlayerService : Service() {
         updateNotification()
     }
 
+    private fun findNextChapterIndex(fromIndex: Int, currentPosMs: Int): Int {
+        if (chapterStartsMs.isEmpty()) return -1
+        var idx = (fromIndex + 1).coerceAtLeast(0)
+        val epsilon = 50
+        while (idx < chapterStartsMs.size && chapterStartsMs[idx] <= currentPosMs + epsilon) {
+            idx++
+        }
+        return if (idx < chapterStartsMs.size) idx else -1
+    }
+
     private fun onTrackCompletion() {
-        if (hasChapters() && currentChapter < chapterStartsMs.lastIndex) {
-            currentChapter += 1
-            val nextMs = chapterStartsMs[currentChapter].toInt()
-            Log.d(TAG, "Completion: move to next chapter=$currentChapter ms=$nextMs")
-            try {
-                pendingSeekStart = true
-                mediaPlayer?.seekTo(nextMs)
-            } catch (_: Exception) { }
-            updateNotification()
-        } else {
-            if (currentIndex < playlist.lastIndex) {
-                currentIndex += 1
-                currentChapter = 0
-                preparedButNotPlaying = false
-                pendingSeekStart = false
-                prepareAndPlayCurrent()
+        if (hasChapters()) {
+            val curPos = try { mediaPlayer?.currentPosition ?: 0 } catch (_: Exception) { 0 }
+            val nextIdx = findNextChapterIndex(currentChapter, curPos)
+            if (nextIdx != -1) {
+                currentChapter = nextIdx
+                val nextMs = chapterStartsMs[currentChapter].toInt()
+                Log.d(TAG, "Completion: move to next chapter=$currentChapter ms=$nextMs")
+                try {
+                    pendingSeekStart = true
+                    mediaPlayer?.seekTo(nextMs)
+                } catch (_: Exception) { }
+                updateNotification()
+                sendProgress(currentChapter + 1, chapterStartsMs.size, mediaPlayer?.isPlaying == true)
             } else {
-                Log.d(TAG, "Completion: end -> stopServiceSafely()")
+                Log.d(TAG, "Completion: last chapter -> stopServiceSafely()")
+                TTSDebugTracker.trackChannelSwitch("COMPLETE no further chapter -> STOP")
                 stopServiceSafely()
             }
+            return
+        }
+
+        if (currentIndex < playlist.lastIndex) {
+            currentIndex += 1
+            currentChapter = 0
+            preparedButNotPlaying = false
+            pendingSeekStart = false
+            prepareAndPlayCurrent()
+            sendProgress(currentIndex + 1, playlist.size, true)
+        } else {
+            Log.d(TAG, "Completion: end -> stopServiceSafely()")
+            stopServiceSafely()
         }
     }
 
@@ -327,6 +394,7 @@ class AudioPlayerService : Service() {
             } else {
                 preparedButNotPlaying = false
                 mediaPlayer?.start()
+                startProgressUpdates()
             }
         } catch (e: Exception) {
             Log.e(TAG, "play(): start() failed", e)
@@ -345,6 +413,9 @@ class AudioPlayerService : Service() {
             }
             preparedButNotPlaying = false
             pendingSeekStart = false
+            stopProgressUpdates()
+            val (cur, total) = computeProgress()
+            sendProgress(cur, total, false)
             updateNotification()
         }
     }
@@ -360,16 +431,17 @@ class AudioPlayerService : Service() {
 
             val wasPlaying = mediaPlayer?.isPlaying == true
             val wasPreparedNoStart = preparedButNotPlaying
+            val curPos = try { mediaPlayer?.currentPosition ?: 0 } catch (_: Exception) { 0 }
 
-            if (currentChapter < chapterStartsMs.lastIndex) {
-                currentChapter += 1
-            } else {
-                Log.d(TAG, "Next on last chapter -> stop")
-                TTSDebugTracker.trackChannelSwitch("NEXT on last chapter -> STOP")
+            val nextIdx = findNextChapterIndex(currentChapter, curPos)
+            if (nextIdx == -1) {
+                Log.d(TAG, "Next on last/invalid chapter -> stop")
+                TTSDebugTracker.trackChannelSwitch("NEXT no further chapter -> STOP")
                 stopServiceSafely()
                 return
             }
 
+            currentChapter = nextIdx
             val toMs = chapterStartsMs[currentChapter].toInt()
             Log.d(TAG, "Next chapter -> $currentChapter at $toMs ms (wasPlaying=$wasPlaying, wasPreparedNoStart=$wasPreparedNoStart)")
 
@@ -384,6 +456,7 @@ class AudioPlayerService : Service() {
                 pendingSeekStart = wasPlaying || wasPreparedNoStart
                 mediaPlayer?.seekTo(toMs)
                 preparedButNotPlaying = false
+                sendProgress(currentChapter + 1, chapterStartsMs.size, wasPlaying || wasPreparedNoStart)
             } catch (_: Exception) { }
             updateNotification()
             return
@@ -396,6 +469,7 @@ class AudioPlayerService : Service() {
             preparedButNotPlaying = false
             pendingSeekStart = false
             prepareAndPlayCurrent()
+            sendProgress(currentIndex + 1, playlist.size, true)
         } else {
             Log.d(TAG, "playNext(): end of playlist -> stopServiceSafely()")
             TTSDebugTracker.trackChannelSwitch("NEXT at end -> STOP")
@@ -406,6 +480,7 @@ class AudioPlayerService : Service() {
     private fun stopServiceSafely() {
         Log.d(TAG, "stopServiceSafely()")
         TTSDebugTracker.trackChannelSwitch("STOP service")
+        stopProgressUpdates()
         releasePlayer()
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -421,6 +496,8 @@ class AudioPlayerService : Service() {
             (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
                 .cancel(NOTIFICATION_ID)
         } catch (_: Exception) { }
+        // Сообщим UI, что всё остановлено
+        sendProgress(0, 0, false)
         stopSelf()
     }
 
@@ -472,18 +549,19 @@ class AudioPlayerService : Service() {
         )
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_headset)
+            .setSmallIcon(R.drawable.ic_stat_tnr)
             .setContentTitle("$title — $positionText$chapterText")
             .setContentText(if (isPlaying) "Воспроизведение" else "Пауза / Ожидание старта")
             .setContentIntent(openIntent)
             .setOngoing(isPlaying)
             .setOnlyAlertOnce(true)
+            .setColor(ContextCompat.getColor(this, R.color.purple_500))
             .addAction(
-                if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
+                if (isPlaying) R.drawable.ic_notif_pause else R.drawable.ic_notif_play,
                 if (isPlaying) "Пауза" else "Пуск",
                 playPauseIntent
             )
-            .addAction(android.R.drawable.ic_media_next, "Далее", nextIntent)
+            .addAction(R.drawable.ic_notif_next, "Далее", nextIntent)
 
         return builder.build()
     }
@@ -496,5 +574,43 @@ class AudioPlayerService : Service() {
 
     private fun pendingFlag(): Int {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+    }
+
+    // Новое: вычисление и отправка прогресса
+    private fun chapterIndexForPosition(positionMs: Long): Int {
+        if (chapterStartsMs.isEmpty()) return 0
+        var i = 0
+        while (i + 1 < chapterStartsMs.size && chapterStartsMs[i + 1] <= positionMs) i++
+        return i.coerceIn(0, (chapterStartsMs.size - 1).coerceAtLeast(0))
+    }
+
+    private fun computeProgress(): Pair<Int, Int> {
+        return if (hasChapters()) {
+            val pos = try { mediaPlayer?.currentPosition?.toLong() ?: 0L } catch (_: Exception) { 0L }
+            val cur = chapterIndexForPosition(pos) + 1
+            cur to chapterStartsMs.size
+        } else {
+            (currentIndex + 1) to playlist.size
+        }
+    }
+
+    private fun sendProgress(current: Int, total: Int, isPlaying: Boolean) {
+        val i = Intent(ACTION_PROGRESS).apply {
+            putExtra(EXTRA_CURRENT_ITEM, current)
+            putExtra(EXTRA_TOTAL_ITEMS, total)
+            putExtra(EXTRA_IS_PLAYING, isPlaying)
+        }
+        try {
+            sendBroadcast(i)
+        } catch (_: Exception) { }
+    }
+
+    private fun startProgressUpdates() {
+        progressHandler.removeCallbacks(progressRunnable)
+        progressHandler.post(progressRunnable)
+    }
+
+    private fun stopProgressUpdates() {
+        progressHandler.removeCallbacks(progressRunnable)
     }
 }

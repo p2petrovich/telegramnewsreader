@@ -1,6 +1,8 @@
 package com.example.telegramnewsreader.activities
 
+import android.content.BroadcastReceiver
 import android.content.Intent
+import android.content.IntentFilter
 import android.media.MediaPlayer
 import android.os.Bundle
 import android.util.Log
@@ -27,7 +29,6 @@ import com.example.telegramnewsreader.utils.TTSDebugTracker
 
 class MainActivity : AppCompatActivity() {
 
-
     private lateinit var binding: ActivityMainBinding
     private lateinit var telegramClient: TelegramClient
     private lateinit var channelAdapter: ChannelAdapter
@@ -43,7 +44,6 @@ class MainActivity : AppCompatActivity() {
     private val pendingPhotos = mutableMapOf<Long, String>()
 
     private val timePeriods = arrayOf(
-        "Последние 5 минут",
         "Последние 10 минут",
         "Последние 30 минут",
         "Последний час",
@@ -52,7 +52,24 @@ class MainActivity : AppCompatActivity() {
         "Последние 8 часов",
         "Последние 15 часов"
     )
-    private val timeValues = arrayOf(0.083, 0.166, 0.5, 1.0, 2.0, 4.0, 8.0, 15.0)
+    private val timeValues = arrayOf(0.166, 0.5, 1.0, 2.0, 4.0, 8.0, 15.0)
+
+    // Приём прогресса из AudioPlayerService
+    private val progressReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context, intent: Intent) {
+            if (intent.action == com.example.telegramnewsreader.services.AudioPlayerService.ACTION_PROGRESS) {
+                val cur = intent.getIntExtra(com.example.telegramnewsreader.services.AudioPlayerService.EXTRA_CURRENT_ITEM, 0)
+                val total = intent.getIntExtra(com.example.telegramnewsreader.services.AudioPlayerService.EXTRA_TOTAL_ITEMS, 0)
+                val isPlaying = intent.getBooleanExtra(com.example.telegramnewsreader.services.AudioPlayerService.EXTRA_IS_PLAYING, false)
+                val text = if (total > 0 && cur in 1..total) {
+                    if (isPlaying) "Воспроизводится: $cur из $total" else "Готово к воспроизведению: $cur из $total"
+                } else {
+                    ""
+                }
+                binding.tvPlayingInfo.text = text
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,6 +84,7 @@ class MainActivity : AppCompatActivity() {
 
         initComponents()
         setupUI()
+        expandSpinnerPopupToFullWidth()
         setupClickListeners()
         initializeTelegramClient()
 
@@ -191,6 +209,8 @@ class MainActivity : AppCompatActivity() {
                 binding.btnPlay.visibility = View.GONE
                 binding.btnPause.visibility = View.GONE
             }
+            // очистим строку прогресса
+            binding.tvPlayingInfo.text = ""
         }
 
         findViewById<View?>(R.id.btn_next)?.setOnClickListener {
@@ -227,6 +247,23 @@ class MainActivity : AppCompatActivity() {
         binding.btnOpenSettings.setOnClickListener {
             Log.d("MainActivity", "🔧 Открываем настройки TTS")
             openVoiceSettings()
+        }
+    }
+
+    // Растягиваем выпадающий список спиннера на всю ширину экрана
+    private fun expandSpinnerPopupToFullWidth() {
+        val sp = binding.spinnerTime
+        sp.post {
+            try {
+                val screenWidth = resources.displayMetrics.widthPixels
+                val location = IntArray(2)
+                sp.getLocationOnScreen(location)
+                val leftOnScreen = location[0]
+                sp.dropDownHorizontalOffset = -leftOnScreen
+                sp.dropDownWidth = screenWidth
+            } catch (e: Exception) {
+                Log.w("MainActivity", "expandSpinnerPopupToFullWidth failed", e)
+            }
         }
     }
 
@@ -374,7 +411,6 @@ class MainActivity : AppCompatActivity() {
                         }
                         startService(setIntent)
 
-                        // Отмечаем готовность плейлиста — важно для поиска «прыжка» скорости на переключении
                         TTSDebugTracker.trackChannelSwitch("Playlist prepared: files=${paths.size}, chapters=${currentChapters.size}, title='Новости'")
 
                         channelAdapter.notifyDataSetChanged()
@@ -383,6 +419,9 @@ class MainActivity : AppCompatActivity() {
                         resetPlayerButtons()
                         binding.btnPlay.isEnabled = true
                         findViewById<View?>(R.id.btn_next)?.isEnabled = true
+
+                        // очищаем прошлую строку прогресса — сервис пришлёт актуальную
+                        binding.tvPlayingInfo.text = ""
 
                         Toast.makeText(
                             this@MainActivity,
@@ -429,6 +468,8 @@ class MainActivity : AppCompatActivity() {
         binding.btnPlay.isEnabled = false
         findViewById<View?>(R.id.btn_next)?.isEnabled = false
         binding.btnPause.isEnabled = false
+
+        binding.tvPlayingInfo.text = ""
 
         channelAdapter.getAllChannels().forEach { it.newMessagesCount = 0 }
         channelAdapter.notifyDataSetChanged()
@@ -489,6 +530,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        expandSpinnerPopupToFullWidth()
         if (::ttsManager.isInitialized) {
             val currentVoice = PreferenceManager.getTtsVoiceName(this)
 
@@ -504,6 +546,21 @@ class MainActivity : AppCompatActivity() {
             ttsManager.refreshVoice()
             Log.d("MainActivity", "onResume(): голос обновлен. Текущий: $currentVoice")
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        registerReceiver(
+            progressReceiver,
+            IntentFilter(com.example.telegramnewsreader.services.AudioPlayerService.ACTION_PROGRESS)
+        )
+    }
+
+    override fun onStop() {
+        super.onStop()
+        try {
+            unregisterReceiver(progressReceiver)
+        } catch (_: Exception) { }
     }
 
     private fun confirmHideChannel(channel: Channel) {

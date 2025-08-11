@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true" android:padding="16dp">
 
-
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -37,11 +36,13 @@
             android:textStyle="bold"
             android:layout_marginTop="16dp" />
 
-        <Spinner
+        <androidx.appcompat.widget.AppCompatSpinner
             android:id="@+id/spinner_time"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp" />
+            android:layout_marginTop="8dp"
+            android:spinnerMode="dropdown"
+            android:popupBackground="@drawable/bg_spinner_popup" />
 
         <Button
             android:id="@+id/btn_collect_news"
@@ -80,7 +81,9 @@
                 app:iconSize="24dp"
                 app:iconPadding="0dp"
                 app:iconGravity="textStart"
-                app:cornerRadius="24dp" />
+                app:cornerRadius="24dp"
+                app:iconTint="@color/white"
+                app:backgroundTint="@color/purple_500" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_pause"
@@ -95,7 +98,9 @@
                 app:iconSize="24dp"
                 app:iconPadding="0dp"
                 app:iconGravity="textStart"
-                app:cornerRadius="24dp" />
+                app:cornerRadius="24dp"
+                app:iconTint="@color/white"
+                app:backgroundTint="@color/purple_500" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_stop"
@@ -110,7 +115,9 @@
                 app:iconSize="24dp"
                 app:iconPadding="0dp"
                 app:iconGravity="textStart"
-                app:cornerRadius="24dp" />
+                app:cornerRadius="24dp"
+                app:iconTint="@color/white"
+                app:backgroundTint="@color/purple_500" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_next"
@@ -125,8 +132,18 @@
                 app:iconSize="24dp"
                 app:iconPadding="0dp"
                 app:iconGravity="textStart"
-                app:cornerRadius="24dp" />
+                app:cornerRadius="24dp"
+                app:iconTint="@color/white"
+                app:backgroundTint="@color/purple_500" />
         </LinearLayout>
+
+        <!-- Новое: строка прогресса воспроизведения -->
+        <TextView
+            android:id="@+id/tv_playing_info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:layout_marginTop="8dp" />
 
         <TextView
             android:id="@+id/tv_status"
