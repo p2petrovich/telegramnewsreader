@@ -1,8 +1,11 @@
 package com.example.telegramnewsreader
 
+import com.example.telegramnewsreader.BuildConfig.TELEGRAM_API_ID
+import com.example.telegramnewsreader.BuildConfig.TELEGRAM_API_HASH
+
 object ApiConfig {
-    const val API_ID = 20681606    // Замените на ваш api_id
-    const val API_HASH = "b85262eba235b4c76604b6528aa1e956" // Замените на ваш api_hash
+    val API_ID: Int = TELEGRAM_API_ID
+    val API_HASH: String = TELEGRAM_API_HASH
     const val DATABASE_DIRECTORY = "tdlib"
     const val FILES_DIRECTORY = "files"
 }

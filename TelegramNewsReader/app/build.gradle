@@ -16,8 +16,20 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+// 🔐 Безопасное чтение API ID и Hash из local.properties или окружения
+    def localProperties = new Properties()
+    def localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localProperties.load(localPropertiesFile.newDataInputStream())
     }
 
+    def telegramApiId = System.getenv("TELEGRAM_API_ID") ?: localProperties.getProperty("telegram.api.id", "0")
+    def telegramApiHash = System.getenv("TELEGRAM_API_HASH") ?: localProperties.getProperty("telegram.api.hash", "")
+
+    buildConfigField "Integer", "TELEGRAM_API_ID", telegramApiId
+    buildConfigField "String", "TELEGRAM_API_HASH", "\"${telegramApiHash}\""
+}
     buildTypes {
         release {
             minifyEnabled false
@@ -33,6 +45,7 @@ android {
     }
     buildFeatures {
         viewBinding true
+        buildConfig = true
     }
 }
 
