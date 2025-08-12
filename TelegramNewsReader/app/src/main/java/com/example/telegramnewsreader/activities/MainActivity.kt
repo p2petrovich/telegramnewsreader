@@ -221,12 +221,16 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnResetAuth.setOnClickListener {
-            PreferenceManager.clearAll(this)
-            TelegramClientManager.clearClient()
-            TTSManagerSingleton.clearInstance()
-            Toast.makeText(this, "Авторизация сброшена", Toast.LENGTH_SHORT).show()
-            startActivity(Intent(this, AuthActivity::class.java))
-            finish()
+            Log.d("MainActivity", "RESET AUTH: requested")
+            binding.btnResetAuth.isEnabled = false
+            TelegramClientManager.logoutAndClearDb(this) {
+                PreferenceManager.clearAll(this)
+                TTSManagerSingleton.clearInstance()
+                Log.d("MainActivity", "RESET AUTH: completed, opening AuthActivity")
+                Toast.makeText(this, "Авторизация сброшена", Toast.LENGTH_SHORT).show()
+                startActivity(Intent(this, AuthActivity::class.java))
+                finish()
+            }
         }
 
         binding.btnCollectNews.isEnabled = false

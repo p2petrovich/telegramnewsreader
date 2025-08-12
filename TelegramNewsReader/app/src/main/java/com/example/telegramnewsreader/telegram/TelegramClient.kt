@@ -18,7 +18,6 @@ import java.time.format.DateTimeFormatter
 
 class TelegramClient(private val context: Context) {
 
-
     private var client: Client? = null
     private var isInitialized = false
     private var isAuthorized = false
@@ -43,6 +42,9 @@ class TelegramClient(private val context: Context) {
 
     var onClientReady: (() -> Unit)? = null
     var onPasswordRequired: (() -> Unit)? = null
+
+    // колбэк завершения логаута
+    private var onLoggedOut: (() -> Unit)? = null
 
     init {
         Log.d(TAG, "Constructor; holder=${System.identityHashCode(this)}")
@@ -167,11 +169,21 @@ class TelegramClient(private val context: Context) {
                 Log.d(TAG, "Logging out")
                 isAuthorized = false
                 isReady = false
+                PreferenceManager.setAuthorized(context, false)
+            }
+            is TdApi.AuthorizationStateClosing -> {
+                Log.d(TAG, "Closing")
+                isAuthorized = false
+                isReady = false
             }
             is TdApi.AuthorizationStateClosed -> {
                 Log.d(TAG, "Closed")
+                isInitialized = false
                 isAuthorized = false
                 isReady = false
+                PreferenceManager.setAuthorized(context, false)
+                onLoggedOut?.invoke()
+                onLoggedOut = null
             }
             else -> Log.w(TAG, "Unhandled auth state: $state")
         }
@@ -539,8 +551,20 @@ authorizationState: ${authorizationState?.javaClass?.simpleName ?: "null"}
 """.trimIndent()
     }
 
-
     fun checkAuthState(): Boolean = isReady && isAuthorized
+
+    fun logOut(onDone: (() -> Unit)? = null) {
+        val c = client
+        Log.d(TAG, "logOut requested; client=${System.identityHashCode(c)}")
+        if (c == null) {
+            onDone?.invoke()
+            return
+        }
+        onLoggedOut = onDone
+        c.send(TdApi.LogOut()) { r ->
+            Log.d(TAG, "LogOut -> ${r?.javaClass?.simpleName}")
+        }
+    }
 
     fun close() {
         client?.send(TdApi.Close(), null)
