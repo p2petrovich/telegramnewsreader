@@ -1,6 +1,8 @@
 package com.example.telegramnewsreader.telegram
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.example.telegramnewsreader.ApiConfig
 import java.io.File
@@ -14,7 +16,9 @@ object TelegramClientManager {
         val c = telegramClient
         if (c == null) {
             deleteTdlibDirs(context)
-            onDone?.invoke()
+            Handler(Looper.getMainLooper()).post {
+                onDone?.invoke()
+            }
             return
         }
         Log.d("TelegramClientManager", "logoutAndClearDb: start")
@@ -25,7 +29,9 @@ object TelegramClientManager {
             } catch (_: Exception) {}
             telegramClient = null
             deleteTdlibDirs(context)
-            onDone?.invoke()
+            Handler(Looper.getMainLooper()).post {
+                onDone?.invoke()
+            }
         }
     }
 
