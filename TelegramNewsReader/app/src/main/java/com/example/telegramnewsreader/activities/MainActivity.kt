@@ -368,7 +368,7 @@ class MainActivity : AppCompatActivity() {
                         currentChapters = audio.chaptersMs
                         lastUsedVoice = PreferenceManager.getTtsVoiceName(this@MainActivity)
 
-                        val totalMessages = selectedChannels.sumOf { it.newMessagesCount }
+                        val totalMessages = audio.chaptersMs.size
 
                         val durationMin = try {
                             val player = MediaPlayer().apply {
@@ -383,7 +383,7 @@ class MainActivity : AppCompatActivity() {
                             null
                         }
 
-                        val baseStatus = "Готово! Обработано сообщений: $totalMessages"
+                        val baseStatus = "Готово! Найдено новостей: ${audio.realNewsCount}"
                         if (durationMin != null) {
                             updateStatus("$baseStatus\nПримерная длительность: ~${durationMin} минут")
                         } else {

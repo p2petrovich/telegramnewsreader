@@ -21,12 +21,14 @@ class NewsService(
 
     data class Prepared(
         val preparedMessages: List<String>,
-        val totalMessages: Int
+        val totalMessages: Int,
+        val realNewsCount: Int = 0 // НОВОЕ ПОЛЕ
     )
 
     data class AudioWithChapters(
         val file: File,
-        val chaptersMs: List<Long>
+        val chaptersMs: List<Long>,
+        val realNewsCount: Int = 0 // НОВОЕ ПОЛЕ
     )
 
     suspend fun collectAndProcessNews(
@@ -74,7 +76,8 @@ class NewsService(
             ?: return@withContext null
 
         TTSDebugTracker.trackSystemAction("SYNTH DONE (with chapters) file='${audio.file.name}' chapters=${audio.chaptersMs.size}")
-        AudioWithChapters(audio.file, audio.chaptersMs)
+        // НОВОЕ: передаем правильный счетчик
+        AudioWithChapters(audio.file, audio.chaptersMs, list.realNewsCount)
     }
 
     private suspend fun collectAndPrepareMessages(
@@ -94,18 +97,20 @@ class NewsService(
                 }.awaitAll()
 
                 var totalMessages = 0
+                var realNewsCount = 0 // НОВОЕ: переменная для подсчета реальных новостей
                 channelResults.forEach { (channel, messages) ->
                     if (messages.isNotEmpty()) {
                         allMessages.add("Новости из канала ${channel.title}:")
                         allMessages.addAll(messages)
-                        totalMessages += messages.size
+                        // НОВОЕ: считаем только реальные новости
+                        realNewsCount += messages.size
                     }
                 }
 
-                if (allMessages.isEmpty()) return@withTimeout Prepared(emptyList(), 0)
+                if (allMessages.isEmpty()) return@withTimeout Prepared(emptyList(), 0, 0)
 
                 val preparedMessages = prepareMessages(allMessages)
-                Prepared(preparedMessages, totalMessages)
+                Prepared(preparedMessages, totalMessages, realNewsCount) // НОВОЕ: передаем realNewsCount
             }
         } catch (e: TimeoutCancellationException) {
             Log.e(TAG, "Timeout", e)

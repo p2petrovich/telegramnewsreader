@@ -58,6 +58,7 @@ class AudioPlayerService : Service() {
     private var currentChapter = 0
     private var preparedButNotPlaying = false
     private var pendingSeekStart = false
+    private var totalNewsCount = 0 // Новое поле для правильного подсчета новостей
 
     // Новое: таймер прогресса
     private val progressHandler = Handler(Looper.getMainLooper())
@@ -147,14 +148,17 @@ class AudioPlayerService : Service() {
         playlist = paths
         currentIndex = startIndex.coerceIn(0, (playlist.size - 1).coerceAtLeast(0))
 
-        // Нормализация глав: единственный 0, сортировка, удаление дубликатов
+        // ИСПРАВЛЕНО: Не добавляем 0L дважды
         chapterStartsMs = if (paths.size == 1) {
-            val withZero = if (chapters.contains(0L)) chapters else listOf(0L) + chapters
-            val normalized = withZero.sorted().distinct()
+            // chapters уже содержит 0L как первый элемент (от TTSManager)
+            val normalized = chapters.sorted().distinct()
             Log.d(TAG, "Chapters normalized: raw=${chapters.joinToString()} -> ${normalized.joinToString()}")
             TTSDebugTracker.trackChannelSwitch("CHAPTERS NORMALIZED raw=${chapters.size} -> unique=${normalized.size}")
             normalized
         } else emptyList()
+
+        // НОВОЕ: Сохраняем правильное количество новостей
+        totalNewsCount = chapterStartsMs.size
 
         currentChapter = 0
         preparedButNotPlaying = true
@@ -162,7 +166,7 @@ class AudioPlayerService : Service() {
         Log.d(TAG, "Playlist set: size=${playlist.size}, startIndex=$currentIndex, chapters=${chapterStartsMs.size}")
         TTSDebugTracker.trackChannelSwitch("PLAYLIST SET size=${playlist.size} startIndex=$currentIndex chapters=${chapterStartsMs.size}")
 
-        // Отправим стартовый прогресс (плеер ещё не играет)
+        // Отправим стартовый прогресс
         val (cur, total) = computeProgress()
         sendProgress(cur, total, false)
 
@@ -344,7 +348,8 @@ class AudioPlayerService : Service() {
                     mediaPlayer?.seekTo(nextMs)
                 } catch (_: Exception) { }
                 updateNotification()
-                sendProgress(currentChapter + 1, chapterStartsMs.size, mediaPlayer?.isPlaying == true)
+                // ИСПРАВЛЕНО: Используем правильный счетчик новостей
+                sendProgress(currentChapter + 1, totalNewsCount, mediaPlayer?.isPlaying == true)
             } else {
                 Log.d(TAG, "Completion: last chapter -> stopServiceSafely()")
                 TTSDebugTracker.trackChannelSwitch("COMPLETE no further chapter -> STOP")
@@ -456,7 +461,8 @@ class AudioPlayerService : Service() {
                 pendingSeekStart = wasPlaying || wasPreparedNoStart
                 mediaPlayer?.seekTo(toMs)
                 preparedButNotPlaying = false
-                sendProgress(currentChapter + 1, chapterStartsMs.size, wasPlaying || wasPreparedNoStart)
+                // ИСПРАВЛЕНО: Используем правильный счетчик новостей
+                sendProgress(currentChapter + 1, totalNewsCount, wasPlaying || wasPreparedNoStart)
             } catch (_: Exception) { }
             updateNotification()
             return
@@ -584,11 +590,21 @@ class AudioPlayerService : Service() {
         return i.coerceIn(0, (chapterStartsMs.size - 1).coerceAtLeast(0))
     }
 
+    // ИСПРАВЛЕНО: Используем правильные счетчики
     private fun computeProgress(): Pair<Int, Int> {
         return if (hasChapters()) {
             val pos = try { mediaPlayer?.currentPosition?.toLong() ?: 0L } catch (_: Exception) { 0L }
-            val cur = chapterIndexForPosition(pos) + 1
-            cur to chapterStartsMs.size
+            val currentChapterIndex = chapterIndexForPosition(pos)
+
+            // ИСПРАВЛЕНО: Используем totalNewsCount вместо chapterStartsMs.size
+            val currentNews = currentChapterIndex + 1
+            val totalNews = totalNewsCount
+
+            // Ограничиваем диапазон для безопасности
+            val clampedCurrent = currentNews.coerceIn(1, totalNews.coerceAtLeast(1))
+            val clampedTotal = totalNews.coerceAtLeast(1)
+
+            clampedCurrent to clampedTotal
         } else {
             (currentIndex + 1) to playlist.size
         }
