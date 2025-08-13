@@ -9,6 +9,15 @@ android {
     namespace 'com.example.telegramnewsreader'
     compileSdk 34
 
+    lintOptions {
+        checkReleaseBuilds true
+        abortOnError true
+        ignoreWarnings false
+        fatal 'StopShip'
+        textReport true
+        textOutput file('lint-report.txt')
+    }
+
     defaultConfig {
         applicationId = "com.example.telegramnewsreader"
         minSdk 24
