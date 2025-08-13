@@ -18,6 +18,8 @@
     <!-- Для Android 14+ уточняем тип сервиса -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:name=".TelegramNewsApplication"
         android:allowBackup="true"

@@ -12,9 +12,11 @@ import kotlin.coroutines.resume
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.ConcurrentHashMap
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+
+// ✅ Заменены Java time импорты на ThreeTenABP
+import org.threeten.bp.Instant
+import org.threeten.bp.ZoneId
+import org.threeten.bp.format.DateTimeFormatter
 
 class TelegramClient(private val context: Context) {
 
@@ -409,6 +411,7 @@ class TelegramClient(private val context: Context) {
                             .filter { it.date >= fromDate }
                             .mapNotNull { message ->
                                 val time = try {
+                                    // ✅ Используются ThreeTenABP классы
                                     Instant.ofEpochSecond(message.date.toLong())
                                         .atZone(ZoneId.systemDefault())
                                         .format(DateTimeFormatter.ofPattern("HH:mm"))
@@ -487,6 +490,7 @@ class TelegramClient(private val context: Context) {
                                 break
                             }
 
+                            // ✅ Используются ThreeTenABP классы
                             val time = Instant.ofEpochSecond(msg.date.toLong())
                                 .atZone(ZoneId.systemDefault())
                                 .format(DateTimeFormatter.ofPattern("HH:mm"))

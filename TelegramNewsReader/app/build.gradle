@@ -88,4 +88,5 @@ dependencies {
   //  implementation 'com.arthenica:ffmpeg-kit-full-gpl:6.0'
     implementation("com.arthenica:smart-exception-java:0.2.1")
     implementation "io.coil-kt:coil:2.6.0"
+    implementation 'com.jakewharton.threetenabp:threetenabp:1.4.6'
 }
