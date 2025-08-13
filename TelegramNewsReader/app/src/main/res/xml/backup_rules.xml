@@ -2,6 +2,6 @@
 <full-backup-content>
     <include domain="sharedpref" path="."/>
     <exclude domain="sharedpref" path="device.xml"/>
-    <!-- ✅ ИСПРАВЛЕНО: добавлено расширение .db к имени базы данных -->
-    <exclude domain="database" path="news_database.db"/>
+    <include domain="database" path="."/>
+    <exclude domain="database" path="news_database"/>
 </full-backup-content>

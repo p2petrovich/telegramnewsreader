@@ -611,17 +611,22 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        // ✅ ИСПРАВЛЕНО: Используем ContextCompat.registerReceiver с флагом RECEIVER_NOT_EXPORTED
+        // ✅ ИСПРАВЛЕНО: Используем ContextCompat.registerReceiver с флагом RECEIVER_NOT_EXPORTED для Android 13+
         val intentFilter = IntentFilter(com.example.telegramnewsreader.services.AudioPlayerService.ACTION_PROGRESS)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            androidx.core.content.ContextCompat.registerReceiver(
+            ContextCompat.registerReceiver(
                 this,
                 progressReceiver,
                 intentFilter,
-                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+                ContextCompat.RECEIVER_NOT_EXPORTED
             )
         } else {
-            registerReceiver(progressReceiver, intentFilter)
+            ContextCompat.registerReceiver(
+                this,
+                progressReceiver,
+                intentFilter,
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
         }
     }
 

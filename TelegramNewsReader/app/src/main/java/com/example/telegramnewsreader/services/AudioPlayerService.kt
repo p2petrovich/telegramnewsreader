@@ -610,8 +610,12 @@ class AudioPlayerService : Service() {
         }
     }
 
+
+
     private fun sendProgress(current: Int, total: Int, isPlaying: Boolean) {
         val i = Intent(ACTION_PROGRESS).apply {
+            // 🔥 ИСПРАВЛЕНО: Добавляем package для безопасности
+            `package` = applicationContext.packageName
             putExtra(EXTRA_CURRENT_ITEM, current)
             putExtra(EXTRA_TOTAL_ITEMS, total)
             putExtra(EXTRA_IS_PLAYING, isPlaying)
@@ -620,12 +624,10 @@ class AudioPlayerService : Service() {
             sendBroadcast(i)
         } catch (_: Exception) { }
     }
-
     private fun startProgressUpdates() {
         progressHandler.removeCallbacks(progressRunnable)
         progressHandler.post(progressRunnable)
     }
-
     private fun stopProgressUpdates() {
         progressHandler.removeCallbacks(progressRunnable)
     }
