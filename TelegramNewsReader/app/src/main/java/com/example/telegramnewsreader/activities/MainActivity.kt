@@ -1,15 +1,19 @@
 package com.example.telegramnewsreader.activities
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Intent
 import android.content.IntentFilter
 import android.media.MediaPlayer
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.telegramnewsreader.R
@@ -26,7 +30,8 @@ import kotlinx.coroutines.launch
 import java.io.File
 import com.example.telegramnewsreader.activities.VoiceSelectionActivity
 import com.example.telegramnewsreader.utils.TTSDebugTracker
-import android.content.Context  // 🔥 ДОБАВИЛ: нужен для getSharedPreferences
+import android.content.Context
+import android.content.pm.PackageManager  // 🔥 ДОБАВИЛ для проверки разрешений
 
 class MainActivity : AppCompatActivity() {
 
@@ -43,6 +48,10 @@ class MainActivity : AppCompatActivity() {
     private var currentChapters: List<Long> = emptyList()
 
     private val pendingPhotos = mutableMapOf<Long, String>()
+
+    companion object {
+        private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 1001  // 🔥 ДОБАВИЛ код запроса
+    }
 
     private val timePeriods = arrayOf(
         "Последние 10 минут",
@@ -76,7 +85,11 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-            // 🔥 НОВОЕ: Установка голоса по умолчанию только при первом запуске
+
+        // 🔥 НОВОЕ: Запрашиваем разрешение на уведомления для Android 13+
+        requestNotificationPermission()
+
+        // 🔥 НОВОЕ: Установка голоса по умолчанию только при первом запуске
         setDefaultVoiceOnFirstLaunch()
 
         if (!PreferenceManager.isAuthorized(this)) {
@@ -93,6 +106,45 @@ class MainActivity : AppCompatActivity() {
 
         lastUsedVoice = PreferenceManager.getTtsVoiceName(this)
         Log.d("MainActivity", "onCreate: начальный голос = $lastUsedVoice")
+    }
+
+    // 🔥 НОВОЕ: Метод запроса разрешения на уведомления
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Android 13 (API 33) и выше
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED) {
+
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    NOTIFICATION_PERMISSION_REQUEST_CODE
+                )
+            }
+        }
+    }
+
+    // 🔥 НОВОЕ: Обработка результата запроса разрешения
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        when (requestCode) {
+            NOTIFICATION_PERMISSION_REQUEST_CODE -> {
+                if (grantResults.isNotEmpty() &&
+                    grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Log.d("MainActivity", "Разрешение на уведомления получено")
+                } else {
+                    Log.d("MainActivity", "Разрешение на уведомления отклонено")
+                    // Можно показать объяснение пользователю
+                }
+            }
+        }
     }
 
     private fun initComponents() {
@@ -657,7 +709,6 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // 🔥 НОВОЕ: Установка голоса по умолчанию при первом запуске
     // 🔥 НОВОЕ: Установка голоса по умолчанию при первом запуске
     private fun setDefaultVoiceOnFirstLaunch() {
         // Используем существующие настройки вместо приватного PREFS_NAME
