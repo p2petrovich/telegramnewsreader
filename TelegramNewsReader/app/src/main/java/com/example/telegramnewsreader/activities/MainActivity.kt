@@ -31,7 +31,7 @@ import java.io.File
 import com.example.telegramnewsreader.activities.VoiceSelectionActivity
 import com.example.telegramnewsreader.utils.TTSDebugTracker
 import android.content.Context
-import android.content.pm.PackageManager  // 🔥 ДОБАВИЛ для проверки разрешений
+import android.content.pm.PackageManager
 
 class MainActivity : AppCompatActivity() {
 
@@ -50,7 +50,7 @@ class MainActivity : AppCompatActivity() {
     private val pendingPhotos = mutableMapOf<Long, String>()
 
     companion object {
-        private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 1001  // 🔥 ДОБАВИЛ код запроса
+        private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 1001
     }
 
     private val timePeriods = arrayOf(
@@ -156,7 +156,7 @@ class MainActivity : AppCompatActivity() {
 
         // 🔥 ИСПРАВЛЕНО: Добавлен контекст (this)
         channelAdapter = ChannelAdapter(
-            this,  // <-- ЭТОТ ПАРАМЕТР ДОБАВЛЕН
+            this,
             onSelectionChanged = { _, _ -> updateNewsCollectionButton() },
             onHideRequest = { channel -> confirmHideChannel(channel) }
         )
@@ -611,15 +611,24 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        registerReceiver(
-            progressReceiver,
-            IntentFilter(com.example.telegramnewsreader.services.AudioPlayerService.ACTION_PROGRESS)
-        )
+        // ✅ ИСПРАВЛЕНО: Используем ContextCompat.registerReceiver с флагом RECEIVER_NOT_EXPORTED
+        val intentFilter = IntentFilter(com.example.telegramnewsreader.services.AudioPlayerService.ACTION_PROGRESS)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            androidx.core.content.ContextCompat.registerReceiver(
+                this,
+                progressReceiver,
+                intentFilter,
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+            )
+        } else {
+            registerReceiver(progressReceiver, intentFilter)
+        }
     }
 
     override fun onStop() {
         super.onStop()
         try {
+            // ✅ ИСПРАВЛЕНО: Используем стандартный unregisterReceiver
             unregisterReceiver(progressReceiver)
         } catch (_: Exception) { }
     }
