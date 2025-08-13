@@ -368,7 +368,7 @@ class MainActivity : AppCompatActivity() {
                         currentChapters = audio.chaptersMs
                         lastUsedVoice = PreferenceManager.getTtsVoiceName(this@MainActivity)
 
-                        val totalMessages = audio.chaptersMs.size
+                        val realNewsCount = audio.realNewsCount // ИСПРАВЛЕНО: используем правильный счетчик
 
                         val durationMin = try {
                             val player = MediaPlayer().apply {
@@ -429,7 +429,7 @@ class MainActivity : AppCompatActivity() {
 
                         Toast.makeText(
                             this@MainActivity,
-                            "Найдено $totalMessages новых сообщений",
+                            "Найдено $realNewsCount новых сообщений",
                             Toast.LENGTH_SHORT
                         ).show()
                     } else {

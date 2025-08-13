@@ -147,6 +147,8 @@ class NewsService(
         }
         Log.d(TAG, "prepareMessages(): RAW preview end")
 
+        // УДАЛЯЕМ предфильтрацию заголовков - они должны озвучиваться!
+
         val promoPatterns = listOf(
             // Служебные/медиа‑маркеры
             "^🔹.*",
@@ -176,6 +178,12 @@ class NewsService(
 
         val filtered = messages.mapNotNull { original ->
             val trimmed = original.trim()
+
+            // НОВОЕ: Разрешаем заголовки каналов проходить, но не фильтруем их
+            if (trimmed.matches(Regex("^Новости из канала.*:$"))) {
+                Log.v(TAG, "✅ Заголовок канала пропущен без фильтрации: \"$trimmed\"")
+                return@mapNotNull trimmed
+            }
 
             when {
                 trimmed.length <= 3 -> {

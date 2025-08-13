@@ -743,6 +743,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         val chaptersMs = mutableListOf<Long>()
         var offsetMs = 0L
+        var realNewsIndex = 0 // Счетчик только реальных новостей
 
         filteredNews.forEachIndexed { newsIndex, raw ->
             val cleaned = cleanTextForTts(raw)
@@ -755,12 +756,20 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 return@forEachIndexed
             }
 
-            // Фиксируем начало новости
-            chaptersMs.add(offsetMs)
+            // НОВОЕ: Фиксируем начало главы для всех сообщений (включая заголовки), но считаем только реальные новости
+            if (!formatted.matches(Regex("^Новости из канала.*:$"))) {
+                // Это реальная новость
+                chaptersMs.add(offsetMs)
+                realNewsIndex++
+                Log.d("TTSManager", "챕тер фиксирован для реальной новости #$realNewsIndex (общий индекс $newsIndex)")
+            } else {
+                // Это заголовок канала - тоже создаем главу для навигации
+                chaptersMs.add(offsetMs)
+                Log.d("TTSManager", "챕тер фиксирован для заголовка канала (index=$newsIndex)")
+            }
 
             val parts = splitByParagraphs(formatted, 2800)
             Log.d("TTSManager", "📝 Новость ${newsIndex + 1}/${filteredNews.size}: частей=${parts.size}, длина=${formatted.length}")
-
             for (i in parts.indices) {
                 val wav = synthesizePartToWav(parts[i], (newsIndex + 1) * 1000 + (i + 1), baseUtteranceId)
                 if (wav == null || !wav.exists() || wav.length() == 0L) {
@@ -868,7 +877,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         if (mp3File != null) {
             Log.d("TTSManager", "🎉 Синтез завершен успешно: ${mp3File.name} (${mp3File.length()} байт)")
             Log.d("TTSManager", "📊 Итоговая статистика:")
-            Log.d("TTSManager", "   Новостей: ${chaptersMs.size}, пауза: ${pauseMs}мс")
+            Log.d("TTSManager", "   Новостей: $realNewsIndex, пауза: ${pauseMs}мс")
             Log.d("TTSManager", "   Счетчики изменений: pitch=$pitchChangeCount, rate=$rateChangeCount, voice=$voiceChangeCount")
             Log.d("TTSManager", "🎵 === convertToAudioWithChapters() КОНЕЦ ===")
             return AudioWithChapters(mp3File, chaptersMs)
