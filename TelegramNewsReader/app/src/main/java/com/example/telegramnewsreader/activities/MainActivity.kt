@@ -99,7 +99,9 @@ class MainActivity : AppCompatActivity() {
         ttsManager = TTSManagerSingleton.getInstance(this)
         newsService = NewsService(telegramClient, ttsManager)
 
+        // 🔥 ИСПРАВЛЕНО: Добавлен контекст (this)
         channelAdapter = ChannelAdapter(
+            this,  // <-- ЭТОТ ПАРАМЕТР ДОБАВЛЕН
             onSelectionChanged = { _, _ -> updateNewsCollectionButton() },
             onHideRequest = { channel -> confirmHideChannel(channel) }
         )

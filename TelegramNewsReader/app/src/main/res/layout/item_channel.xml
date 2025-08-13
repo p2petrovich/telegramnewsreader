@@ -29,6 +29,16 @@
         app:layout_constraintEnd_toStartOf="@id/checkboxChannel"
         app:layout_constraintBottom_toBottomOf="@id/ivAvatar" />
 
+    <!-- 🔥 НОВОЕ: Иконка избранного -->
+    <ImageView
+        android:id="@+id/imageFavorite"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@drawable/ic_star_border"
+        android:layout_marginEnd="8dp"
+        app:layout_constraintEnd_toStartOf="@id/checkboxChannel"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
     <CheckBox
         android:id="@+id/checkboxChannel"
         android:layout_width="wrap_content"

@@ -179,4 +179,40 @@ object PreferenceManager {
     fun clearAll(context: Context) {
         getPreferences(context).edit().clear().apply()
     }
+    // 🔥 ДОБАВИТЬ В КОНЕЦ ФАЙЛА:
+
+    private const val KEY_FAVORITE_CHANNELS = "favorite_channels"
+
+    // Сохранение ID избранных каналов
+    fun saveFavoriteChannelIds(context: Context, ids: Set<Long>) {
+        val idStrings = ids.map { it.toString() }.toSet()
+        getPreferences(context).edit()
+            .putStringSet(KEY_FAVORITE_CHANNELS, idStrings)
+            .apply()
+    }
+
+    // Получение ID избранных каналов
+    fun getFavoriteChannelIds(context: Context): Set<Long> {
+        val idStrings = getPreferences(context).getStringSet(KEY_FAVORITE_CHANNELS, emptySet()) ?: emptySet()
+        return idStrings.mapNotNull { it.toLongOrNull() }.toSet()
+    }
+
+    // Добавление канала в избранное
+    fun addFavoriteChannel(context: Context, channelId: Long) {
+        val favorites = getFavoriteChannelIds(context).toMutableSet()
+        favorites.add(channelId)
+        saveFavoriteChannelIds(context, favorites)
+    }
+
+    // Удаление канала из избранного
+    fun removeFavoriteChannel(context: Context, channelId: Long) {
+        val favorites = getFavoriteChannelIds(context).toMutableSet()
+        favorites.remove(channelId)
+        saveFavoriteChannelIds(context, favorites)
+    }
+
+    // Проверка, является ли канал избранным
+    fun isChannelFavorite(context: Context, channelId: Long): Boolean {
+        return channelId in getFavoriteChannelIds(context)
+    }
 }
