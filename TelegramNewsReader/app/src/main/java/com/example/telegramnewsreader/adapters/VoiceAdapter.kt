@@ -14,6 +14,8 @@ import com.example.telegramnewsreader.tts.TTSManagerSingleton
 import com.example.telegramnewsreader.utils.PreferenceManager
 import com.example.telegramnewsreader.models.VoiceEntry
 import com.example.telegramnewsreader.utils.TTSDebugTracker // 🔥 ДОБАВЛЕНО
+import android.widget.Toast // 🔥 ДОБАВИЛ ИМПОРТ
+
 
 class VoiceAdapter(
     private val voiceEntries: List<VoiceEntry>,
@@ -64,6 +66,10 @@ class VoiceAdapter(
         val pitchValue: TextView? = try { view.findViewById(R.id.tvPitchValue) } catch (e: Exception) { null }
         val speedValue: TextView? = try { view.findViewById(R.id.tvSpeedValue) } catch (e: Exception) { null }
 
+        // 🔥 НОВОЕ: Добавляем кнопки сброса
+        val btnResetPitch: ImageButton? = try { view.findViewById(R.id.btnResetPitch) } catch (e: Exception) { null }
+        val btnResetRate: ImageButton? = try { view.findViewById(R.id.btnResetRate) } catch (e: Exception) { null }
+
         // 🔥 НОВОЕ: Добавляем TextView для иконки пола (если есть в layout)
         val genderIcon: TextView? = try { view.findViewById(R.id.tvGenderIcon) } catch (e: Exception) { null }
     }
@@ -96,7 +102,7 @@ class VoiceAdapter(
         Log.d("VoiceAdapter", "📋 onBindViewHolder: position=$position, voice=${voiceEntry.displayName} (${voiceEntry.systemName}), isChecked=${holder.radio.isChecked}")
 
         holder.radio.setOnClickListener {
-                        // 🔥 ДОБАВЛЕНО: Отслеживание пользовательского действия
+            // 🔥 ДОБАВЛЕНО: Отслеживание пользовательского действия
             TTSDebugTracker.trackUserAction("Voice selected via RadioButton: ${voiceEntry.displayName}")
             Log.d("VoiceAdapter", "🔘 === RadioButton НАЖАТ ===")
             Log.d("VoiceAdapter", "   position=$position, voice=${voiceEntry.displayName}")
@@ -143,17 +149,19 @@ class VoiceAdapter(
         val context = holder.itemView.context
         val ttsManager = TTSManagerSingleton.getInstance(context)
 
-        val savedPitch = PreferenceManager.getTtsPitch(context)
-        val savedRate = PreferenceManager.getTtsRate(context)
+        // 🔥 НОВОЕ: Загружаем индивидуальные настройки для каждого голоса
+        val savedPitch = ttsManager.getPitchForVoice(voiceEntry.systemName)
+        val savedRate = ttsManager.getRateForVoice(voiceEntry.systemName)
 
-        Log.d("VoiceAdapter", "📖 Считанные настройки из PreferenceManager:")
+        Log.d("VoiceAdapter", "📖 Считанные настройки из PreferenceManager для ${voiceEntry.displayName}:")
         Log.d("VoiceAdapter", "   savedPitch=$savedPitch, savedRate=$savedRate")
-                // 🔥 ИСПРАВЛЕНИЕ: Корректная настройка SeekBar (0-200, значение по умолчанию 100)
-                holder.seekPitch.progress = (savedPitch * 100).toInt()
-                holder.seekRate.progress = (savedRate * 100).toInt()
 
-                // 🔥 НОВОЕ: Устанавливаем начальные значения для TextView
-                updatePitchValue(holder, savedPitch)
+        // 🔥 ИСПРАВЛЕНИЕ: Корректная настройка SeekBar (0-200, значение по умолчанию 100)
+        holder.seekPitch.progress = (savedPitch * 100).toInt()
+        holder.seekRate.progress = (savedRate * 100).toInt()
+
+        // 🔥 НОВОЕ: Устанавливаем начальные значения для TextView
+        updatePitchValue(holder, savedPitch)
         updateSpeedValue(holder, savedRate)
 
         holder.seekPitch.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -162,7 +170,10 @@ class VoiceAdapter(
                     val newPitch = progress / 100f
                     TTSDebugTracker.trackUserAction("SeekBar pitch changed to $newPitch")  // 🔥 ДОБАВИТЬ
                     Log.d("VoiceAdapter", "🎚️ Изменен тембр: $newPitch для ${voiceEntry.displayName}")
-                    ttsManager.updatePitch(newPitch)
+
+                    // 🔥 НОВОЕ: Сохраняем настройки для конкретного голоса
+                    ttsManager.updatePitchForVoice(voiceEntry.systemName, newPitch)
+                    ttsManager.updatePitch(newPitch) // также применяем сразу
 
                     // 🔥 НОВОЕ: Обновляем отображаемое значение
                     updatePitchValue(holder, newPitch)
@@ -178,7 +189,10 @@ class VoiceAdapter(
                     val newRate = progress / 100f
                     TTSDebugTracker.trackUserAction("SeekBar rate changed to $newRate")  // 🔥 ДОБАВИТЬ
                     Log.d("VoiceAdapter", "⏩ Изменена скорость: $newRate для ${voiceEntry.displayName}")
-                    ttsManager.updateRate(newRate)
+
+                    // 🔥 НОВОЕ: Сохраняем настройки для конкретного голоса
+                    ttsManager.updateRateForVoice(voiceEntry.systemName, newRate)
+                    ttsManager.updateRate(newRate) // также применяем сразу
 
                     // 🔥 НОВОЕ: Обновляем отображаемое значение
                     updateSpeedValue(holder, newRate)
@@ -187,6 +201,28 @@ class VoiceAdapter(
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
+        // 🔥 НОВОЕ: Кнопки сброса параметров
+        holder.btnResetPitch?.setOnClickListener {
+            Log.d("VoiceAdapter", "↺ Сброс тембра на 1.0 для ${voiceEntry.displayName}")
+            holder.seekPitch.progress = 100 // 1.0
+            val resetPitch = 1.0f
+            TTSDebugTracker.trackUserAction("Pitch reset to 1.0 for ${voiceEntry.displayName}")
+            ttsManager.updatePitchForVoice(voiceEntry.systemName, resetPitch)
+            ttsManager.updatePitch(resetPitch)
+            updatePitchValue(holder, resetPitch)
+            Toast.makeText(context, "Тембр сброшен на 1.0", Toast.LENGTH_SHORT).show()
+        }
+
+        holder.btnResetRate?.setOnClickListener {
+            Log.d("VoiceAdapter", "↺ Сброс скорости на 1.0 для ${voiceEntry.displayName}")
+            holder.seekRate.progress = 100 // 1.0
+            val resetRate = 1.0f
+            TTSDebugTracker.trackUserAction("Rate reset to 1.0 for ${voiceEntry.displayName}")
+            ttsManager.updateRateForVoice(voiceEntry.systemName, resetRate)
+            ttsManager.updateRate(resetRate)
+            updateSpeedValue(holder, resetRate)
+            Toast.makeText(context, "Скорость сброшена на 1.0", Toast.LENGTH_SHORT).show()
+        }
     }
 
     // 🔥 НОВЫЕ МЕТОДЫ: Для обновления отображаемых значений ползунков

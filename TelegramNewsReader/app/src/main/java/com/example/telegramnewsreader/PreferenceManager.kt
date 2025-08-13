@@ -98,6 +98,31 @@ object PreferenceManager {
         return getPreferences(context).getFloat(KEY_TTS_RATE, 1.0f)
     }
 
+    // 🔥 НОВОЕ: Индивидуальные настройки для каждого голоса
+    fun saveTtsPitchForVoice(context: Context, voiceName: String, pitch: Float) {
+        val key = "${KEY_TTS_PITCH}_$voiceName"
+        getPreferences(context).edit()
+            .putFloat(key, pitch)
+            .apply()
+    }
+
+    fun getTtsPitchForVoice(context: Context, voiceName: String, defaultPitch: Float = 1.0f): Float {
+        val key = "${KEY_TTS_PITCH}_$voiceName"
+        return getPreferences(context).getFloat(key, defaultPitch)
+    }
+
+    fun saveTtsRateForVoice(context: Context, voiceName: String, rate: Float) {
+        val key = "${KEY_TTS_RATE}_$voiceName"
+        getPreferences(context).edit()
+            .putFloat(key, rate)
+            .apply()
+    }
+
+    fun getTtsRateForVoice(context: Context, voiceName: String, defaultRate: Float = 1.0f): Float {
+        val key = "${KEY_TTS_RATE}_$voiceName"
+        return getPreferences(context).getFloat(key, defaultRate)
+    }
+
     // Хранилище скрытых каналов (username)
     fun getHiddenUsernames(context: Context): MutableSet<String> {
         return getPreferences(context).getStringSet(KEY_HIDDEN_USERNAMES, emptySet())?.toMutableSet()

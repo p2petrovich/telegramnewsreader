@@ -296,12 +296,10 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         Log.d("TTSManager", "🔍 Было: currentAppliedPitch=$currentAppliedPitch")
         Log.d("TTSManager", "🔍 Устанавливаем: pitch=$pitch")
 
-        PreferenceManager.saveTtsPitch(context, pitch)
         val result = tts?.setPitch(pitch)
         pitchChangeCount++
         currentAppliedPitch = pitch
 
-        Log.d("TTSManager", "💾 Сохранили в настройки: pitch=$pitch")
         Log.d("TTSManager", "🎚️ Результат setPitch: $result")
         Log.d("TTSManager", "📊 Счетчик изменений pitch: $pitchChangeCount")
         Log.d("TTSManager", "🎚️ Тембр речи обновлён ПОЛЬЗОВАТЕЛЕМ: $pitch")
@@ -321,12 +319,10 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         Log.d("TTSManager", "🔍 Было: currentAppliedRate=$currentAppliedRate")
         Log.d("TTSManager", "🔍 Устанавливаем: rate=$rate")
 
-        PreferenceManager.saveTtsRate(context, rate)
         val result = tts?.setSpeechRate(rate)
         rateChangeCount++
         currentAppliedRate = rate
 
-        Log.d("TTSManager", "💾 Сохранили в настройки: rate=$rate")
         Log.d("TTSManager", "⏩ Результат setSpeechRate: $result")
         Log.d("TTSManager", "📊 Счетчик изменений rate: $rateChangeCount")
         Log.d("TTSManager", "⏩ Скорость речи обновлена ПОЛЬЗОВАТЕЛЕМ: $rate")
@@ -1034,5 +1030,42 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             Log.d("TTSManager", "   Счетчики: pitch=$pitchChangeCount, rate=$rateChangeCount, voice=$voiceChangeCount")
         }
         Log.d("TTSManager", "🔁 === refreshVoice() КОНЕЦ ===")
+    }
+    // 🔥 НОВЫЕ МЕТОДЫ ДЛЯ РАБОТЫ С ИНДИВИДУАЛЬНЫМИ НАСТРОЙКАМИ ГОЛОСОВ
+    fun updatePitchForVoice(voiceName: String, pitch: Float) {
+        Log.d("TTSManager", "🎚️ Сохраняем тембр для голоса $voiceName: $pitch")
+        PreferenceManager.saveTtsPitchForVoice(context, voiceName, pitch)
+    }
+
+    fun updateRateForVoice(voiceName: String, rate: Float) {
+        Log.d("TTSManager", "⏩ Сохраняем скорость для голоса $voiceName: $rate")
+        PreferenceManager.saveTtsRateForVoice(context, voiceName, rate)
+    }
+
+    fun getPitchForVoice(voiceName: String): Float {
+        val savedPitch = PreferenceManager.getTtsPitchForVoice(context, voiceName)
+        Log.d("TTSManager", "🎚️ Загружен тембр для $voiceName: $savedPitch")
+        return savedPitch
+    }
+
+    fun getRateForVoice(voiceName: String): Float {
+        val savedRate = PreferenceManager.getTtsRateForVoice(context, voiceName)
+        Log.d("TTSManager", "⏩ Загружена скорость для $voiceName: $savedRate")
+        return savedRate
+    }
+
+    fun applyVoiceSettings(voiceName: String) {
+        Log.d("TTSManager", "🎚️ Применяем настройки для голоса: $voiceName")
+        val pitch = getPitchForVoice(voiceName)
+        val rate = getRateForVoice(voiceName)
+
+        val pitchResult = tts?.setPitch(pitch)
+        val rateResult = tts?.setSpeechRate(rate)
+
+        currentAppliedPitch = pitch
+        currentAppliedRate = rate
+
+        Log.d("TTSManager", "🎚️ Применен тембр: $pitch (результат: $pitchResult)")
+        Log.d("TTSManager", "⏩ Применена скорость: $rate (результат: $rateResult)")
     }
 }

@@ -16,36 +16,36 @@ import com.example.telegramnewsreader.utils.PreferenceManager
 import com.example.telegramnewsreader.models.VoiceEntry // 🔥 ИСПРАВЛЕН ИМПОРТ
 
 class VoiceSelectionActivity : AppCompatActivity() {
-    
+
     private lateinit var recyclerView: RecyclerView
     private lateinit var voiceAdapter: VoiceAdapter
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_voice_selection)
-        
+
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
-        
+
         setupUI()
         loadVoices()
     }
-    
+
     private fun setupUI() {
         // Настройка ActionBar
         supportActionBar?.apply {
-            title = "Настройки голоса TTS"
+            title = "Голос и речь"
             setDisplayHomeAsUpEnabled(true)
         }
-        
+
         // Настройка RecyclerView
         recyclerView = findViewById(R.id.recyclerVoices)
         recyclerView.layoutManager = LinearLayoutManager(this)
-        
+
         Log.d("VoiceSelectionActivity", "🎯 UI настроен")
     }
 
@@ -119,56 +119,61 @@ class VoiceSelectionActivity : AppCompatActivity() {
 
         Log.d("VoiceSelectionActivity", "✅ loadVoices() ЗАВЕРШЕН с ${russianVoices.size} русскими голосами")
     }
-    
+
     private fun onVoiceSelected(voiceEntry: VoiceEntry) {
         Log.d("VoiceSelectionActivity", "🔊 Выбран голос: ${voiceEntry.displayName} (${voiceEntry.systemName})")
-        
+
         val ttsManager = TTSManagerSingleton.getInstance(this)
-        
-        // 🔥 НОВОЕ: Используем новый метод setVoiceByEntry
+
+        // 🔥 НОВОЕ: Применяем индивидуальные настройки выбранного голоса
         ttsManager.setVoiceByEntry(voiceEntry)
-        
+        ttsManager.applyVoiceSettings(voiceEntry.systemName) // применяем сохраненные настройки
+
+        PreferenceManager.saveTtsVoiceName(this, voiceEntry.systemName) // сохраняем выбор
+
         Toast.makeText(
-            this, 
-            "Голос изменён: ${voiceEntry.displayName}", 
+            this,
+            "Голос изменён: ${voiceEntry.displayName}",
             Toast.LENGTH_SHORT
         ).show()
     }
-    
+
     private fun onVoicePlay(voiceEntry: VoiceEntry) {
         Log.d("VoiceSelectionActivity", "▶️ Тестируем голос: ${voiceEntry.displayName}")
-        
+
         val ttsManager = TTSManagerSingleton.getInstance(this)
-        
-        // Временно применяем выбранный голос для тестирования
+
+        // 🔥 НОВОЕ: Применяем сохраненные настройки для тестируемого голоса
         val currentVoice = PreferenceManager.getTtsVoiceName(this)
         ttsManager.setVoiceByEntry(voiceEntry)
-        
+        ttsManager.applyVoiceSettings(voiceEntry.systemName) // применяем настройки голоса
+
         // Тестовый текст
         val testText = "Привет! Это голос ${voiceEntry.displayName}. Как вам качество звучания?"
         ttsManager.speak(testText)
-        
-        // Восстанавливаем предыдущий голос, если он отличается
+
+        // Восстанавливаем предыдущий голос и его настройки
         if (currentVoice != null && currentVoice != voiceEntry.systemName) {
             // Отложенное восстановление через 3 секунды
             recyclerView.postDelayed({
                 ttsManager.setVoiceByName(currentVoice)
-                Log.d("VoiceSelectionActivity", "🔄 Восстановлен предыдущий голос: $currentVoice")
+                ttsManager.applyVoiceSettings(currentVoice) // восстанавливаем настройки
+                Log.d("VoiceSelectionActivity", "🔄 Восстановлен предыдущий голос: $currentVoice с настройками")
             }, 3000)
         }
-        
+
         Toast.makeText(
             this,
             "🎤 Тестирую: ${voiceEntry.displayName}",
             Toast.LENGTH_SHORT
         ).show()
     }
-    
+
     override fun onSupportNavigateUp(): Boolean {
         finish()
         return true
     }
-    
+
     override fun onDestroy() {
         super.onDestroy()
         Log.d("VoiceSelectionActivity", "🏁 VoiceSelectionActivity уничтожена")
