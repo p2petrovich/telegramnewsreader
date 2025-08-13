@@ -26,6 +26,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 import com.example.telegramnewsreader.activities.VoiceSelectionActivity
 import com.example.telegramnewsreader.utils.TTSDebugTracker
+import android.content.Context  // 🔥 ДОБАВИЛ: нужен для getSharedPreferences
 
 class MainActivity : AppCompatActivity() {
 
@@ -75,6 +76,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+            // 🔥 НОВОЕ: Установка голоса по умолчанию только при первом запуске
+        setDefaultVoiceOnFirstLaunch()
 
         if (!PreferenceManager.isAuthorized(this)) {
             startActivity(Intent(this, AuthActivity::class.java))
@@ -653,4 +656,29 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton("Отмена", null)
             .show()
     }
+
+    // 🔥 НОВОЕ: Установка голоса по умолчанию при первом запуске
+    // 🔥 НОВОЕ: Установка голоса по умолчанию при первом запуске
+    private fun setDefaultVoiceOnFirstLaunch() {
+        // Используем существующие настройки вместо приватного PREFS_NAME
+        val prefs = getPreferences()  // Получаем те же настройки, что и PreferenceManager
+        val isFirstLaunch = prefs.getBoolean("is_first_app_launch", true)
+
+        if (isFirstLaunch) {
+            // Проверяем, установлен ли уже какой-то голос
+            val currentVoice = PreferenceManager.getTtsVoiceName(this)
+            if (currentVoice == null) {
+                // Устанавливаем голос по умолчанию
+                PreferenceManager.saveTtsVoiceName(this, "Александр НД сеть")
+                Log.d("MainActivity", "🔥 Первый запуск: голос установлен на Александр НД сеть")
+            }
+            // Помечаем, что первый запуск уже был
+            prefs.edit().putBoolean("is_first_app_launch", false).apply()
+        } else {
+            Log.d("MainActivity", "Обычный запуск: первый запуск уже был")
+        }
+    }
+
+    // 🔥 Вспомогательный метод для получения настроек
+    private fun getPreferences() = getSharedPreferences("telegram_news_prefs", Context.MODE_PRIVATE)
 }
