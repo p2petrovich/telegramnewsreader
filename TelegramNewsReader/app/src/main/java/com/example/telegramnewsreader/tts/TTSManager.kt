@@ -411,29 +411,36 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     }
 
     private fun splitByParagraphs(text: String, maxChars: Int = 2800): List<String> {
-        // 🔥 Добавляем фильтрацию зеленого квадрата перед разбиением
-        val filteredLines = text.lines().map { it.trim() }.filter {
-            it.isNotEmpty() &&
-                    !it.contains(Regex("(?i)\\bзелен\\s+квадрат\\b|\\bgreen\\s+square\\b|\\b🟩\\b|\\b\\s*🟩\\s*", RegexOption.IGNORE_CASE))
-        }
-
-        val paras = filteredLines.joinToString("\n\n").split(Regex("\\n{2,}")).map { it.trim() }.filter { it.isNotEmpty() }
+        val paras = text.split(Regex("\\n{2,}")).map { it.trim() }.filter { it.isNotEmpty() }
         val parts = mutableListOf<String>()
         val cur = StringBuilder()
 
-        for (para in paras) {
-            if (cur.length + para.length + 2 > maxChars && cur.isNotEmpty()) {
+        fun flush() {
+            if (cur.isNotEmpty()) {
                 parts.add(cur.toString().trim())
                 cur.clear()
             }
-            if (cur.isNotEmpty()) cur.append("\n\n")
-            cur.append(para)
         }
 
-        if (cur.isNotEmpty()) {
-            parts.add(cur.toString().trim())
+        for (p in paras) {
+            if (cur.length + p.length + 2 <= maxChars) {
+                if (cur.isNotEmpty()) cur.append("\n\n")
+                cur.append(p)
+            } else if (p.length <= maxChars) {
+                flush()
+                cur.append(p)
+            } else {
+                splitTextSafely(p, maxChars).forEach { chunk ->
+                    if (parts.isEmpty() || parts.last().length + chunk.length + 2 > maxChars) {
+                        parts.add(chunk)
+                    } else {
+                        parts[parts.lastIndex] = parts.last() + "\n\n" + chunk
+                    }
+                }
+                cur.clear()
+            }
         }
-
+        flush()
         return parts
     }
 
