@@ -18,24 +18,66 @@ class NewsService(
         private const val TOTAL_TIMEOUT_MS = 120000L
     }
 
-
     data class Prepared(
         val preparedMessages: List<String>,
         val totalMessages: Int,
-        val realNewsCount: Int = 0 // НОВОЕ ПОЛЕ
+        val realNewsCount: Int = 0
     )
 
     data class AudioWithChapters(
         val file: File,
         val chaptersMs: List<Long>,
-        val realNewsCount: Int = 0 // НОВОЕ ПОЛЕ
+        val realNewsCount: Int = 0
     )
+
+    // 🔥 НОВОЕ: Метод для получения количества новостей для одного канала
+    suspend fun getChannelNewsCount(
+        channel: Channel,
+        timeHours: Double
+    ): Int = withContext(Dispatchers.IO) {
+        try {
+            val currentTimeSeconds = System.currentTimeMillis() / 1000
+            val fromDate = currentTimeSeconds - (timeHours * 3600).toLong()
+
+            val messages = telegramClient.getChannelMessagesPaginated(channel.id, fromDate)
+            return@withContext messages.size
+        } catch (e: Exception) {
+            Log.e("NewsService", "Ошибка получения сообщений для канала ${channel.id}", e)
+            0
+        }
+    }
+
+    // 🔥 НОВОЕ: Метод для получения количества новостей для всех каналов
+    suspend fun getAllChannelsNewsCount(
+        channels: List<Channel>,
+        timeHours: Double
+    ): Map<Long, Int> = withContext(Dispatchers.IO) {
+        val result = mutableMapOf<Long, Int>()
+
+        try {
+            val currentTimeSeconds = System.currentTimeMillis() / 1000
+            val fromDate = currentTimeSeconds - (timeHours * 3600).toLong()
+
+            channels.forEach { channel ->
+                try {
+                    val messages = telegramClient.getChannelMessagesPaginated(channel.id, fromDate)
+                    result[channel.id] = messages.size
+                } catch (e: Exception) {
+                    Log.e("NewsService", "Ошибка получения сообщений для канала ${channel.id}", e)
+                    result[channel.id] = 0
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("NewsService", "Ошибка в getAllChannelsNewsCount", e)
+        }
+
+        return@withContext result
+    }
 
     suspend fun collectAndProcessNews(
         channels: List<Channel>,
         timeHours: Double
     ): File? = withContext(Dispatchers.IO) {
-        // Начинаем новую сессию — очищаем историю отладчика
         TTSDebugTracker.clearHistory()
         TTSDebugTracker.trackSystemAction("NEWS START collectAndProcessNews channels=${channels.size} hours=$timeHours")
 
@@ -52,7 +94,6 @@ class NewsService(
         channels: List<Channel>,
         timeHours: Double
     ): List<File> = withContext(Dispatchers.IO) {
-        // Новая сессия
         TTSDebugTracker.clearHistory()
         TTSDebugTracker.trackSystemAction("NEWS START collectAndSynthesizeNewsList channels=${channels.size} hours=$timeHours")
 
@@ -64,7 +105,6 @@ class NewsService(
         channels: List<Channel>,
         timeHours: Double
     ): AudioWithChapters? = withContext(Dispatchers.IO) {
-        // Новая сессия
         TTSDebugTracker.clearHistory()
         TTSDebugTracker.trackSystemAction("NEWS START collectAndSynthesizeWithChapters channels=${channels.size} hours=$timeHours")
 
@@ -76,7 +116,6 @@ class NewsService(
             ?: return@withContext null
 
         TTSDebugTracker.trackSystemAction("SYNTH DONE (with chapters) file='${audio.file.name}' chapters=${audio.chaptersMs.size}")
-        // НОВОЕ: передаем правильный счетчик
         AudioWithChapters(audio.file, audio.chaptersMs, list.realNewsCount)
     }
 
@@ -97,12 +136,11 @@ class NewsService(
                 }.awaitAll()
 
                 var totalMessages = 0
-                var realNewsCount = 0 // НОВОЕ: переменная для подсчета реальных новостей
+                var realNewsCount = 0
                 channelResults.forEach { (channel, messages) ->
                     if (messages.isNotEmpty()) {
                         allMessages.add("Новости из канала ${channel.title}:")
                         allMessages.addAll(messages)
-                        // НОВОЕ: считаем только реальные новости
                         realNewsCount += messages.size
                     }
                 }
@@ -110,7 +148,7 @@ class NewsService(
                 if (allMessages.isEmpty()) return@withTimeout Prepared(emptyList(), 0, 0)
 
                 val preparedMessages = prepareMessages(allMessages)
-                Prepared(preparedMessages, totalMessages, realNewsCount) // НОВОЕ: передаем realNewsCount
+                Prepared(preparedMessages, totalMessages, realNewsCount)
             }
         } catch (e: TimeoutCancellationException) {
             Log.e(TAG, "Timeout", e)
@@ -140,35 +178,71 @@ class NewsService(
     private fun prepareMessages(messages: List<String>): List<String> {
         Log.d(TAG, "🧪 prepareMessages: обрабатываем ${messages.size} сообщений")
 
-        // RAW лог первых 10 элементов (переносы → \n)
         Log.d(TAG, "prepareMessages(): RAW start, size=${messages.size}")
         messages.take(10).forEachIndexed { i, m ->
             Log.d(TAG, "RAW[$i]: >>>${m.replace("\n", "\\n")}<<<")
         }
         Log.d(TAG, "prepareMessages(): RAW preview end")
 
-        // УДАЛЯЕМ предфильтрацию заголовков - они должны озвучиваться!
-
         val promoPatterns = listOf(
-            // Служебные/медиа‑маркеры
             "^🔹.*",
             "^🔸.*",
             "^🔴.*",
             "^⚡.*",
             "^🐚.*",
+            "^🟩.*",  // 🔥 Добавлен зеленый квадрат
+            "^🟨.*",  // 🔥 Добавлен желтый квадрат
+            "^🟥.*",  // 🔥 Добавлен красный квадрат
+            "^🟦.*",  // 🔥 Добавлен синий квадрат
+            "^🟪.*",  // 🔥 Добавлен фиолетовый квадрат
+            "^🟫.*",  // 🔥 Добавлен коричневый квадрат
+            "^⬜.*",   // 🔥 Добавлен белый квадрат
+            "^⬛.*",   // 🔥 Добавлен черный квадрат
+            "^🟠.*",  // 🔥 Добавлен оранжевый квадрат
+            "^🟢.*",  // 🔥 Добавлен зеленый круг
+            "^🔵.*",  // 🔥 Добавлен синий круг
+            "^🟡.*",  // 🔥 Добавлен желтый круг
+            "^🟣.*",  // 🔥 Добавлен фиолетовый круг
+            "^⚪.*",   // 🔥 Добавлен белый круг
+            "^⚫.*",   // 🔥 Добавлен черный круг
+            "^⚪️.*",  // 🔥 Добавлен белый круг (альтернатива)
+            "^⚫️.*",  // 🔥 Добавлен черный круг (альтернатива)
+            "^🟰.*",  // 🔥 Добавлен знак равенства
+            "^✅.*",  // 🔥 Добавлен флажок
+            "^✔️.*",  // 🔥 Добавлен галочка
+            "^✔.*",   // 🔥 Добавлен галочка
+            "^☑.*",   // 🔥 Добавлен флажок с галочкой
+            "^☑️.*",  // 🔥 Добавлен флажок с галочкой
+            "^⭕.*",  // 🔥 Добавлен круг с крестиком
+            "^❌.*",  // 🔥 Добавлен крестик
+            "^🚫.*",  // 🔥 Добавлен запрет
+            "^⛔.*",  // 🔥 Добавлен запрет
+            "^⚠️.*",  // 🔥 Добавлен предупреждение
+            "^❗️.*",  // 🔥 Добавлен восклицательный знак
+            "^❓.*",  // 🔥 Добавлен вопросительный знак
+            "^❔.*",  // 🔥 Добавлен вопросительный знак
+            "^❕.*",  // 🔥 Добавлен вопросительный знак
+            "^❗.*",   // 🔥 Добавлен восклицательный знак
+            "^❗️.*",  // 🔥 Добавлен восклицательный знак
+            "^⚠.*",   // 🔥 Добавлен предупреждение
+            "^🛑.*",  // 🔥 Добавлен знак остановки
+            "^⛔.*",  // 🔥 Добавлен запрет
+            "^🚧.*",  // 🔥 Добавлен строительный знак
+            "^🛑.*",  // 🔥 Добавлен стоп знак
+            "^🚷.*",  // 🔥 Добавлен запрет прохода
+            "^🚯.*",  // 🔥 Добавлен запрет выбрасывания мусора
+            "^🚳.*",  // 🔥 Добавлен запрет велосипедов
+            "^🚭.*",  // 🔥 Добавлен запрет курения
+            "^🚱.*",  // 🔥 Добавлен запрет питьевой воды
             "^Фото:.*",
             "^Фото.*",
             "^Видео.*",
             "^\$$.*\$$$",
             "^\\d{2}:\\d{2}\\s*—\\s*\$$.*\$$$",
-
-            // Явные ссылки/приглашения
             "t\\.me/\\S+",
             "перейти в канал.*",
             "наш tg.*",
             "читать(ь)? больше.*",
-
-            // Усиленные подписочные паттерны
             ".*\\bподпис(аться|ывай(ся|тесь)?|ка)\\b.*",
             "^(?:[\\p{So}\\p{Sk}❗️!❤️💚💙💛💜🖤🤍🤎•·▫️◽️◾️▪️🔹🔸]\\s*)*подпис(аться|ывай(ся|тесь)?|ка)\\b.*",
             ".*\\bвсе\\s+наши\\s+каналы\\b.*",
@@ -179,7 +253,6 @@ class NewsService(
         val filtered = messages.mapNotNull { original ->
             val trimmed = original.trim()
 
-            // НОВОЕ: Разрешаем заголовки каналов проходить, но не фильтруем их
             if (trimmed.matches(Regex("^Новости из канала.*:$"))) {
                 Log.v(TAG, "✅ Заголовок канала пропущен без фильтрации: \"$trimmed\"")
                 return@mapNotNull trimmed

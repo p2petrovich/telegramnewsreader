@@ -64,10 +64,8 @@ class MainActivity : AppCompatActivity() {
     )
     private val timeValues = arrayOf(0.25, 0.5, 1.0, 3.0, 6.0, 12.0, 24.0)
 
-    // Индекс текущего выбранного периода (по умолчанию 30 минут = индекс 1)
     private var currentTimePeriodIndex = 1
 
-    // Приём прогресса из AudioPlayerService
     private val progressReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: android.content.Context, intent: Intent) {
             if (intent.action == com.example.telegramnewsreader.services.AudioPlayerService.ACTION_PROGRESS) {
@@ -79,7 +77,7 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     ""
                 }
-                binding.tvPlayingInfo.text = text
+                binding.tvStatus.text = text
             }
         }
     }
@@ -89,10 +87,8 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // 🔥 НОВОЕ: Запрашиваем разрешение на уведомления для Android 13+
         requestNotificationPermission()
 
-        // 🔥 НОВОЕ: Установка голоса по умолчанию только при первом запуске
         setDefaultVoiceOnFirstLaunch()
 
         if (!PreferenceManager.isAuthorized(this)) {
@@ -110,10 +106,8 @@ class MainActivity : AppCompatActivity() {
         Log.d("MainActivity", "onCreate: начальный голос = $lastUsedVoice")
     }
 
-    // 🔥 НОВОЕ: Метод запроса разрешения на уведомления
     private fun requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // Android 13 (API 33) и выше
             if (ContextCompat.checkSelfPermission(
                     this,
                     Manifest.permission.POST_NOTIFICATIONS
@@ -128,7 +122,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // 🔥 НОВОЕ: Обработка результата запроса разрешения
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -143,7 +136,6 @@ class MainActivity : AppCompatActivity() {
                     Log.d("MainActivity", "Разрешение на уведомления получено")
                 } else {
                     Log.d("MainActivity", "Разрешение на уведомления отклонено")
-                    // Можно показать объяснение пользователю
                 }
             }
         }
@@ -156,12 +148,11 @@ class MainActivity : AppCompatActivity() {
         ttsManager = TTSManagerSingleton.getInstance(this)
         newsService = NewsService(telegramClient, ttsManager)
 
-        // 🔥 ИСПРАВЛЕНО: Добавлен контекст (this)
         channelAdapter = ChannelAdapter(
             this,
             onSelectionChanged = { _, _ -> updateNewsCollectionButton() },
-            onHideRequest = { channel -> confirmHideChannel(channel) }
-        )
+            onHideRequest = { channel -> confirmHideChannel(channel)
+            })
         Log.d("MainActivity", "adapter instance=${System.identityHashCode(channelAdapter)}")
 
         binding.recyclerChannels.layoutManager = LinearLayoutManager(this)
@@ -226,11 +217,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupUI() {
-        // Обработчик кнопки выбора периода времени
         binding.btnTimePeriod.setOnClickListener {
             showTimePeriodDialog()
         }
-        // Инициализация текста кнопки
         updateTimePeriodButton()
 
         binding.btnCollectNews.setOnClickListener { collectNews() }
@@ -271,8 +260,7 @@ class MainActivity : AppCompatActivity() {
                 binding.btnPlay.visibility = View.GONE
                 binding.btnPause.visibility = View.GONE
             }
-            // очистим строку прогресса
-            binding.tvPlayingInfo.text = ""
+            binding.tvStatus.text = ""
         }
 
         findViewById<View?>(R.id.btn_next)?.setOnClickListener {
@@ -360,6 +348,10 @@ class MainActivity : AppCompatActivity() {
 
                     updateChannelStats()
                     Log.d("MainActivity", "Загружено каналов: ${filtered.size}")
+
+                    // 🔥 Загружаем начальное количество новостей для всех каналов
+                    loadInitialNewsForChannels(filtered)
+
                 } else {
                     updateStatus("Каналы не найдены")
                     val testChannels = listOf(
@@ -369,9 +361,79 @@ class MainActivity : AppCompatActivity() {
                     channelAdapter.updateChannels(testChannels)
                     updateChannelStats()
                     updateStatus("Тестовые каналы загружены")
+
+                    // 🔥 Загружаем начальное количество новостей для тестовых каналов
+                    loadInitialNewsForChannels(testChannels)
                 }
             }
         }
+    }
+
+    // 🔥 НОВОЕ: Метод для загрузки начального количества новостей для всех каналов
+    private fun loadInitialNewsForChannels(channels: List<Channel>) {
+        if (!isClientReady) {
+            Log.w("MainActivity", "Клиент еще не готов для загрузки начального количества новостей")
+            return
+        }
+
+        lifecycleScope.launch {
+            try {
+                // Используем период по умолчанию (30 минут = 0.5 часа)
+                val defaultTimeHours = 0.5
+
+                updateStatus("Загружаем количество новостей...")
+
+                // Получаем количество новостей для каждого канала
+                val newsCounts = newsService.getAllChannelsNewsCount(channels, defaultTimeHours)
+
+                // Обновляем количество новостей для каждого канала
+                channels.forEach { channel ->
+                    val count = newsCounts[channel.id] ?: 0
+                    channel.newMessagesCount = count
+                }
+
+                // Обновляем отображение в адаптере
+                runOnUiThread {
+                    channelAdapter.notifyDataSetChanged()
+                    updateChannelStatsWithNewsCount()
+                }
+
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Ошибка загрузки начального количества новостей для каналов", e)
+                runOnUiThread {
+                    updateChannelStatsWithNewsCount()
+                }
+            }
+        }
+    }
+
+    // 🔥 НОВОЕ: Метод для обновления статистики с количеством новостей
+    private fun updateChannelStatsWithNewsCount() {
+        val total = channelAdapter.getAllChannels().size
+        val selected = channelAdapter.getSelectedChannels().size
+
+        // Считаем общее количество новостей
+        val totalNewsCount = channelAdapter.getAllChannels().sumOf { it.newMessagesCount }
+
+        val channelInfo = if (selected > 0) {
+            "Каналов: $total | Выбрано: $selected"
+        } else {
+            "Каналов: $total"
+        }
+
+        val newsInfo = if (totalNewsCount > 0) {
+            "Новостей за 30 мин: $totalNewsCount"
+        } else {
+            "Нет новостей за 30 мин"
+        }
+
+        val statusText = if (isClientReady) {
+            "Выберите каналы\n$channelInfo\n$newsInfo"
+        } else {
+            "Инициализация...\n$channelInfo\n$newsInfo"
+        }
+
+        updateStatus(statusText)
     }
 
     private fun collectNews() {
@@ -387,7 +449,6 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // Используем выбранный период времени вместо спиннера
         val timeHours = timeValues[currentTimePeriodIndex]
         Log.d("MainActivity", "Начинаем сбор новостей: каналов=${selectedChannels.size}, период=${timeHours}ч")
 
@@ -414,7 +475,7 @@ class MainActivity : AppCompatActivity() {
                         currentChapters = audio.chaptersMs
                         lastUsedVoice = PreferenceManager.getTtsVoiceName(this@MainActivity)
 
-                        val realNewsCount = audio.realNewsCount // ИСПРАВЛЕНО: используем правильный счетчик
+                        val realNewsCount = audio.realNewsCount
 
                         val durationMin = try {
                             val player = MediaPlayer().apply {
@@ -470,8 +531,7 @@ class MainActivity : AppCompatActivity() {
                         binding.btnPlay.isEnabled = true
                         findViewById<View?>(R.id.btn_next)?.isEnabled = true
 
-                        // очищаем прошлую строку прогресса — сервис пришлёт актуальную
-                        binding.tvPlayingInfo.text = ""
+                        binding.tvStatus.text = ""
 
                         Toast.makeText(
                             this@MainActivity,
@@ -519,7 +579,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<View?>(R.id.btn_next)?.isEnabled = false
         binding.btnPause.isEnabled = false
 
-        binding.tvPlayingInfo.text = ""
+        binding.tvStatus.text = ""
 
         channelAdapter.getAllChannels().forEach { it.newMessagesCount = 0 }
         channelAdapter.notifyDataSetChanged()
@@ -575,7 +635,15 @@ class MainActivity : AppCompatActivity() {
             "Инициализация...\n$message"
         }
 
-        updateStatus(statusText)
+        // Сохраняем информацию о количестве новостей, если она есть
+        val currentText = binding.tvStatus.text.toString()
+        if (currentText.contains("Новостей за 30 мин:") || currentText.contains("Нет новостей за 30 мин")) {
+            // Если уже есть информация о новостях, сохраняем её
+            val newsInfo = currentText.substringAfter("| ").substringBefore("\n")
+            binding.tvStatus.text = "$statusText\n$newsInfo"
+        } else {
+            binding.tvStatus.text = statusText
+        }
     }
 
     override fun onResume() {
@@ -599,7 +667,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        // ✅ ИСПРАВЛЕНО: Используем ContextCompat.registerReceiver с флагом RECEIVER_NOT_EXPORTED для Android 13+
         val intentFilter = IntentFilter(com.example.telegramnewsreader.services.AudioPlayerService.ACTION_PROGRESS)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             ContextCompat.registerReceiver(
@@ -621,7 +688,6 @@ class MainActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         try {
-            // ✅ ИСПРАВЛЕНО: Используем стандартный unregisterReceiver
             unregisterReceiver(progressReceiver)
         } catch (_: Exception) { }
     }
@@ -711,31 +777,24 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // 🔥 НОВОЕ: Установка голоса по умолчанию при первом запуске
     private fun setDefaultVoiceOnFirstLaunch() {
-        // Используем существующие настройки вместо приватного PREFS_NAME
-        val prefs = getPreferences()  // Получаем те же настройки, что и PreferenceManager
+        val prefs = getPreferences()
         val isFirstLaunch = prefs.getBoolean("is_first_app_launch", true)
 
         if (isFirstLaunch) {
-            // Проверяем, установлен ли уже какой-то голос
             val currentVoice = PreferenceManager.getTtsVoiceName(this)
             if (currentVoice == null) {
-                // Устанавливаем голос по умолчанию
                 PreferenceManager.saveTtsVoiceName(this, "Александр НД сеть")
                 Log.d("MainActivity", "🔥 Первый запуск: голос установлен на Александр НД сеть")
             }
-            // Помечаем, что первый запуск уже был
             prefs.edit().putBoolean("is_first_app_launch", false).apply()
         } else {
             Log.d("MainActivity", "Обычный запуск: первый запуск уже был")
         }
     }
 
-    // 🔥 Вспомогательный метод для получения настроек
     private fun getPreferences() = getSharedPreferences("telegram_news_prefs", Context.MODE_PRIVATE)
 
-    // 🔥 НОВОЕ: Методы для работы с выбором периода времени
     private fun showTimePeriodDialog() {
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Выберите период времени")
