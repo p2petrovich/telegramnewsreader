@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true" android:padding="16dp">
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:padding="16dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -11,160 +16,159 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/select_channels"
-            android:textSize="16sp"
+            android:textSize="13sp"
             android:textStyle="bold" />
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recycler_channels"
             android:layout_width="match_parent"
-            android:layout_height="200dp"
-            android:layout_marginTop="8dp" />
+            android:layout_height="250dp"
+            android:layout_marginTop="4dp" />
 
         <Button
             android:id="@+id/btn_manage_hidden"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Управление скрытыми каналами"
+            android:textSize="15sp"
             android:layout_marginTop="8dp" />
 
-        <TextView
-            android:id="@+id/tv_time_period"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/time_period"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:layout_marginTop="16dp" />
-
-        <androidx.appcompat.widget.AppCompatSpinner
-            android:id="@+id/spinner_time"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:spinnerMode="dropdown"
-            android:popupBackground="@drawable/bg_spinner_popup" />
-
         <Button
-            android:id="@+id/btn_collect_news"
+            android:id="@+id/btn_time_period"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/collect_news"
-            android:layout_marginTop="16dp" />
-
-        <ProgressBar
-            android:id="@+id/progress_bar"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:visibility="gone"
-            android:layout_gravity="center_horizontal" />
-
-        <!-- ПАНЕЛЬ ПЛЕЕРА: 4 кнопки-иконки -->
-        <LinearLayout
-            android:id="@+id/ll_player"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
+            android:text="Период: 30 минут"
+            android:textSize="15sp"
             android:layout_marginTop="12dp"
-            android:visibility="gone"
-            android:weightSum="4">
+            android:textColor="@color/purple_200"
+            style="@style/Widget.Material3.Button.OutlinedButton" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_play"
-                android:layout_width="0dp"
-                android:layout_height="48dp"
-                android:layout_weight="1"
-                android:minWidth="0dp"
-                android:text=""
-                android:contentDescription="@string/play"
-                app:icon="@drawable/ic_play"
-                app:iconSize="24dp"
-                app:iconPadding="0dp"
-                app:iconGravity="textStart"
-                app:cornerRadius="24dp"
-                app:iconTint="@color/white"
-                app:backgroundTint="@color/purple_500" />
+        <!-- android:textColor="@color/purple_500" -->
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_pause"
-                android:layout_width="0dp"
-                android:layout_height="48dp"
-                android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                android:minWidth="0dp"
-                android:text=""
-                android:contentDescription="@string/pause"
-                app:icon="@drawable/ic_pause"
-                app:iconSize="24dp"
-                app:iconPadding="0dp"
-                app:iconGravity="textStart"
-                app:cornerRadius="24dp"
-                app:iconTint="@color/white"
-                app:backgroundTint="@color/purple_500" />
+    <Button
+        android:id="@+id/btn_collect_news"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/collect_news"
+        android:textSize="15sp"
+        android:layout_marginTop="12dp" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_stop"
-                android:layout_width="0dp"
-                android:layout_height="48dp"
-                android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                android:minWidth="0dp"
-                android:text=""
-                android:contentDescription="@string/stop"
-                app:icon="@drawable/ic_stop"
-                app:iconSize="24dp"
-                app:iconPadding="0dp"
-                app:iconGravity="textStart"
-                app:cornerRadius="24dp"
-                app:iconTint="@color/white"
-                app:backgroundTint="@color/purple_500" />
+    <ProgressBar
+        android:id="@+id/progress_bar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:visibility="gone"
+        android:layout_gravity="center_horizontal" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_next"
-                android:layout_width="0dp"
-                android:layout_height="48dp"
-                android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                android:minWidth="0dp"
-                android:text=""
-                android:contentDescription="@string/next"
-                app:icon="@drawable/ic_next"
-                app:iconSize="24dp"
-                app:iconPadding="0dp"
-                app:iconGravity="textStart"
-                app:cornerRadius="24dp"
-                app:iconTint="@color/white"
-                app:backgroundTint="@color/purple_500" />
-        </LinearLayout>
+    <LinearLayout
+        android:id="@+id/ll_player"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="15dp"
+        android:visibility="gone"
+        android:weightSum="4">
 
-        <!-- Новое: строка прогресса воспроизведения -->
-        <TextView
-            android:id="@+id/tv_playing_info"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_play"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:minWidth="0dp"
             android:text=""
-            android:layout_marginTop="8dp" />
+            android:contentDescription="@string/play"
+            app:icon="@drawable/ic_play"
+            app:iconSize="24dp"
+            app:iconPadding="0dp"
+            app:iconGravity="textStart"
+            app:cornerRadius="24dp"
+            app:iconTint="@color/white"
+            app:backgroundTint="@color/purple_500" />
 
-        <TextView
-            android:id="@+id/tv_status"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_pause"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:minWidth="0dp"
             android:text=""
-            android:layout_marginTop="16dp" />
+            android:contentDescription="@string/pause"
+            app:icon="@drawable/ic_pause"
+            app:iconSize="24dp"
+            app:iconPadding="0dp"
+            app:iconGravity="textStart"
+            app:cornerRadius="24dp"
+            app:iconTint="@color/white"
+            app:backgroundTint="@color/purple_500" />
 
-        <Button
-            android:id="@+id/btn_open_settings"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Голос и речь"
-            android:layout_marginTop="16dp" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_stop"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:minWidth="0dp"
+            android:text=""
+            android:contentDescription="@string/stop"
+            app:icon="@drawable/ic_stop"
+            app:iconSize="24dp"
+            app:iconPadding="0dp"
+            app:iconGravity="textStart"
+            app:cornerRadius="24dp"
+            app:iconTint="@color/white"
+            app:backgroundTint="@color/purple_500" />
 
-        <Button
-            android:id="@+id/btn_reset_auth"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Сбросить авторизацию"
-            android:layout_marginTop="16dp" />
-
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_next"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:minWidth="0dp"
+            android:text=""
+            android:contentDescription="@string/next"
+            app:icon="@drawable/ic_next"
+            app:iconSize="24dp"
+            app:iconPadding="0dp"
+            app:iconGravity="textStart"
+            app:cornerRadius="24dp"
+            app:iconTint="@color/white"
+            app:backgroundTint="@color/purple_500" />
     </LinearLayout>
+
+    <TextView
+        android:id="@+id/tv_playing_info"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="12sp"
+        android:layout_marginTop="8dp" />
+
+    <TextView
+        android:id="@+id/tv_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="13sp"
+        android:layout_marginTop="16dp" />
+
+    <Button
+        android:id="@+id/btn_open_settings"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Голос и речь"
+        android:textSize="15sp"
+        android:layout_marginTop="16dp" />
+
+    <Button
+        android:id="@+id/btn_reset_auth"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Сбросить авторизацию"
+        android:textSize="15sp"
+        android:layout_marginTop="16dp" />
+
+</LinearLayout>
 </ScrollView>

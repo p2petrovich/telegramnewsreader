@@ -54,15 +54,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val timePeriods = arrayOf(
-        "Последние 10 минут",
-        "Последние 30 минут",
-        "Последний час",
-        "Последние 2 часа",
-        "Последние 4 часа",
-        "Последние 8 часов",
-        "Последние 15 часов"
+        "15 минут",
+        "30 минут",
+        "1 час",
+        "3 часа",
+        "6 часов",
+        "12 часов",
+        "24 часа"
     )
-    private val timeValues = arrayOf(0.166, 0.5, 1.0, 2.0, 4.0, 8.0, 15.0)
+    private val timeValues = arrayOf(0.25, 0.5, 1.0, 3.0, 6.0, 12.0, 24.0)
+
+    // Индекс текущего выбранного периода (по умолчанию 30 минут = индекс 1)
+    private var currentTimePeriodIndex = 1
 
     // Приём прогресса из AudioPlayerService
     private val progressReceiver = object : BroadcastReceiver() {
@@ -100,7 +103,6 @@ class MainActivity : AppCompatActivity() {
 
         initComponents()
         setupUI()
-        expandSpinnerPopupToFullWidth()
         setupClickListeners()
         initializeTelegramClient()
 
@@ -224,9 +226,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupUI() {
-        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, timePeriods)
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        binding.spinnerTime.adapter = adapter
+        // Обработчик кнопки выбора периода времени
+        binding.btnTimePeriod.setOnClickListener {
+            showTimePeriodDialog()
+        }
+        // Инициализация текста кнопки
+        updateTimePeriodButton()
 
         binding.btnCollectNews.setOnClickListener { collectNews() }
 
@@ -311,23 +316,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Растягиваем выпадающий список спиннера на всю ширину экрана
-    private fun expandSpinnerPopupToFullWidth() {
-        val sp = binding.spinnerTime
-        sp.post {
-            try {
-                val screenWidth = resources.displayMetrics.widthPixels
-                val location = IntArray(2)
-                sp.getLocationOnScreen(location)
-                val leftOnScreen = location[0]
-                sp.dropDownHorizontalOffset = -leftOnScreen
-                sp.dropDownWidth = screenWidth
-            } catch (e: Exception) {
-                Log.w("MainActivity", "expandSpinnerPopupToFullWidth failed", e)
-            }
-        }
-    }
-
     private fun openVoiceSettings() {
         val intent = Intent(this, VoiceSelectionActivity::class.java)
         startActivity(intent)
@@ -399,7 +387,8 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val timeHours = timeValues[binding.spinnerTime.selectedItemPosition]
+        // Используем выбранный период времени вместо спиннера
+        val timeHours = timeValues[currentTimePeriodIndex]
         Log.d("MainActivity", "Начинаем сбор новостей: каналов=${selectedChannels.size}, период=${timeHours}ч")
 
         resetCollectionState()
@@ -591,7 +580,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        expandSpinnerPopupToFullWidth()
         if (::ttsManager.isInitialized) {
             val currentVoice = PreferenceManager.getTtsVoiceName(this)
 
@@ -746,4 +734,20 @@ class MainActivity : AppCompatActivity() {
 
     // 🔥 Вспомогательный метод для получения настроек
     private fun getPreferences() = getSharedPreferences("telegram_news_prefs", Context.MODE_PRIVATE)
+
+    // 🔥 НОВОЕ: Методы для работы с выбором периода времени
+    private fun showTimePeriodDialog() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Выберите период времени")
+            .setItems(timePeriods) { _, which ->
+                currentTimePeriodIndex = which
+                updateTimePeriodButton()
+                Log.d("MainActivity", "Выбран период времени: ${timePeriods[which]}")
+            }
+            .show()
+    }
+
+    private fun updateTimePeriodButton() {
+        binding.btnTimePeriod.text = "Период: ${timePeriods[currentTimePeriodIndex]}"
+    }
 }

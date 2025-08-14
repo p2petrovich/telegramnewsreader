@@ -4,55 +4,71 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="8dp">
-
+    android:padding="6dp">
 
     <ImageView
         android:id="@+id/ivAvatar"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
         android:src="@drawable/ic_channel_placeholder"
         android:contentDescription="@string/app_name"
         android:scaleType="centerCrop"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
 
     <TextView
         android:id="@+id/textChannelName"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:text="Channel Name"
-        android:textSize="16sp"
-        android:layout_marginStart="8dp"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:layout_marginStart="6dp"
+        android:layout_marginEnd="4dp"
+        android:maxLines="1"
+        android:ellipsize="end"
         app:layout_constraintStart_toEndOf="@id/ivAvatar"
         app:layout_constraintTop_toTopOf="@id/ivAvatar"
-        app:layout_constraintEnd_toStartOf="@id/checkboxChannel"
+        app:layout_constraintEnd_toStartOf="@id/imageFavorite"
+        app:layout_constraintBottom_toTopOf="@id/textNewMessages" />
+
+    <TextView
+        android:id="@+id/textNewMessages"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="0 новых"
+        android:textSize="12sp"
+        android:textColor="#666666"
+        android:layout_marginStart="6dp"
+        android:layout_marginEnd="4dp"
+        android:maxLines="1"
+        app:layout_constraintStart_toEndOf="@id/ivAvatar"
+        app:layout_constraintTop_toBottomOf="@id/textChannelName"
+        app:layout_constraintEnd_toStartOf="@id/imageFavorite"
         app:layout_constraintBottom_toBottomOf="@id/ivAvatar" />
 
-    <!-- 🔥 НОВОЕ: Иконка избранного -->
+    <!-- Иконка избранного -->
     <ImageView
         android:id="@+id/imageFavorite"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
         android:src="@drawable/ic_star_border"
-        android:layout_marginEnd="8dp"
+        android:layout_marginEnd="6dp"
+        android:padding="2dp"
         app:layout_constraintEnd_toStartOf="@id/checkboxChannel"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent" />
+
     <CheckBox
         android:id="@+id/checkboxChannel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginEnd="2dp"
+        android:scaleX="0.8"
+        android:scaleY="0.8"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
 
-    <TextView
-        android:id="@+id/textNewMessages"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="0 новых"
-        android:textSize="12sp"
-        android:layout_marginStart="8dp"
-        app:layout_constraintStart_toEndOf="@id/ivAvatar"
-        app:layout_constraintTop_toBottomOf="@id/textChannelName" />
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -6,6 +6,7 @@
     <string name="verify">Подтвердить</string>
     <string name="select_channels">Выберите каналы</string>
     <string name="time_period">Период времени</string>
+    <string name="time_period_button">Период: %1$s</string>
     <string name="collect_news">Собрать новости</string>
     <string name="play">Пуск</string>
     <string name="pause">Пауза</string>

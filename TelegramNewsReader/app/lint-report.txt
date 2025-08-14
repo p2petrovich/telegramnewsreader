@@ -1,0 +1,519 @@
+C:\Telegram_grok\TelegramNewsReader\app\src\main\java\com\example\telegramnewsreader\adapters\ChannelAdapter.kt:46: Warning: It will always be more efficient to use more specific change events if you can. Rely on notifyDataSetChanged as a last resort. [NotifyDataSetChanged]
+        notifyDataSetChanged()
+        ~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\java\com\example\telegramnewsreader\adapters\ChannelAdapter.kt:144: Warning: It will always be more efficient to use more specific change events if you can. Rely on notifyDataSetChanged as a last resort. [NotifyDataSetChanged]
+            notifyDataSetChanged()
+            ~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\java\com\example\telegramnewsreader\adapters\ChannelAdapter.kt:155: Warning: It will always be more efficient to use more specific change events if you can. Rely on notifyDataSetChanged as a last resort. [NotifyDataSetChanged]
+        notifyDataSetChanged()
+        ~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\java\com\example\telegramnewsreader\activities\MainActivity.kt:477: Warning: It will always be more efficient to use more specific change events if you can. Rely on notifyDataSetChanged as a last resort. [NotifyDataSetChanged]
+                        channelAdapter.notifyDataSetChanged()
+                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\java\com\example\telegramnewsreader\activities\MainActivity.kt:536: Warning: It will always be more efficient to use more specific change events if you can. Rely on notifyDataSetChanged as a last resort. [NotifyDataSetChanged]
+        channelAdapter.notifyDataSetChanged()
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "NotifyDataSetChanged":
+   The RecyclerView adapter's onNotifyDataSetChanged method does not specify
+   what about the data set has changed, forcing any observers to assume that
+   all existing items and structure may no longer be valid. `LayoutManager`s
+   will be forced to fully rebind and relayout all visible views.
+
+C:\Telegram_grok\TelegramNewsReader\app\src\main\java\com\example\telegramnewsreader\services\AudioPlayerService.kt:138: Warning: Unnecessary; SDK_INT is always >= 24 [ObsoleteSdkInt]
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\java\com\example\telegramnewsreader\services\AudioPlayerService.kt:245: Warning: Unnecessary; SDK_INT is always >= 24 [ObsoleteSdkInt]
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\java\com\example\telegramnewsreader\services\AudioPlayerService.kt:294: Warning: Unnecessary; SDK_INT is always >= 24 [ObsoleteSdkInt]
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\java\com\example\telegramnewsreader\services\AudioPlayerService.kt:492: Warning: Unnecessary; SDK_INT is always >= 24 [ObsoleteSdkInt]
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\java\com\example\telegramnewsreader\services\AudioPlayerService.kt:582: Warning: Unnecessary; SDK_INT is always >= 24 [ObsoleteSdkInt]
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "ObsoleteSdkInt":
+   This check flags version checks that are not necessary, because the
+   minSdkVersion (or surrounding known API level) is already at least as high
+   as the version checked for.
+
+   Similarly, it also looks for resources in -vNN folders, such as values-v14
+   where the version qualifier is less than or equal to the minSdkVersion,
+   where the contents should be merged into the best folder.
+
+C:\Telegram_grok\TelegramNewsReader\app\src\main\java\com\example\telegramnewsreader\tts\TTSManager.kt:27: Warning: Do not place Android context classes in static fields (static reference to TTSManager which has field context pointing to Context); this is a memory leak [StaticFieldLeak]
+    @Volatile
+    ^
+C:\Telegram_grok\TelegramNewsReader\app\src\main\java\com\example\telegramnewsreader\telegram\TelegramClientManager.kt:12: Warning: Do not place Android context classes in static fields (static reference to TelegramClient which has field context pointing to Context); this is a memory leak [StaticFieldLeak]
+    @Volatile
+    ^
+
+   Explanation for issues of type "StaticFieldLeak":
+   A static field will leak contexts.
+
+   Non-static inner classes have an implicit reference to their outer class.
+   If that outer class is for example a Fragment or Activity, then this
+   reference means that the long-running handler/loader/task will hold a
+   reference to the activity which prevents it from getting garbage
+   collected.
+
+   Similarly, direct field references to activities and fragments from these
+   longer running instances can cause leaks.
+
+   ViewModel classes should never point to Views or non-application Contexts.
+
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_voice_selection.xml:7: Warning: Possible overdraw: Root element paints background ?android:attr/colorBackground with a theme that also paints a background (inferred theme is @style/Theme.TelegramNewsReader) [Overdraw]
+    android:background="?android:attr/colorBackground">
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\item_voice.xml:8: Warning: Possible overdraw: Root element paints background ?attr/selectableItemBackground with a theme that also paints a background (inferred theme is @style/Theme.TelegramNewsReader) [Overdraw]
+    android:background="?attr/selectableItemBackground">
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "Overdraw":
+   If you set a background drawable on a root view, then you should use a
+   custom theme where the theme background is null. Otherwise, the theme
+   background will be painted first, only to have your custom background
+   completely cover it; this is called "overdraw".
+
+   NOTE: This detector relies on figuring out which layouts are associated
+   with which activities based on scanning the Java code, and it's currently
+   doing that using an inexact pattern matching algorithm. Therefore, it can
+   incorrectly conclude which activity the layout is associated with and then
+   wrongly complain that a background-theme is hidden.
+
+   If you want your custom background on multiple pages, then you should
+   consider making a custom theme with your custom background and just using
+   that theme instead of a root element background.
+
+   Of course it's possible that your custom drawable is translucent and you
+   want it to be mixed with the background. However, you will get better
+   performance if you pre-mix the background with your drawable and use that
+   resulting image or color as a custom theme background instead.
+
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_category_selection.xml:2: Warning: The resource R.layout.activity_category_selection appears to be unused [UnusedResources]
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+^
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_favorites.xml:2: Warning: The resource R.layout.activity_favorites appears to be unused [UnusedResources]
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+^
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_preview.xml:2: Warning: The resource R.layout.activity_preview appears to be unused [UnusedResources]
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+^
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_settings.xml:2: Warning: The resource R.layout.activity_settings appears to be unused [UnusedResources]
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+^
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\colors.xml:3: Warning: The resource R.color.purple_200 appears to be unused [UnusedResources]
+    <color name="purple_200">#FFBB86FC</color>
+           ~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\colors.xml:6: Warning: The resource R.color.teal_200 appears to be unused [UnusedResources]
+    <color name="teal_200">#FF03DAC5</color>
+           ~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\colors.xml:7: Warning: The resource R.color.teal_700 appears to be unused [UnusedResources]
+    <color name="teal_700">#FF018786</color>
+           ~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\colors.xml:8: Warning: The resource R.color.black appears to be unused [UnusedResources]
+    <color name="black">#FF000000</color>
+           ~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\colors.xml:10: Warning: The resource R.color.holo_red_dark appears to be unused [UnusedResources]
+    <color name="holo_red_dark">#D32F2F</color>
+           ~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\anim\fade_in.xml:2: Warning: The resource R.anim.fade_in appears to be unused [UnusedResources]
+<alpha xmlns:android="http://schemas.android.com/apk/res/android"
+^
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\anim\fade_out.xml:2: Warning: The resource R.anim.fade_out appears to be unused [UnusedResources]
+<alpha xmlns:android="http://schemas.android.com/apk/res/android"
+^
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\drawable\ic_launcher_background.xml:2: Warning: The resource R.drawable.ic_launcher_background appears to be unused [UnusedResources]
+<vector
+^
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\xml\news_widget_info.xml:2: Warning: The resource R.xml.news_widget_info appears to be unused [UnusedResources]
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+^
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:14: Warning: The resource R.string.voice_male appears to be unused [UnusedResources]
+    <string name="voice_male">Мужской голос</string>
+            ~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:15: Warning: The resource R.string.voice_female appears to be unused [UnusedResources]
+    <string name="voice_female">Женский голос</string>
+            ~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:16: Warning: The resource R.string.processing appears to be unused [UnusedResources]
+    <string name="processing">Обработка...</string>
+            ~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:17: Warning: The resource R.string.error_auth appears to be unused [UnusedResources]
+    <string name="error_auth">Ошибка авторизации</string>
+            ~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:18: Warning: The resource R.string.preview_text appears to be unused [UnusedResources]
+    <string name="preview_text">Найдено %1$d новостей, ~%2$d мин</string>
+            ~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:19: Warning: The resource R.string.favorites appears to be unused [UnusedResources]
+    <string name="favorites">Избранные</string>
+            ~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:22: Warning: The resource R.string.tts_settings appears to be unused [UnusedResources]
+    <string name="tts_settings">Настройки TTS</string>
+            ~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:23: Warning: The resource R.string.voice_selection appears to be unused [UnusedResources]
+    <string name="voice_selection">Выбор голоса</string>
+            ~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:24: Warning: The resource R.string.voice_test appears to be unused [UnusedResources]
+    <string name="voice_test">Тестировать голос</string>
+            ~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:25: Warning: The resource R.string.voice_pitch appears to be unused [UnusedResources]
+    <string name="voice_pitch">Тембр</string>
+            ~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:26: Warning: The resource R.string.voice_speed appears to be unused [UnusedResources]
+    <string name="voice_speed">Скорость</string>
+            ~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:27: Warning: The resource R.string.voice_saved appears to be unused [UnusedResources]
+    <string name="voice_saved">Голос сохранен</string>
+            ~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:28: Warning: The resource R.string.voice_testing appears to be unused [UnusedResources]
+    <string name="voice_testing">Тестирую голос...</string>
+            ~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:29: Warning: The resource R.string.no_voices_available appears to be unused [UnusedResources]
+    <string name="no_voices_available">Голоса TTS не найдены</string>
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:32: Warning: The resource R.string.voice_alexander appears to be unused [UnusedResources]
+    <string name="voice_alexander">Александр</string>
+            ~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:33: Warning: The resource R.string.voice_elena appears to be unused [UnusedResources]
+    <string name="voice_elena">Елена</string>
+            ~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:34: Warning: The resource R.string.voice_maxim appears to be unused [UnusedResources]
+    <string name="voice_maxim">Максим</string>
+            ~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:35: Warning: The resource R.string.voice_anna appears to be unused [UnusedResources]
+    <string name="voice_anna">Анна</string>
+            ~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:36: Warning: The resource R.string.voice_dmitry appears to be unused [UnusedResources]
+    <string name="voice_dmitry">Дмитрий</string>
+            ~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:37: Warning: The resource R.string.voice_sofia appears to be unused [UnusedResources]
+    <string name="voice_sofia">София</string>
+            ~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:38: Warning: The resource R.string.voice_andrey appears to be unused [UnusedResources]
+    <string name="voice_andrey">Андрей</string>
+            ~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:39: Warning: The resource R.string.voice_maria appears to be unused [UnusedResources]
+    <string name="voice_maria">Мария</string>
+            ~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:40: Warning: The resource R.string.voice_mikhail appears to be unused [UnusedResources]
+    <string name="voice_mikhail">Михаил</string>
+            ~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:41: Warning: The resource R.string.voice_ekaterina appears to be unused [UnusedResources]
+    <string name="voice_ekaterina">Екатерина</string>
+            ~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:42: Warning: The resource R.string.voice_nikolay appears to be unused [UnusedResources]
+    <string name="voice_nikolay">Николай</string>
+            ~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:45: Warning: The resource R.string.gender_male appears to be unused [UnusedResources]
+    <string name="gender_male">Мужской голос</string>
+            ~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:46: Warning: The resource R.string.gender_female appears to be unused [UnusedResources]
+    <string name="gender_female">Женский голос</string>
+            ~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:47: Warning: The resource R.string.gender_neutral appears to be unused [UnusedResources]
+    <string name="gender_neutral">Нейтральный голос</string>
+            ~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:48: Warning: The resource R.string.voice_local appears to be unused [UnusedResources]
+    <string name="voice_local">локально</string>
+            ~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:49: Warning: The resource R.string.voice_network appears to be unused [UnusedResources]
+    <string name="voice_network">сеть</string>
+            ~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:50: Warning: The resource R.string.voice_hd appears to be unused [UnusedResources]
+    <string name="voice_hd">HD</string>
+            ~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\themes.xml:3: Warning: The resource R.style.Theme_TelegramNewsReader_Light appears to be unused [UnusedResources]
+    <style name="Theme.TelegramNewsReader.Light" parent="Theme.Material3.Light">
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\themes.xml:10: Warning: The resource R.style.Theme_TelegramNewsReader_Dark appears to be unused [UnusedResources]
+    <style name="Theme.TelegramNewsReader.Dark" parent="Theme.Material3.Dark">
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\widget_loading.xml:2: Warning: The resource R.layout.widget_loading appears to be unused [UnusedResources]
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+^
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\drawable\widget_preview.xml:2: Warning: The resource R.drawable.widget_preview appears to be unused [UnusedResources]
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+^
+
+   Explanation for issues of type "UnusedResources":
+   Unused resources make applications larger and slow down builds.
+
+
+   The unused resource check can ignore tests. If you want to include
+   resources that are only referenced from tests, consider packaging them in a
+   test source set instead.
+
+   You can include test sources in the unused resource check by setting the
+   system property lint.unused-resources.include-tests =true, and to exclude
+   them (usually for performance reasons), use
+   lint.unused-resources.exclude-tests =true.
+   ,
+
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:16: Warning: Replace "..." with ellipsis character (…, &#8230;) ? [TypographyEllipsis]
+    <string name="processing">Обработка...</string>
+                              ~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\values\strings.xml:28: Warning: Replace "..." with ellipsis character (…, &#8230;) ? [TypographyEllipsis]
+    <string name="voice_testing">Тестирую голос...</string>
+                                 ~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "TypographyEllipsis":
+   You can replace the string "..." with a dedicated ellipsis character,
+   ellipsis character (u2026, &#8230;). This can help make the text more
+   readable.
+
+   https://en.wikipedia.org/wiki/Ellipsis
+
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\mipmap-anydpi-v26\ic_launcher.xml:2: Warning: The application adaptive icon is missing a monochrome tag [MonochromeLauncherIcon]
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+^
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\mipmap-anydpi-v26\ic_launcher_round.xml:2: Warning: The application adaptive roundIcon is missing a monochrome tag [MonochromeLauncherIcon]
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+^
+
+   Explanation for issues of type "MonochromeLauncherIcon":
+   If android:roundIcon and android:icon are both in your manifest, you must
+   either remove the reference to android:roundIcon if it is not needed; or,
+   supply the monochrome icon in the drawable defined by the android:roundIcon
+   and android:icon attribute.
+
+   For example, if android:roundIcon and android:icon are both in the
+   manifest, a launcher might choose to use android:roundIcon over
+   android:icon to display the adaptive app icon. Therefore, your themed
+   application iconwill not show if your monochrome attribute is not also
+   specified in android:roundIcon.
+
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_player.xml:44: Warning: Buttons in button bars should be borderless; use style="?android:attr/buttonBarButtonStyle" (and ?android:attr/buttonBarStyle on the parent) [ButtonStyle]
+        <Button
+         ~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_player.xml:51: Warning: Buttons in button bars should be borderless; use style="?android:attr/buttonBarButtonStyle" (and ?android:attr/buttonBarStyle on the parent) [ButtonStyle]
+        <Button
+         ~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_player.xml:58: Warning: Buttons in button bars should be borderless; use style="?android:attr/buttonBarButtonStyle" (and ?android:attr/buttonBarStyle on the parent) [ButtonStyle]
+        <Button
+         ~~~~~~
+
+   Explanation for issues of type "ButtonStyle":
+   Button bars typically use a borderless style for the buttons. Set the
+   style="?android:attr/buttonBarButtonStyle" attribute on each of the
+   buttons, and set style="?android:attr/buttonBarStyle" on the parent layout
+
+   https://d.android.com/r/studio-ui/designer/material/dialogs
+
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_auth.xml:8: Warning: Missing autofillHints attribute [Autofill]
+    <EditText
+     ~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_auth.xml:28: Warning: Missing autofillHints attribute [Autofill]
+    <EditText
+     ~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_auth.xml:51: Warning: Missing autofillHints attribute [Autofill]
+    <EditText
+     ~~~~~~~~
+
+   Explanation for issues of type "Autofill":
+   Specify an autofillHints attribute when targeting SDK version 26 or higher
+   or explicitly specify that the view is not important for autofill. Your app
+   can help an autofill service classify the data correctly by providing the
+   meaning of each view that could be autofillable, such as views representing
+   usernames, passwords, credit card fields, email addresses, etc.
+
+   The hints can have any value, but it is recommended to use predefined
+   values like 'username' for a username or 'creditCardNumber' for a credit
+   card number. For a list of all predefined autofill hint constants, see the
+   AUTOFILL_HINT_ constants in the View reference at
+   https://developer.android.com/reference/android/view/View.html.
+
+   You can mark a view unimportant for autofill by specifying an
+   importantForAutofill attribute on that view or a parent view. See
+   https://developer.android.com/reference/android/view/View.html#setImportant
+   ForAutofill(int).
+
+   https://developer.android.com/guide/topics/text/autofill.html
+
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\item_channel.xml:33: Warning: Missing contentDescription attribute on image [ContentDescription]
+    <ImageView
+     ~~~~~~~~~
+
+   Explanation for issues of type "ContentDescription":
+   Non-textual widgets like ImageViews and ImageButtons should use the
+   contentDescription attribute to specify a textual description of the widget
+   such that screen readers and other accessibility tools can adequately
+   describe the user interface.
+
+   Note that elements in application screens that are purely decorative and do
+   not provide any content or enable a user action should not have
+   accessibility content descriptions. In this case, set their descriptions to
+   @null. If your app's minSdkVersion is 16 or higher, you can instead set
+   these graphical elements' android:importantForAccessibility attributes to
+   no.
+
+   Note that for text fields, you should not set both the hint and the
+   contentDescription attributes since the hint will never be shown. Just set
+   the hint.
+
+   https://developer.android.com/guide/topics/ui/accessibility/apps#special-cases
+
+C:\Telegram_grok\TelegramNewsReader\app\src\main\java\com\example\telegramnewsreader\utils\TTSDebugTracker.kt:13: Warning: Assigning Locale.getDefault() to a final static field is suspicious; this code will not work correctly if the user changes locale while the app is running [ConstantLocale]
+    private val dateFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
+                                                              ~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "ConstantLocale":
+   Assigning Locale.getDefault() to a constant is suspicious, because the
+   locale can change while the app is running.
+
+C:\Telegram_grok\TelegramNewsReader\app\src\main\java\com\example\telegramnewsreader\activities\AuthActivity.kt:94: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                binding.tvError.text = "Введите код из SMS"
+                                        ~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\java\com\example\telegramnewsreader\activities\PlayerActivity.kt:20: Warning: Do not concatenate text displayed with setText. Use resource string with placeholders. [SetTextI18n]
+        binding.tvCurrentChannel.text = "Текущий канал: $title"
+                                        ~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\java\com\example\telegramnewsreader\activities\PlayerActivity.kt:23: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+        binding.tvTimeLabels.text = "0:00 / 0:00"
+                                     ~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\java\com\example\telegramnewsreader\activities\SettingsActivity.kt:55: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                    text = "Выберите русский голос TTS:"
+                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\java\com\example\telegramnewsreader\activities\SettingsActivity.kt:101: Warning: Do not concatenate text displayed with setText. Use resource string with placeholders. [SetTextI18n]
+                    text = "❗ Русские голоса TTS не найдены.\nУбедитесь, что установлен голосовой движок с поддержкой русского языка"
+                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\java\com\example\telegramnewsreader\activities\SettingsActivity.kt:101: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                    text = "❗ Русские голоса TTS не найдены.\nУбедитесь, что установлен голосовой движок с поддержкой русского языка"
+                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\java\com\example\telegramnewsreader\adapters\VoiceAdapter.kt:89: Warning: Do not concatenate text displayed with setText. Use resource string with placeholders. [SetTextI18n]
+        holder.radio.text = "$displayText ($engineInfo)"
+                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "SetTextI18n":
+   When calling TextView#setText
+   * Never call Number#toString() to format numbers; it will not handle
+   fraction separators and locale-specific digits properly. Consider using
+   String#format with proper format specifications (%d or %f) instead.
+   * Do not pass a string literal (e.g. "Hello") to display text. Hardcoded
+   text can not be properly translated to other languages. Consider using
+   Android resource strings instead.
+   * Do not build messages by concatenating text chunks. Such messages can not
+   be properly translated.
+
+   https://developer.android.com/guide/topics/resources/localization.html
+
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_auth.xml:55: Warning: Hardcoded string "Введите облачный пароль", should use @string resource [HardcodedText]
+        android:hint="Введите облачный пароль"
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_auth.xml:67: Warning: Hardcoded string "Подтвердить пароль", should use @string resource [HardcodedText]
+        android:text="Подтвердить пароль"
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_category_selection.xml:13: Warning: Hardcoded string "Выберите категории", should use @string resource [HardcodedText]
+        android:text="Выберите категории"
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_category_selection.xml:33: Warning: Hardcoded string "Сохранить", should use @string resource [HardcodedText]
+        android:text="Сохранить"
+        ~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_favorites.xml:33: Warning: Hardcoded string "Воспроизвести выбранное", should use @string resource [HardcodedText]
+        android:text="Воспроизвести выбранное"
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_favorites.xml:43: Warning: Hardcoded string "Удалить выбранное", should use @string resource [HardcodedText]
+        android:text="Удалить выбранное"
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_main.xml:27: Warning: Hardcoded string "Управление скрытыми каналами", should use @string resource [HardcodedText]
+            android:text="Управление скрытыми каналами"
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_main.xml:159: Warning: Hardcoded string "Голос и речь", should use @string resource [HardcodedText]
+            android:text="Голос и речь"
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_main.xml:166: Warning: Hardcoded string "Сбросить авторизацию", should use @string resource [HardcodedText]
+            android:text="Сбросить авторизацию"
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_player.xml:12: Warning: Hardcoded string "Текущий канал: ", should use @string resource [HardcodedText]
+        android:text="Текущий канал: "
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_player.xml:30: Warning: Hardcoded string "0:00 / 0:00", should use @string resource [HardcodedText]
+        android:text="0:00 / 0:00"
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_preview.xml:22: Warning: Hardcoded string "Собрать дайджест", should use @string resource [HardcodedText]
+        android:text="Собрать дайджест"
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_preview.xml:32: Warning: Hardcoded string "Настройки", should use @string resource [HardcodedText]
+        android:text="Настройки"
+        ~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_preview.xml:42: Warning: Hardcoded string "Редактировать фильтры", should use @string resource [HardcodedText]
+        android:text="Редактировать фильтры"
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_settings.xml:13: Warning: Hardcoded string "Скорость речи", should use @string resource [HardcodedText]
+        android:text="Скорость речи"
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_settings.xml:33: Warning: Hardcoded string "Язык озвучивания", should use @string resource [HardcodedText]
+        android:text="Язык озвучивания"
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_settings.xml:52: Warning: Hardcoded string "Голос", should use @string resource [HardcodedText]
+        android:text="Голос"
+        ~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_settings.xml:76: Warning: Hardcoded string "Сохранить", should use @string resource [HardcodedText]
+        android:text="Сохранить"
+        ~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_voice_selection.xml:21: Warning: Hardcoded string "Выбор голоса", should use @string resource [HardcodedText]
+            android:text="Выбор голоса"
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_voice_selection.xml:29: Warning: Hardcoded string "Выберите голос и настройте тембр и скорость речи", should use @string resource [HardcodedText]
+            android:text="Выберите голос и настройте тембр и скорость речи"
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_voice_selection.xml:59: Warning: Hardcoded string "💡 Совет", should use @string resource [HardcodedText]
+            android:text="💡 Совет"
+            ~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\activity_voice_selection.xml:67: Warning: Hardcoded string "• Нажмите ▶️ чтобы прослушать голосn• Настройте тембр и скорость по вкусуn• Выбранные настройки сохраняются автоматически", should use @string resource [HardcodedText]
+            android:text="• Нажмите ▶️ чтобы прослушать голос\n• Настройте тембр и скорость по вкусу\n• Выбранные настройки сохраняются автоматически"
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\item_channel.xml:24: Warning: Hardcoded string "Channel Name", should use @string resource [HardcodedText]
+        android:text="Channel Name"
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\item_channel.xml:53: Warning: Hardcoded string "0 новых", should use @string resource [HardcodedText]
+        android:text="0 новых"
+        ~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\item_voice.xml:22: Warning: Hardcoded string "👨", should use @string resource [HardcodedText]
+            android:text="👨"
+            ~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\item_voice.xml:32: Warning: Hardcoded string "Голос", should use @string resource [HardcodedText]
+            android:text="Голос"
+            ~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\item_voice.xml:40: Warning: Hardcoded string "Прослушать голос", should use @string resource [HardcodedText]
+            android:contentDescription="Прослушать голос"
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\item_voice.xml:64: Warning: Hardcoded string "Тембр", should use @string resource [HardcodedText]
+                android:text="Тембр"
+                ~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\item_voice.xml:82: Warning: Hardcoded string "1.0", should use @string resource [HardcodedText]
+                android:text="1.0"
+                ~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\item_voice.xml:94: Warning: Hardcoded string "Сброс тембра", should use @string resource [HardcodedText]
+                android:contentDescription="Сброс тембра"
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\item_voice.xml:109: Warning: Hardcoded string "Скорость", should use @string resource [HardcodedText]
+                android:text="Скорость"
+                ~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\item_voice.xml:127: Warning: Hardcoded string "1.0", should use @string resource [HardcodedText]
+                android:text="1.0"
+                ~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\item_voice.xml:139: Warning: Hardcoded string "Сброс скорости", should use @string resource [HardcodedText]
+                android:contentDescription="Сброс скорости"
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Telegram_grok\TelegramNewsReader\app\src\main\res\layout\widget_loading.xml:17: Warning: Hardcoded string "Загрузка...", should use @string resource [HardcodedText]
+        android:text="Загрузка..."
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "HardcodedText":
+   Hardcoding text attributes directly in layout files is bad for several
+   reasons:
+
+   * When creating configuration variations (for example for landscape or
+   portrait) you have to repeat the actual text (and keep it up to date when
+   making changes)
+
+   * The application cannot be translated to other languages by just adding
+   new translations for existing string resources.
+
+   There are quickfixes to automatically extract this hardcoded string into a
+   resource lookup.
+
+0 errors, 115 warnings

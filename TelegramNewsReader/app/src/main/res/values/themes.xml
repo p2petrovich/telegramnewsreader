@@ -4,6 +4,7 @@
         <item name="colorPrimary">@color/purple_500</item>
         <item name="colorPrimaryVariant">@color/purple_700</item>
         <item name="colorOnPrimary">@color/white</item>
+        <item name="actionBarStyle">@style/CustomActionBarStyle</item>
     </style>
 
     
@@ -11,6 +12,7 @@
         <item name="colorPrimary">@color/teal_200</item>
         <item name="colorPrimaryVariant">@color/teal_700</item>
         <item name="colorOnPrimary">@color/black</item>
+        <item name="actionBarStyle">@style/CustomActionBarStyle</item>
     </style>
 
     
@@ -19,5 +21,21 @@
         <item name="colorPrimaryVariant">@color/purple_700</item>
         <item name="colorOnPrimary">@color/white</item>
         <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
+        <item name="actionBarStyle">@style/CustomActionBarStyle</item>
+    </style>
+
+    <!-- Стиль для ActionBar -->
+    <style name="CustomActionBarStyle" parent="Widget.Material3.ActionBar.Solid">
+        <item name="titleTextStyle">@style/CustomActionBarTitle</item>
+        <item name="android:titleTextStyle">@style/CustomActionBarTitle</item>
+    </style>
+
+    <!-- Стиль для заголовка ActionBar -->
+    <style name="CustomActionBarTitle" parent="TextAppearance.Material3.ActionBar.Title">
+        <item name="android:textSize">18sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:gravity">center</item>
+        <item name="android:layout_gravity">center</item>
     </style>
 </resources>
