@@ -12,6 +12,7 @@ import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -32,6 +33,8 @@ import com.example.telegramnewsreader.activities.VoiceSelectionActivity
 import com.example.telegramnewsreader.utils.TTSDebugTracker
 import android.content.Context
 import android.content.pm.PackageManager
+import android.widget.Button
+import android.widget.ImageButton
 
 class MainActivity : AppCompatActivity() {
 
@@ -86,6 +89,14 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // Настройка Toolbar с кнопкой настроек
+        setSupportActionBar(binding.toolbar)
+
+        // Обработчик кнопки настроек
+        binding.btnSettings.setOnClickListener {
+            showSettingsDialog()
+        }
 
         requestNotificationPermission()
 
@@ -224,8 +235,6 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnCollectNews.setOnClickListener { collectNews() }
 
-        findViewById<View?>(R.id.btn_manage_hidden)?.setOnClickListener { showHiddenManager() }
-
         binding.btnPlay.setOnClickListener {
             if (currentPlaylist.isEmpty()) {
                 Toast.makeText(this, "Сначала соберите новости", Toast.LENGTH_SHORT).show()
@@ -246,14 +255,14 @@ class MainActivity : AppCompatActivity() {
             updatePlayerButtons(isPlaying = false)
         }
 
-        findViewById<View?>(R.id.btn_stop)?.setOnClickListener {
+        binding.btnStop.setOnClickListener {
             startService(
                 Intent(this, com.example.telegramnewsreader.services.AudioPlayerService::class.java)
                     .setAction(com.example.telegramnewsreader.services.AudioPlayerService.ACTION_STOP)
             )
             resetPlayerButtons()
             binding.btnPlay.isEnabled = false
-            findViewById<View?>(R.id.btn_next)?.isEnabled = false
+            binding.btnNext.isEnabled = false
             try {
                 binding.llPlayer.visibility = View.GONE
             } catch (_: Exception) {
@@ -263,24 +272,11 @@ class MainActivity : AppCompatActivity() {
             binding.tvStatus.text = ""
         }
 
-        findViewById<View?>(R.id.btn_next)?.setOnClickListener {
+        binding.btnNext.setOnClickListener {
             startService(
                 Intent(this, com.example.telegramnewsreader.services.AudioPlayerService::class.java)
                     .setAction(com.example.telegramnewsreader.services.AudioPlayerService.ACTION_NEXT)
             )
-        }
-
-        binding.btnResetAuth.setOnClickListener {
-            Log.d("MainActivity", "RESET AUTH: requested")
-            binding.btnResetAuth.isEnabled = false
-            TelegramClientManager.logoutAndClearDb(this) {
-                PreferenceManager.clearAll(this)
-                TTSManagerSingleton.clearInstance()
-                Log.d("MainActivity", "RESET AUTH: completed, opening AuthActivity")
-                Toast.makeText(this, "Авторизация сброшена", Toast.LENGTH_SHORT).show()
-                startActivity(Intent(this, AuthActivity::class.java))
-                finish()
-            }
         }
 
         binding.btnCollectNews.isEnabled = false
@@ -293,15 +289,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnPlay.isEnabled = false
-        findViewById<View?>(R.id.btn_next)?.isEnabled = false
+        binding.btnNext.isEnabled = false
         binding.btnPause.isEnabled = false
     }
 
     private fun setupClickListeners() {
-        binding.btnOpenSettings.setOnClickListener {
-            Log.d("MainActivity", "🔧 Открываем настройки TTS")
-            openVoiceSettings()
-        }
+        // Все обработчики теперь в setupUI
     }
 
     private fun openVoiceSettings() {
@@ -529,7 +522,7 @@ class MainActivity : AppCompatActivity() {
                         showPlayerControls()
                         resetPlayerButtons()
                         binding.btnPlay.isEnabled = true
-                        findViewById<View?>(R.id.btn_next)?.isEnabled = true
+                        binding.btnNext.isEnabled = true
 
                         binding.tvStatus.text = ""
 
@@ -576,7 +569,7 @@ class MainActivity : AppCompatActivity() {
             binding.btnPause.visibility = View.GONE
         }
         binding.btnPlay.isEnabled = false
-        findViewById<View?>(R.id.btn_next)?.isEnabled = false
+        binding.btnNext.isEnabled = false
         binding.btnPause.isEnabled = false
 
         binding.tvStatus.text = ""
@@ -808,5 +801,70 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateTimePeriodButton() {
         binding.btnTimePeriod.text = "Период: ${timePeriods[currentTimePeriodIndex]}"
+    }
+
+    // 🔥 НОВОЕ: Метод для отображения диалога настроек
+    private fun showSettingsDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_settings, null)
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .create()
+
+        // Находим кнопки в диалоге
+        val btnManageHidden = dialogView.findViewById<Button>(R.id.btn_manage_hidden)
+        val btnVoiceSettings = dialogView.findViewById<Button>(R.id.btn_voice_settings)
+        val btnResetAuth = dialogView.findViewById<Button>(R.id.btn_reset_auth)
+
+        // Устанавливаем обработчики кликов
+        btnManageHidden.setOnClickListener {
+            dialog.dismiss()
+            showHiddenManager()
+        }
+
+        btnVoiceSettings.setOnClickListener {
+            dialog.dismiss()
+            openVoiceSettings()
+        }
+
+        btnResetAuth.setOnClickListener {
+            dialog.dismiss()
+            showResetAuthConfirmation()
+        }
+
+        dialog.show()
+    }
+
+    // 🔥 НОВОЕ: Метод для подтверждения сброса авторизации
+    private fun showResetAuthConfirmation() {
+        AlertDialog.Builder(this)
+            .setTitle("Сброс авторизации")
+            .setMessage("Вы уверены, что хотите сбросить авторизацию? Все данные будут удалены.")
+            .setPositiveButton("Да") { _, _ ->
+                resetAuthorization()
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    // 🔥 НОВОЕ: Метод сброса авторизации
+    private fun resetAuthorization() {
+        Log.d("MainActivity", "RESET AUTH: requested")
+
+        // Блокируем UI во время сброса
+        binding.btnCollectNews.isEnabled = false
+        updateStatus("Сброс авторизации...")
+
+        TelegramClientManager.logoutAndClearDb(this) {
+            PreferenceManager.clearAll(this)
+            TTSManagerSingleton.clearInstance()
+            Log.d("MainActivity", "RESET AUTH: completed, opening AuthActivity")
+
+            runOnUiThread {
+                Toast.makeText(this, "Авторизация сброшена", Toast.LENGTH_SHORT).show()
+                startActivity(Intent(this, AuthActivity::class.java))
+                finish()
+            }
+        }
     }
 }

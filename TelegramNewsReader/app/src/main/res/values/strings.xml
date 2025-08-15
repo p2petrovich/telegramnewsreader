@@ -18,7 +18,7 @@
     <string name="error_auth">Ошибка авторизации</string>
     <string name="preview_text">Найдено %1$d новостей, ~%2$d мин</string>
     <string name="favorites">Избранные</string>
-    
+
     <!-- 🔥 НОВЫЕ СТРОКИ для голосов TTS -->
     <string name="tts_settings">Настройки TTS</string>
     <string name="voice_selection">Выбор голоса</string>
@@ -28,7 +28,7 @@
     <string name="voice_saved">Голос сохранен</string>
     <string name="voice_testing">Тестирую голос...</string>
     <string name="no_voices_available">Голоса TTS не найдены</string>
-    
+
     <!-- Предопределенные названия голосов -->
     <string name="voice_alexander">Александр</string>
     <string name="voice_elena">Елена</string>
@@ -41,7 +41,7 @@
     <string name="voice_mikhail">Михаил</string>
     <string name="voice_ekaterina">Екатерина</string>
     <string name="voice_nikolay">Николай</string>
-    
+
     <!-- Описания голосов -->
     <string name="gender_male">Мужской голос</string>
     <string name="gender_female">Женский голос</string>
@@ -49,4 +49,12 @@
     <string name="voice_local">локально</string>
     <string name="voice_network">сеть</string>
     <string name="voice_hd">HD</string>
+
+    <!-- Строки для настроек -->
+    <string name="settings">Настройки</string>
+    <string name="manage_hidden_channels">Управление скрытыми каналами</string>
+    <string name="voice_and_speech">Голос и речь</string>
+    <string name="reset_authorization">Сбросить авторизацию</string>
+    <string name="confirm_reset_auth">Вы уверены, что хотите сбросить авторизацию?</string>
+    <string name="auth_reset_success">Авторизация сброшена</string>
 </resources>
