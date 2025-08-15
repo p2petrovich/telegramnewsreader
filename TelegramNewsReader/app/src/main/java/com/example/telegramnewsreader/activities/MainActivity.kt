@@ -49,6 +49,7 @@ class MainActivity : AppCompatActivity() {
 
     private var currentPlaylist: List<File> = emptyList()
     private var currentChapters: List<Long> = emptyList()
+    private var savedDurationInfo: String? = null
 
     private val pendingPhotos = mutableMapOf<Long, String>()
 
@@ -81,16 +82,15 @@ class MainActivity : AppCompatActivity() {
                     ""
                 }
 
-                // Сохраняем информацию о длительности при обновлении статуса воспроизведения
-                val currentStatus = binding.tvStatus.text.toString()
-                if (currentStatus.contains("Примерная длительность:")) {
-                    val durationLine = currentStatus.lines().find { it.contains("Примерная длительность:") }
-                    if (durationLine != null && text.isNotEmpty()) {
-                        binding.tvStatus.text = "$text\n$durationLine"
-                        return
-                    }
+                // Если есть сохраненная информация о длительности, добавляем её
+                var finalText = text
+                if (savedDurationInfo != null && text.isNotEmpty()) {
+                    finalText = "$text\n$savedDurationInfo"
+                } else if (text.isEmpty() && savedDurationInfo != null) {
+                    finalText = savedDurationInfo!!
                 }
-                binding.tvStatus.text = text
+
+                binding.tvStatus.text = finalText
             }
         }
     }
@@ -283,6 +283,7 @@ class MainActivity : AppCompatActivity() {
                 binding.btnPause.visibility = View.GONE
             }
             binding.tvStatus.text = ""
+            savedDurationInfo = null
         }
 
         binding.btnNext.setOnClickListener {
@@ -510,7 +511,9 @@ class MainActivity : AppCompatActivity() {
 
                         val baseStatus = "Готово! Найдено новостей: ${audio.realNewsCount}"
                         if (durationMin != null) {
-                            val fullStatus = "$baseStatus\nПримерная длительность: ~${durationMin} минут"
+                            val durationInfo = "Примерная длительность: ~${durationMin} минут"
+                            savedDurationInfo = durationInfo  // Сохраняем информацию
+                            val fullStatus = "$baseStatus\n$durationInfo"
                             Log.d("MainActivity", "Full status message: $fullStatus")
                             updateStatus(fullStatus)
                         } else {
@@ -588,6 +591,7 @@ class MainActivity : AppCompatActivity() {
 
         currentPlaylist = emptyList()
         currentChapters = emptyList()
+        savedDurationInfo = null  // Очищаем сохраненную информацию
 
         try {
             binding.llPlayer.visibility = View.GONE
@@ -632,10 +636,25 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateStatus(message: String) {
         try {
-            Log.d("MainActivity", "Setting status: $message")
-            Log.d("MainActivity", "Status lines count: ${message.lines().size}")
+            var finalMessage = message
 
-            binding.tvStatus.text = message
+            // Если есть сохраненная информация о длительности, добавляем её
+            if (savedDurationInfo != null && !message.contains("Примерная длительность:")) {
+                finalMessage = "$message\n$savedDurationInfo"
+            }
+            // Если новое сообщение содержит информацию о длительности, сохраняем её
+            else if (message.contains("Примерная длительность:")) {
+                val durationLine = message.lines().find { it.contains("Примерная длительность:") }
+                if (durationLine != null) {
+                    savedDurationInfo = durationLine
+                    finalMessage = message
+                }
+            }
+
+            Log.d("MainActivity", "Setting status: $finalMessage")
+            Log.d("MainActivity", "Status lines count: ${finalMessage.lines().size}")
+
+            binding.tvStatus.text = finalMessage
 
             // Принудительно прокручиваем TextView если есть скролл
             binding.tvStatus.movementMethod = ScrollingMovementMethod.getInstance()
