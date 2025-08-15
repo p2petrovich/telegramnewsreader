@@ -34,7 +34,7 @@ import com.example.telegramnewsreader.utils.TTSDebugTracker
 import android.content.Context
 import android.content.pm.PackageManager
 import android.widget.Button
-import android.widget.ImageButton
+import android.text.method.ScrollingMovementMethod
 
 class MainActivity : AppCompatActivity() {
 
@@ -80,6 +80,16 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     ""
                 }
+
+                // Сохраняем информацию о длительности при обновлении статуса воспроизведения
+                val currentStatus = binding.tvStatus.text.toString()
+                if (currentStatus.contains("Примерная длительность:")) {
+                    val durationLine = currentStatus.lines().find { it.contains("Примерная длительность:") }
+                    if (durationLine != null && text.isNotEmpty()) {
+                        binding.tvStatus.text = "$text\n$durationLine"
+                        return
+                    }
+                }
                 binding.tvStatus.text = text
             }
         }
@@ -90,13 +100,16 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Настройка Toolbar с кнопкой настроек
+        // Настройка Toolbar как ActionBar
         setSupportActionBar(binding.toolbar)
 
         // Обработчик кнопки настроек
         binding.btnSettings.setOnClickListener {
             showSettingsDialog()
         }
+
+        // Включаем скролл для TextView статуса
+        binding.tvStatus.movementMethod = ScrollingMovementMethod.getInstance()
 
         requestNotificationPermission()
 
@@ -426,6 +439,18 @@ class MainActivity : AppCompatActivity() {
             "Инициализация...\n$channelInfo\n$newsInfo"
         }
 
+        // Сохраняем существующую дополнительную информацию (например, длительность)
+        val currentText = binding.tvStatus.text.toString()
+        if (currentText.contains("Примерная длительность:")) {
+            // Извлекаем информацию о длительности
+            val lines = currentText.split("\n")
+            val durationLine = lines.find { it.contains("Примерная длительность:") }
+            if (durationLine != null) {
+                updateStatus("$statusText\n$durationLine")
+                return
+            }
+        }
+
         updateStatus(statusText)
     }
 
@@ -485,7 +510,9 @@ class MainActivity : AppCompatActivity() {
 
                         val baseStatus = "Готово! Найдено новостей: ${audio.realNewsCount}"
                         if (durationMin != null) {
-                            updateStatus("$baseStatus\nПримерная длительность: ~${durationMin} минут")
+                            val fullStatus = "$baseStatus\nПримерная длительность: ~${durationMin} минут"
+                            Log.d("MainActivity", "Full status message: $fullStatus")
+                            updateStatus(fullStatus)
                         } else {
                             updateStatus(baseStatus)
                         }
@@ -605,8 +632,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateStatus(message: String) {
         try {
+            Log.d("MainActivity", "Setting status: $message")
+            Log.d("MainActivity", "Status lines count: ${message.lines().size}")
+
             binding.tvStatus.text = message
-            Log.d("MainActivity", "Status: $message")
+
+            // Принудительно прокручиваем TextView если есть скролл
+            binding.tvStatus.movementMethod = ScrollingMovementMethod.getInstance()
         } catch (_: Exception) {
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
@@ -628,12 +660,26 @@ class MainActivity : AppCompatActivity() {
             "Инициализация...\n$message"
         }
 
-        // Сохраняем информацию о количестве новостей, если она есть
+        // Сохраняем дополнительную информацию (новости, длительность и т.д.)
         val currentText = binding.tvStatus.text.toString()
-        if (currentText.contains("Новостей за 30 мин:") || currentText.contains("Нет новостей за 30 мин")) {
-            // Если уже есть информация о новостях, сохраняем её
-            val newsInfo = currentText.substringAfter("| ").substringBefore("\n")
-            binding.tvStatus.text = "$statusText\n$newsInfo"
+
+        // Ищем дополнительную информацию, которую нужно сохранить
+        val additionalInfoLines = mutableListOf<String>()
+
+        // Проверяем наличие информации о длительности
+        val durationLine = currentText.lines().find { it.contains("Примерная длительность:") }
+        if (durationLine != null) {
+            additionalInfoLines.add(durationLine)
+        }
+
+        // Проверяем наличие информации о новостях
+        val newsInfoLines = currentText.lines().find { it.contains("Новостей за 30 мин:") || it.contains("Нет новостей за 30 мин") }
+        if (newsInfoLines != null) {
+            additionalInfoLines.add(0, newsInfoLines) // Добавляем в начало
+        }
+
+        if (additionalInfoLines.isNotEmpty()) {
+            binding.tvStatus.text = "$statusText\n${additionalInfoLines.joinToString("\n")}"
         } else {
             binding.tvStatus.text = statusText
         }
