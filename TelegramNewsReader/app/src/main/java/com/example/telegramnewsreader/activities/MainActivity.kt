@@ -671,11 +671,15 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
 
+// В методе collectNews() в ProgressCallback:
+
                         override fun onSynthesisStarted(messageCount: Int) {
                             runOnUiThread {
                                 updateDetailedProgress("Начинаем синтез речи...", 0, 100)
                                 totalProgressSteps = messageCount
                                 currentProgressStep = 0
+                                // Обновляем счетчик озвучено на 0 при старте
+                                updateCounters(0, 0, 0)
                             }
                         }
 
@@ -686,6 +690,9 @@ class MainActivity : AppCompatActivity() {
 
                                 // Обновляем текущий шаг для ETA
                                 currentProgressStep = current
+
+                                // Обновляем счетчик "Озвучено"
+                                updateCounters(0, 0, current)
 
                                 // Обновляем ETAs
                                 val elapsed = (System.currentTimeMillis() - startTime) / 1000

@@ -137,7 +137,6 @@ class NewsService(
         if (list.preparedMessages.isEmpty()) return@withContext null
 
         TTSDebugTracker.trackSystemAction("SYNTH START (with chapters) messages=${list.preparedMessages.size}")
-        progressCallback.onSynthesisStarted(list.preparedMessages.size)
 
         val audio = ttsManager.convertToAudioWithChaptersWithCallback(
             list.preparedMessages,
@@ -145,14 +144,20 @@ class NewsService(
             progressCallback = object : TTSManager.SynthesisProgressCallback {
                 override fun onProgress(current: Int, total: Int) {
                     progressCallback.onSynthesisProgress(current, total)
+                    // Обновляем счетчик "Озвучено" - сколько сообщений уже озвучено
+                    progressCallback.onUpdateCounters(0, 0, current)
                 }
 
                 override fun onStarted(messageCount: Int) {
                     progressCallback.onSynthesisStarted(messageCount)
+                    // При старте синтеза обновляем счетчик на 0
+                    progressCallback.onUpdateCounters(0, 0, 0)
                 }
 
                 override fun onCompleted() {
                     progressCallback.onSynthesisCompleted()
+                    // По завершении синтеза обновляем счетчик на максимальное значение
+                    progressCallback.onUpdateCounters(0, 0, list.preparedMessages.size)
                 }
             }
         ) ?: return@withContext null
@@ -216,11 +221,17 @@ class NewsService(
                 val preparedMessages = prepareMessages(allMessages) { originalCount, filteredCount ->
                     // Обновляем счетчики фильтрации
                     progressCallback.onMessageFiltered(originalCount, filteredCount)
-                    progressCallback.onUpdateCounters(originalCount, filteredCount, 0)
+                    // originalCount - всего сообщений
+                    // (originalCount - filteredCount) - количество отфильтрованных (удаленных)
+                    // 0 - пока не начат синтез
+                    progressCallback.onUpdateCounters(originalCount, originalCount - filteredCount, 0)
                 }
 
-                // Обновляем финальные счетчики
-                progressCallback.onUpdateCounters(allMessages.size, preparedMessages.size, 0)
+// Обновляем финальные счетчики
+// Собрано: всего сообщений
+// Отфильтровано: разница между всеми и оставшимися после фильтрации
+// Озвучено: пока 0
+                progressCallback.onUpdateCounters(allMessages.size, allMessages.size - preparedMessages.size, 0)
                 progressCallback.onUpdateProgress("Подготовка завершена", 100, 100)
 
                 Prepared(preparedMessages, totalMessages, realNewsCount)
