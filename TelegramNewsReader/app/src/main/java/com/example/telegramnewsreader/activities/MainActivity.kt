@@ -510,7 +510,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateCounters(collected: Int, filtered: Int, synthesized: Int) {
         runOnUiThread {
             binding.tvCollectedCount.text = "Собрано: $collected"
-            binding.tvFilteredCount.text = "Отфильтровано: $filtered"
+            binding.tvFilteredCount.text = "Отфильтр.: $filtered"
             binding.tvSynthesizedCount.text = "Озвучено: $synthesized"
         }
     }
