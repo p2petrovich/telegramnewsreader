@@ -38,6 +38,8 @@ import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 
 class MainActivity : AppCompatActivity() {
 
@@ -63,6 +65,8 @@ class MainActivity : AppCompatActivity() {
     private var startTime: Long = 0
     private var totalProgressSteps: Int = 0
     private var currentProgressStep: Int = 0
+    // Добавьте в объявление класса, рядом с другими переменными:
+    private var newsCollectionJob: Job? = null
 
     companion object {
         private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 1001
@@ -87,6 +91,10 @@ class MainActivity : AppCompatActivity() {
     private var processedNewsCount = 0
     private var filteredNewsCount = 0
     private var synthesizedNewsCount = 0
+
+    // Переменные для сохранения значений счетчиков
+    private var lastTotalCollected = 0
+    private var lastTotalFiltered = 0
 
     private val progressReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: android.content.Context, intent: Intent) {
@@ -148,7 +156,7 @@ class MainActivity : AppCompatActivity() {
         Log.d("MainActivity", "onCreate: начальный голос = $lastUsedVoice")
 
         // Скрываем панели прогресса по умолчанию
-            //hideProgressPanels()
+        //hideProgressPanels()
     }
 
     private fun hideProgressPanels() {
@@ -499,7 +507,7 @@ class MainActivity : AppCompatActivity() {
 
             // Обновляем цвет прогресса (фиолетовый)
             binding.progressBarDetailed.progressTintList = android.content.res.ColorStateList.valueOf(
-                                android.graphics.Color.parseColor("#9C27B0")
+                android.graphics.Color.parseColor("#9C27B0")
             )
         }
     }
@@ -598,6 +606,17 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        // Если уже идет сбор новостей, останавливаем его
+        if (newsCollectionJob?.isActive == true) {
+            newsCollectionJob?.cancel()
+            updateStatus("Сбор новостей остановлен")
+            binding.progressBar.visibility = View.GONE
+            binding.btnCollectNews.text = "Собрать новости"
+            binding.btnCollectNews.isEnabled = true
+            stopTimer()
+            return
+        }
+
         val timeHours = timeValues[currentTimePeriodIndex]
         Log.d("MainActivity", "Начинаем сбор новостей: каналов=${selectedChannels.size}, период=${timeHours}ч")
 
@@ -608,12 +627,19 @@ class MainActivity : AppCompatActivity() {
         resetProgressCounters()
 
         binding.progressBar.visibility = View.VISIBLE
-        binding.btnCollectNews.isEnabled = false
+        binding.btnCollectNews.text = "Остановить"
+        binding.btnCollectNews.isEnabled = true
 
         // Запускаем таймер для ETA
         startTimer()
 
-        lifecycleScope.launch {
+        // Запускаем сбор новостей с возможностью отмены
+        newsCollectionJob = lifecycleScope.launch {
+            // Проверяем, не отменена ли задача сразу после запуска
+            //if (!isActive) {
+               // Log.d("MainActivity", "Задача была отменена сразу после запуска")
+                //return@launch
+            //}
             try {
                 updateStatus("Собираем новости из ${selectedChannels.size} каналов...")
                 updateDetailedProgress("Начинаем сбор новостей...", 0, 100)
@@ -625,6 +651,9 @@ class MainActivity : AppCompatActivity() {
                     timeHours = timeHours,
                     progressCallback = object : ProgressCallback {
                         override fun onUpdateProgress(status: String, progress: Int, total: Int) {
+                            // Проверяем, не отменена ли задача через Job
+                            if (newsCollectionJob?.isActive == false) return
+
                             runOnUiThread {
                                 updateDetailedProgress(status, progress, total)
                                 if (total > 0) {
@@ -641,24 +670,35 @@ class MainActivity : AppCompatActivity() {
                         }
 
                         override fun onUpdateCounters(collected: Int, filtered: Int, synthesized: Int) {
+                            if (newsCollectionJob?.isActive == false) return
+
                             runOnUiThread {
+                                // Сохраняем значения для последующего использования
+                                lastTotalCollected = collected
+                                lastTotalFiltered = filtered
                                 updateCounters(collected, filtered, synthesized)
                             }
                         }
 
                         override fun onUpdateNewsPreview(newsList: List<String>) {
+                            if (newsCollectionJob?.isActive == false) return
+
                             runOnUiThread {
                                 updateNewsPreview(newsList)
                             }
                         }
 
                         override fun onUpdateChannelProgress(channels: List<Channel>) {
+                            if (newsCollectionJob?.isActive == false) return
+
                             runOnUiThread {
                                 updateChannelProgress(channels)
                             }
                         }
 
                         override fun onChannelProcessed(channel: Channel, messagesCount: Int) {
+                            if (newsCollectionJob?.isActive == false) return
+
                             runOnUiThread {
                                 channel.newMessagesCount = messagesCount
                                 updateChannelProgress(selectedChannels)
@@ -666,24 +706,29 @@ class MainActivity : AppCompatActivity() {
                         }
 
                         override fun onMessageFiltered(originalCount: Int, filteredCount: Int) {
+                            if (newsCollectionJob?.isActive == false) return
+
                             runOnUiThread {
-                                updateCounters(originalCount, originalCount - filteredCount, filteredCount)
+                                // Отфильтровано = оригинальное количество - количество после фильтрации
+                                updateCounters(originalCount, originalCount - filteredCount, 0)
                             }
                         }
 
-// В методе collectNews() в ProgressCallback:
-
                         override fun onSynthesisStarted(messageCount: Int) {
+                            if (newsCollectionJob?.isActive == false) return
+
                             runOnUiThread {
                                 updateDetailedProgress("Начинаем синтез речи...", 0, 100)
                                 totalProgressSteps = messageCount
                                 currentProgressStep = 0
-                                // Обновляем счетчик озвучено на 0 при старте
-                                updateCounters(0, 0, 0)
+                                // Используем сохраненные значения
+                                updateCounters(lastTotalCollected, lastTotalFiltered, 0)
                             }
                         }
 
                         override fun onSynthesisProgress(current: Int, total: Int) {
+                            if (newsCollectionJob?.isActive == false) return
+
                             runOnUiThread {
                                 val progress = if (total > 0) (current * 100) / total else 0
                                 updateDetailedProgress("Синтез речи: $current/$total", progress, 100)
@@ -691,8 +736,8 @@ class MainActivity : AppCompatActivity() {
                                 // Обновляем текущий шаг для ETA
                                 currentProgressStep = current
 
-                                // Обновляем счетчик "Озвучено"
-                                updateCounters(0, 0, current)
+                                // Обновляем счетчики с сохраненными значениями "Собрано" и "Отфильтровано"
+                                updateCounters(lastTotalCollected, lastTotalFiltered, current)
 
                                 // Обновляем ETAs
                                 val elapsed = (System.currentTimeMillis() - startTime) / 1000
@@ -705,11 +750,16 @@ class MainActivity : AppCompatActivity() {
                         }
 
                         override fun onSynthesisCompleted() {
+                            if (newsCollectionJob?.isActive == false) return
+
                             runOnUiThread {
                                 updateDetailedProgress("Синтез завершен", 100, 100)
                                 updateETA(0)
                                 // Оставляем кнопку активной
                                 binding.btnCollectNews.isEnabled = true
+                                binding.btnCollectNews.text = "Собрать новости"
+                                // Финальное обновление счетчиков
+                                updateCounters(lastTotalCollected, lastTotalFiltered, lastTotalCollected)
                             }
                         }
                     }
@@ -719,7 +769,9 @@ class MainActivity : AppCompatActivity() {
 
                 runOnUiThread {
                     binding.progressBar.visibility = View.GONE
+                    binding.btnCollectNews.text = "Собрать новости"
                     binding.btnCollectNews.isEnabled = true
+
                     // Добавить это, чтобы обновить прогресс до 100%:
                     updateDetailedProgress("Сбор завершен", 100, 100)
                     updateETA(0)
@@ -740,8 +792,29 @@ class MainActivity : AppCompatActivity() {
                             player.release()
                             minutes
                         } catch (e: Exception) {
-                            Log.w("MainActivity", "Не удалось определить длительность аудио", e)
-                            null
+                            // Проверяем, является ли это отменой задачи
+                            if (e is kotlinx.coroutines.CancellationException) {
+                                Log.d("MainActivity", "Сбор новостей отменен пользователем")
+                                stopTimer()
+                                runOnUiThread {
+                                    binding.progressBar.visibility = View.GONE
+                                    binding.btnCollectNews.text = "Собрать новости"
+                                    binding.btnCollectNews.isEnabled = true
+                                    updateStatus("Сбор новостей отменен")
+                                }
+                                // УДАЛИТЕ return@launch - он не нужен здесь
+                            } else {
+                                Log.e("MainActivity", "Ошибка при сборе новостей", e)
+                                stopTimer()
+                                runOnUiThread {
+                                    binding.progressBar.visibility = View.GONE
+                                    binding.btnCollectNews.text = "Собрать новости"
+                                    binding.btnCollectNews.isEnabled = true
+                                    //hideProgressPanels() // Скрываем панели прогресса при ошибке
+                                    updateStatus("Ошибка при обработке новостей: ${e.message}")
+                                    Toast.makeText(this@MainActivity, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
+                                }
+                            }
                         }
 
                         val baseStatus = "Готово! Найдено новостей: ${audio.realNewsCount}"
@@ -807,10 +880,24 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             } catch (e: Exception) {
+                // Проверяем, является ли это отменой задачи
+                if (e is kotlinx.coroutines.CancellationException) {
+                    Log.d("MainActivity", "Сбор новостей отменен пользователем")
+                    stopTimer()
+                    runOnUiThread {
+                        binding.progressBar.visibility = View.GONE
+                        binding.btnCollectNews.text = "Собрать новости"
+                        binding.btnCollectNews.isEnabled = true
+                        updateStatus("Сбор новостей отменен")
+                    }
+                    return@launch
+                }
+
                 Log.e("MainActivity", "Ошибка при сборе новостей", e)
                 stopTimer()
                 runOnUiThread {
                     binding.progressBar.visibility = View.GONE
+                    binding.btnCollectNews.text = "Собрать новости"
                     binding.btnCollectNews.isEnabled = true
                     //hideProgressPanels() // Скрываем панели прогресса при ошибке
                     updateStatus("Ошибка при обработке новостей: ${e.message}")

@@ -7,6 +7,7 @@ import com.example.telegramnewsreader.tts.TTSManager
 import kotlinx.coroutines.*
 import java.io.File
 import com.example.telegramnewsreader.utils.TTSDebugTracker
+import kotlinx.coroutines.CancellationException
 
 // 🔥 НОВОЕ: Интерфейс для обновления прогресса
 interface ProgressCallback {
@@ -144,20 +145,20 @@ class NewsService(
             progressCallback = object : TTSManager.SynthesisProgressCallback {
                 override fun onProgress(current: Int, total: Int) {
                     progressCallback.onSynthesisProgress(current, total)
-                    // Обновляем счетчик "Озвучено" - сколько сообщений уже озвучено
-                    progressCallback.onUpdateCounters(0, 0, current)
+                    // Передаем: собрано, отфильтровано, озвучено
+                    progressCallback.onUpdateCounters(list.preparedMessages.size, list.preparedMessages.size - list.preparedMessages.size, current)
                 }
 
                 override fun onStarted(messageCount: Int) {
                     progressCallback.onSynthesisStarted(messageCount)
-                    // При старте синтеза обновляем счетчик на 0
-                    progressCallback.onUpdateCounters(0, 0, 0)
+                    // При старте синтеза обновляем счетчики
+                    progressCallback.onUpdateCounters(list.preparedMessages.size, list.preparedMessages.size - list.preparedMessages.size, 0)
                 }
 
                 override fun onCompleted() {
                     progressCallback.onSynthesisCompleted()
-                    // По завершении синтеза обновляем счетчик на максимальное значение
-                    progressCallback.onUpdateCounters(0, 0, list.preparedMessages.size)
+                    // По завершении синтеза обновляем счетчики
+                    progressCallback.onUpdateCounters(list.preparedMessages.size, list.preparedMessages.size - list.preparedMessages.size, list.preparedMessages.size)
                 }
             }
         ) ?: return@withContext null
@@ -176,6 +177,9 @@ class NewsService(
 
         try {
             withTimeout(TOTAL_TIMEOUT_MS) {
+                // Проверяем, не отменена ли корутина
+                if (!isActive) return@withTimeout null
+
                 val allMessages = mutableListOf<String>()
                 val currentTimeSeconds = System.currentTimeMillis() / 1000
                 val fromDate = currentTimeSeconds - (timeHours * 3600).toLong()
@@ -186,6 +190,9 @@ class NewsService(
 
                 val channelResults = channels.mapIndexed { index, channel ->
                     async {
+                        // Проверяем, не отменена ли корутина
+                        if (!isActive) return@async Pair(channel, emptyList<String>())
+
                         val result = processChannelWithTimeout(channel, fromDate)
                         // Обновляем прогресс после обработки каждого канала
                         progressCallback.onChannelProcessed(result.first, result.second.size)
@@ -193,6 +200,9 @@ class NewsService(
                         result
                     }
                 }.awaitAll()
+
+                // Проверяем, не отменена ли корутина
+                if (!isActive) return@withTimeout null
 
                 var totalMessages = 0
                 var realNewsCount = 0
@@ -217,8 +227,14 @@ class NewsService(
                     return@withTimeout Prepared(emptyList(), 0, 0)
                 }
 
+                // Проверяем, не отменена ли корутина
+                if (!isActive) return@withTimeout null
+
                 progressCallback.onUpdateProgress("Фильтруем новости...", 0, 100)
                 val preparedMessages = prepareMessages(allMessages) { originalCount, filteredCount ->
+                    // Проверяем, не отменена ли корутина
+                    if (!isActive) return@prepareMessages
+
                     // Обновляем счетчики фильтрации
                     progressCallback.onMessageFiltered(originalCount, filteredCount)
                     // originalCount - всего сообщений
@@ -227,10 +243,10 @@ class NewsService(
                     progressCallback.onUpdateCounters(originalCount, originalCount - filteredCount, 0)
                 }
 
-// Обновляем финальные счетчики
-// Собрано: всего сообщений
-// Отфильтровано: разница между всеми и оставшимися после фильтрации
-// Озвучено: пока 0
+                // Проверяем, не отменена ли корутина
+                if (!isActive) return@withTimeout null
+
+                // Обновляем финальные счетчики
                 progressCallback.onUpdateCounters(allMessages.size, allMessages.size - preparedMessages.size, 0)
                 progressCallback.onUpdateProgress("Подготовка завершена", 100, 100)
 
@@ -239,6 +255,10 @@ class NewsService(
         } catch (e: TimeoutCancellationException) {
             Log.e(TAG, "Timeout", e)
             progressCallback.onUpdateProgress("Ошибка: превышено время ожидания", 0, 100)
+            null
+        } catch (e: CancellationException) {
+            Log.d(TAG, "Сбор новостей отменен пользователем")
+            progressCallback.onUpdateProgress("Сбор новостей отменен", 0, 100)
             null
         } catch (e: Exception) {
             Log.e(TAG, "Error", e)
