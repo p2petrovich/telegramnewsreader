@@ -2,17 +2,21 @@ package com.example.telegramnewsreader.activities
 
 import android.Manifest
 import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.media.MediaPlayer
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.text.method.ScrollingMovementMethod
 import android.util.Log
 import android.view.View
-import android.widget.ArrayAdapter
+import android.widget.Button
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -22,22 +26,15 @@ import com.example.telegramnewsreader.adapter.ChannelAdapter
 import com.example.telegramnewsreader.databinding.ActivityMainBinding
 import com.example.telegramnewsreader.model.Channel
 import com.example.telegramnewsreader.service.NewsService
+import com.example.telegramnewsreader.service.ProgressCallback
 import com.example.telegramnewsreader.telegram.TelegramClient
 import com.example.telegramnewsreader.telegram.TelegramClientManager
 import com.example.telegramnewsreader.tts.TTSManager
 import com.example.telegramnewsreader.tts.TTSManagerSingleton
 import com.example.telegramnewsreader.utils.PreferenceManager
+import com.example.telegramnewsreader.utils.TTSDebugTracker
 import kotlinx.coroutines.launch
 import java.io.File
-import com.example.telegramnewsreader.activities.VoiceSelectionActivity
-import com.example.telegramnewsreader.utils.TTSDebugTracker
-import android.content.Context
-import android.content.pm.PackageManager
-import android.widget.Button
-import android.text.method.ScrollingMovementMethod
-import com.example.telegramnewsreader.service.ProgressCallback
-import android.os.Handler
-import android.os.Looper
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
@@ -716,7 +713,9 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     binding.progressBar.visibility = View.GONE
                     binding.btnCollectNews.isEnabled = true
-                    hideProgressPanels() // Скрываем панели прогресса после завершения
+                    // Добавить это, чтобы обновить прогресс до 100%:
+                    updateDetailedProgress("Сбор завершен", 100, 100)
+                    updateETA(0)
 
                     if (audio != null) {
                         currentPlaylist = listOf(audio.file)
@@ -806,7 +805,7 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     binding.progressBar.visibility = View.GONE
                     binding.btnCollectNews.isEnabled = true
-                    hideProgressPanels() // Скрываем панели прогресса при ошибке
+                    //hideProgressPanels() // Скрываем панели прогресса при ошибке
                     updateStatus("Ошибка при обработке новостей: ${e.message}")
                     Toast.makeText(this@MainActivity, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
                 }
