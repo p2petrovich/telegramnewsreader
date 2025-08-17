@@ -35,6 +35,9 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.widget.Button
 import android.text.method.ScrollingMovementMethod
+import com.example.telegramnewsreader.service.ProgressCallback
+import android.os.Handler
+import android.os.Looper
 
 class MainActivity : AppCompatActivity() {
 
@@ -69,6 +72,12 @@ class MainActivity : AppCompatActivity() {
     private val timeValues = arrayOf(0.25, 0.5, 1.0, 3.0, 6.0, 12.0, 24.0)
 
     private var currentTimePeriodIndex = 1
+
+    // Переменные для отслеживания прогресса
+    private var totalNewsToProcess = 0
+    private var processedNewsCount = 0
+    private var filteredNewsCount = 0
+    private var synthesizedNewsCount = 0
 
     private val progressReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: android.content.Context, intent: Intent) {
@@ -128,6 +137,21 @@ class MainActivity : AppCompatActivity() {
 
         lastUsedVoice = PreferenceManager.getTtsVoiceName(this)
         Log.d("MainActivity", "onCreate: начальный голос = $lastUsedVoice")
+
+        // Скрываем панели прогресса по умолчанию
+        hideProgressPanels()
+    }
+
+    private fun hideProgressPanels() {
+        binding.cardCollectionProgress.visibility = View.GONE
+        binding.cardNewsPreview.visibility = View.GONE
+        binding.cardChannelProgress.visibility = View.GONE
+    }
+
+    private fun showProgressPanels() {
+        binding.cardCollectionProgress.visibility = View.VISIBLE
+        binding.cardNewsPreview.visibility = View.VISIBLE
+        binding.cardChannelProgress.visibility = View.VISIBLE
     }
 
     private fun requestNotificationPermission() {
@@ -455,6 +479,58 @@ class MainActivity : AppCompatActivity() {
         updateStatus(statusText)
     }
 
+    // Методы для обновления детального прогресса
+    private fun updateDetailedProgress(status: String, progress: Int, total: Int) {
+        runOnUiThread {
+            binding.tvDetailedStatus.text = status
+            val percentage = if (total > 0) (progress * 100 / total) else 0
+            binding.progressBarDetailed.progress = percentage
+            binding.tvProgressPercentage.text = "$percentage%"
+        }
+    }
+
+    private fun updateCounters(collected: Int, filtered: Int, synthesized: Int) {
+        runOnUiThread {
+            binding.tvCollectedCount.text = "Собрано: $collected"
+            binding.tvFilteredCount.text = "Отфильтровано: $filtered"
+            binding.tvSynthesizedCount.text = "Озвучено: $synthesized"
+        }
+    }
+
+    private fun updateNewsPreview(newsList: List<String>) {
+        runOnUiThread {
+            if (newsList.isEmpty()) {
+                binding.tvNewsPreview.text = "Новости еще не собраны..."
+                return@runOnUiThread
+            }
+
+            val previewText = newsList.take(3).joinToString("\n• ") {
+                it.replace(Regex("^\\d{2}:\\d{2}\\s*—\\s*"), "").take(60) + "..."
+            }
+            binding.tvNewsPreview.text = "• $previewText"
+        }
+    }
+
+    private fun updateChannelProgress(channels: List<Channel>) {
+        runOnUiThread {
+            binding.llChannelProgressList.removeAllViews()
+
+            channels.forEach { channel ->
+                val progressText = when {
+                    channel.newMessagesCount > 0 -> "Новостей: ${channel.newMessagesCount}"
+                    else -> "Обработка..."
+                }
+
+                val textView = android.widget.TextView(this).apply {
+                    text = "${channel.title}: $progressText"
+                    textSize = 12f
+                    setPadding(0, 4, 0, 4)
+                }
+                binding.llChannelProgressList.addView(textView)
+            }
+        }
+    }
+
     private fun collectNews() {
         if (!isClientReady || !telegramClient.checkAuthState()) {
             Toast.makeText(this, "Telegram клиент не готов. Попробуйте позже.", Toast.LENGTH_LONG).show()
@@ -473,21 +549,46 @@ class MainActivity : AppCompatActivity() {
 
         resetCollectionState()
 
+        // Показываем панели прогресса
+        showProgressPanels()
+        resetProgressCounters()
+
         binding.progressBar.visibility = View.VISIBLE
         binding.btnCollectNews.isEnabled = false
 
         lifecycleScope.launch {
             try {
                 updateStatus("Собираем новости из ${selectedChannels.size} каналов...")
+                updateDetailedProgress("Начинаем сбор новостей...", 0, 100)
+                updateChannelProgress(selectedChannels)
 
+                val handler = Handler(Looper.getMainLooper())
+
+                // Имитация прогресса синтеза
+                val progressTimer = object : Runnable {
+                    var progress = 0
+                    override fun run() {
+                        progress += 5
+                        if (progress <= 100) {
+                            updateDetailedProgress("Синтез речи...", progress, 100)
+                            handler.postDelayed(this, 300) // Обновляем каждые 300 мс
+                        }
+                    }
+                }
+                handler.post(progressTimer)
+
+                // Вызов метода без progressCallback на время тестирования
                 val audio = newsService.collectAndSynthesizeWithChapters(
                     channels = selectedChannels,
                     timeHours = timeHours
                 )
 
+                handler.removeCallbacks(progressTimer)
+
                 runOnUiThread {
                     binding.progressBar.visibility = View.GONE
                     binding.btnCollectNews.isEnabled = true
+                    hideProgressPanels() // Скрываем панели прогресса после завершения
 
                     if (audio != null) {
                         currentPlaylist = listOf(audio.file)
@@ -576,11 +677,21 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     binding.progressBar.visibility = View.GONE
                     binding.btnCollectNews.isEnabled = true
+                    hideProgressPanels() // Скрываем панели прогресса при ошибке
                     updateStatus("Ошибка при обработке новостей: ${e.message}")
                     Toast.makeText(this@MainActivity, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }
+    }
+
+    private fun resetProgressCounters() {
+        totalNewsToProcess = 0
+        processedNewsCount = 0
+        filteredNewsCount = 0
+        synthesizedNewsCount = 0
+        updateCounters(0, 0, 0)
+        updateNewsPreview(emptyList())
     }
 
     private fun resetCollectionState() {

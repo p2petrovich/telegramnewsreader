@@ -8,6 +8,24 @@ import kotlinx.coroutines.*
 import java.io.File
 import com.example.telegramnewsreader.utils.TTSDebugTracker
 
+// 🔥 НОВОЕ: Интерфейс для обновления прогресса
+interface ProgressCallback {
+    fun onUpdateProgress(status: String, progress: Int, total: Int) {}
+    fun onUpdateCounters(collected: Int, filtered: Int, synthesized: Int) {}
+    fun onUpdateNewsPreview(newsList: List<String>) {}
+    fun onUpdateChannelProgress(channels: List<Channel>) {}
+
+    // Новые методы для более детального контроля
+    fun onChannelProcessed(channel: Channel, messagesCount: Int) {}
+    fun onMessageFiltered(originalCount: Int, filteredCount: Int) {}
+    fun onSynthesisStarted(messageCount: Int) {}
+    fun onSynthesisProgress(current: Int, total: Int) {}
+    fun onSynthesisCompleted() {}
+}
+
+// Реализация по умолчанию без действий
+class NoOpProgressCallback : ProgressCallback
+
 class NewsService(
     private val telegramClient: TelegramClient,
     private val ttsManager: TTSManager
@@ -76,52 +94,78 @@ class NewsService(
 
     suspend fun collectAndProcessNews(
         channels: List<Channel>,
-        timeHours: Double
+        timeHours: Double,
+        progressCallback: ProgressCallback = NoOpProgressCallback()
     ): File? = withContext(Dispatchers.IO) {
         TTSDebugTracker.clearHistory()
         TTSDebugTracker.trackSystemAction("NEWS START collectAndProcessNews channels=${channels.size} hours=$timeHours")
 
-        val list = collectAndPrepareMessages(channels, timeHours) ?: return@withContext null
+        val list = collectAndPrepareMessages(channels, timeHours, progressCallback) ?: return@withContext null
         if (list.preparedMessages.isEmpty()) return@withContext null
 
         TTSDebugTracker.trackSystemAction("SYNTH START (no chapters) messages=${list.preparedMessages.size}")
+        progressCallback.onSynthesisStarted(list.preparedMessages.size)
+
         val out = ttsManager.convertToAudio(list.preparedMessages, pauseMs = 1200)
         TTSDebugTracker.trackSystemAction("SYNTH DONE (no chapters) fileExists=${out != null}")
+        progressCallback.onSynthesisCompleted()
+
         out
     }
 
     suspend fun collectAndSynthesizeNewsList(
         channels: List<Channel>,
-        timeHours: Double
+        timeHours: Double,
+        progressCallback: ProgressCallback = NoOpProgressCallback()
     ): List<File> = withContext(Dispatchers.IO) {
         TTSDebugTracker.clearHistory()
         TTSDebugTracker.trackSystemAction("NEWS START collectAndSynthesizeNewsList channels=${channels.size} hours=$timeHours")
 
-        val res = collectAndSynthesizeWithChapters(channels, timeHours)
+        val res = collectAndSynthesizeWithChapters(channels, timeHours, progressCallback)
         if (res != null) listOf(res.file) else emptyList()
     }
 
     suspend fun collectAndSynthesizeWithChapters(
         channels: List<Channel>,
-        timeHours: Double
+        timeHours: Double,
+        progressCallback: ProgressCallback = NoOpProgressCallback()
     ): AudioWithChapters? = withContext(Dispatchers.IO) {
         TTSDebugTracker.clearHistory()
         TTSDebugTracker.trackSystemAction("NEWS START collectAndSynthesizeWithChapters channels=${channels.size} hours=$timeHours")
 
-        val list = collectAndPrepareMessages(channels, timeHours) ?: return@withContext null
+        val list = collectAndPrepareMessages(channels, timeHours, progressCallback) ?: return@withContext null
         if (list.preparedMessages.isEmpty()) return@withContext null
 
         TTSDebugTracker.trackSystemAction("SYNTH START (with chapters) messages=${list.preparedMessages.size}")
-        val audio = ttsManager.convertToAudioWithChapters(list.preparedMessages, pauseMs = 1200)
-            ?: return@withContext null
+        progressCallback.onSynthesisStarted(list.preparedMessages.size)
+
+        val audio = ttsManager.convertToAudioWithChaptersWithCallback(
+            list.preparedMessages,
+            pauseMs = 1200,
+            progressCallback = object : TTSManager.SynthesisProgressCallback {
+                override fun onProgress(current: Int, total: Int) {
+                    progressCallback.onSynthesisProgress(current, total)
+                }
+
+                override fun onStarted(messageCount: Int) {
+                    progressCallback.onSynthesisStarted(messageCount)
+                }
+
+                override fun onCompleted() {
+                    progressCallback.onSynthesisCompleted()
+                }
+            }
+        ) ?: return@withContext null
 
         TTSDebugTracker.trackSystemAction("SYNTH DONE (with chapters) file='${audio.file.name}' chapters=${audio.chaptersMs.size}")
+
         AudioWithChapters(audio.file, audio.chaptersMs, list.realNewsCount)
     }
 
     private suspend fun collectAndPrepareMessages(
         channels: List<Channel>,
-        timeHours: Double
+        timeHours: Double,
+        progressCallback: ProgressCallback = NoOpProgressCallback()
     ): Prepared? = withContext(Dispatchers.IO) {
         if (channels.isEmpty() || timeHours <= 0) return@withContext null
 
@@ -131,30 +175,63 @@ class NewsService(
                 val currentTimeSeconds = System.currentTimeMillis() / 1000
                 val fromDate = currentTimeSeconds - (timeHours * 3600).toLong()
 
-                val channelResults = channels.map { channel ->
-                    async { processChannelWithTimeout(channel, fromDate) }
+                // Обновляем прогресс: начало сбора
+                progressCallback.onUpdateProgress("Собираем новости из ${channels.size} каналов...", 0, channels.size)
+                progressCallback.onUpdateChannelProgress(channels)
+
+                val channelResults = channels.mapIndexed { index, channel ->
+                    async {
+                        val result = processChannelWithTimeout(channel, fromDate)
+                        // Обновляем прогресс после обработки каждого канала
+                        progressCallback.onChannelProcessed(result.first, result.second.size)
+                        progressCallback.onUpdateProgress("Обработан канал ${index + 1} из ${channels.size}", index + 1, channels.size)
+                        result
+                    }
                 }.awaitAll()
 
                 var totalMessages = 0
                 var realNewsCount = 0
+                val newsPreview = mutableListOf<String>()
+
                 channelResults.forEach { (channel, messages) ->
                     if (messages.isNotEmpty()) {
                         allMessages.add("Новости из канала ${channel.title}:")
                         allMessages.addAll(messages)
                         realNewsCount += messages.size
+
+                        // Добавляем первые несколько новостей для предпросмотра
+                        newsPreview.addAll(messages.take(5))
                     }
                 }
 
-                if (allMessages.isEmpty()) return@withTimeout Prepared(emptyList(), 0, 0)
+                // Обновляем предпросмотр новостей
+                progressCallback.onUpdateNewsPreview(newsPreview)
 
-                val preparedMessages = prepareMessages(allMessages)
+                if (allMessages.isEmpty()) {
+                    progressCallback.onUpdateProgress("Новостей не найдено", 100, 100)
+                    return@withTimeout Prepared(emptyList(), 0, 0)
+                }
+
+                progressCallback.onUpdateProgress("Фильтруем новости...", 0, 100)
+                val preparedMessages = prepareMessages(allMessages) { originalCount, filteredCount ->
+                    // Обновляем счетчики фильтрации
+                    progressCallback.onMessageFiltered(originalCount, filteredCount)
+                    progressCallback.onUpdateCounters(originalCount, filteredCount, 0)
+                }
+
+                // Обновляем финальные счетчики
+                progressCallback.onUpdateCounters(allMessages.size, preparedMessages.size, 0)
+                progressCallback.onUpdateProgress("Подготовка завершена", 100, 100)
+
                 Prepared(preparedMessages, totalMessages, realNewsCount)
             }
         } catch (e: TimeoutCancellationException) {
             Log.e(TAG, "Timeout", e)
+            progressCallback.onUpdateProgress("Ошибка: превышено время ожидания", 0, 100)
             null
         } catch (e: Exception) {
             Log.e(TAG, "Error", e)
+            progressCallback.onUpdateProgress("Ошибка при сборе новостей: ${e.message}", 0, 100)
             null
         }
     }
@@ -175,7 +252,7 @@ class NewsService(
         }
     }
 
-    private fun prepareMessages(messages: List<String>): List<String> {
+    private fun prepareMessages(messages: List<String>, onFilterProgress: ((Int, Int) -> Unit)? = null): List<String> {
         Log.d(TAG, "🧪 prepareMessages: обрабатываем ${messages.size} сообщений")
 
         Log.d(TAG, "prepareMessages(): RAW start, size=${messages.size}")
@@ -210,7 +287,7 @@ class NewsService(
             val trimmed = original.trim()
 
             if (trimmed.matches(Regex("^Новости из канала.*:$"))) {
-                Log.v(TAG, "✅ Заголовок канала пропущен без фильтрации: \"$trimmed\"")
+                Log.v(TAG, "✅ Заголовок канала пропращен без фильтрации: \"$trimmed\"")
                 return@mapNotNull trimmed
             }
 
@@ -278,6 +355,9 @@ class NewsService(
         val filteredCount = filtered.size
         val filterRate = if (originalCount > 0) ((originalCount - filteredCount) * 100 / originalCount) else 0
         Log.d(TAG, "📊 Статистика фильтрации: $originalCount -> $filteredCount (отфильтровано $filterRate%)")
+
+        // Вызываем callback с прогрессом фильтрации
+        onFilterProgress?.invoke(originalCount, filteredCount)
 
         Log.d(TAG, "prepareMessages(): RAW end")
         return filtered

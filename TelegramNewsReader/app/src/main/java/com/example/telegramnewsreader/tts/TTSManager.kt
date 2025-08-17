@@ -662,6 +662,13 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
+    // Новое: интерфейс для обратного вызова прогресса
+    interface SynthesisProgressCallback {
+        fun onProgress(current: Int, total: Int)
+        fun onStarted(messageCount: Int)
+        fun onCompleted()
+    }
+
     // Старый метод оставляем для совместимости
     suspend fun convertToAudio(texts: List<String>, pauseMs: Int = 1200): File? {
         val res = convertToAudioWithChapters(texts, pauseMs)
@@ -706,11 +713,15 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
-    // Новый метод: возвращает аудиофайл и таймкоды начала каждой новости
-    suspend fun convertToAudioWithChapters(texts: List<String>, pauseMs: Int = 1200): AudioWithChapters? {
-        Log.d("TTSManager", "🎵 === convertToAudioWithChapters() НАЧАЛО ===")
+    // Новый метод с обратным вызовом прогресса
+    suspend fun convertToAudioWithChaptersWithCallback(
+        texts: List<String>,
+        pauseMs: Int = 1200,
+        progressCallback: SynthesisProgressCallback?
+    ): AudioWithChapters? {
+        Log.d("TTSManager", "🎵 === convertToAudioWithChaptersWithCallback() НАЧАЛО ===")
         val stackTrace = Thread.currentThread().stackTrace
-        Log.d("TTSManager", "📍 Стек вызовов convertToAudioWithChapters:")
+        Log.d("TTSManager", "📍 Стек вызовов convertToAudioWithChaptersWithCallback:")
         stackTrace.take(8).forEach { element ->
             Log.d("TTSManager", "   ${element.className}.${element.methodName}(${element.fileName}:${element.lineNumber})")
         }
@@ -725,9 +736,13 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         Log.d("TTSManager", "   voiceParametersApplied=$voiceParametersApplied")
         Log.d("TTSManager", "   Счетчики: pitch=$pitchChangeCount, rate=$rateChangeCount, voice=$voiceChangeCount")
 
+        // Вызываем стартовый callback
+        progressCallback?.onStarted(texts.size)
+
         val filteredNews = dropTrivial(texts)
         if (filteredNews.isEmpty()) {
             Log.w("TTSManager", "Нет содержательных сообщений для синтеза.")
+            progressCallback?.onCompleted()
             return null
         }
 
@@ -740,6 +755,10 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         val chaptersMs = mutableListOf<Long>()
         var offsetMs = 0L
         var realNewsIndex = 0 // Счетчик только реальных новостей
+
+        // Новые переменные для отслеживания прогресса
+        val totalParts = filteredNews.sumOf { splitByParagraphs(it, 2800).size }
+        var processedParts = 0
 
         filteredNews.forEachIndexed { newsIndex, raw ->
             val cleaned = cleanTextForTts(raw)
@@ -766,12 +785,14 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
             val parts = splitByParagraphs(formatted, 2800)
             Log.d("TTSManager", "📝 Новость ${newsIndex + 1}/${filteredNews.size}: частей=${parts.size}, длина=${formatted.length}")
+
             for (i in parts.indices) {
                 val wav = synthesizePartToWav(parts[i], (newsIndex + 1) * 1000 + (i + 1), baseUtteranceId)
                 if (wav == null || !wav.exists() || wav.length() == 0L) {
                     Log.e("TTSManager", "❌ Не удалось синтезировать часть ${i + 1} для новости ${newsIndex + 1}")
                     wavFiles.forEach { if (it.exists()) it.delete() }
                     silenceFile?.delete()
+                    progressCallback?.onCompleted()
                     return null
                 }
 
@@ -781,6 +802,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                     Log.e("TTSManager", "❌ Не удалось прочитать формат WAV части ${i + 1}")
                     wavFiles.forEach { if (it.exists()) it.delete() }
                     silenceFile?.delete()
+                    progressCallback?.onCompleted()
                     return null
                 }
 
@@ -817,6 +839,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                         Log.e("TTSManager", "❌ Ресемплинг части не удался")
                         wavFiles.forEach { if (it.exists()) it.delete() }
                         silenceFile?.delete()
+                        progressCallback?.onCompleted()
                         return null
                     }
                 } else {
@@ -828,6 +851,13 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 // Прибавим длительность части к offset
                 val dur = readWavDurationMs(usedWav) ?: meta.durationMs ?: 0L
                 offsetMs += dur
+
+                // Обновляем прогресс
+                processedParts++
+                if (totalParts > 0) {
+                    val progress = (processedParts * 100 / totalParts).coerceAtMost(100)
+                    progressCallback?.onProgress(progress, 100)
+                }
             }
 
             // Пауза после каждой новости (кроме последней)
@@ -837,8 +867,14 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             }
         }
 
+        // Обновляем прогресс до 100% перед объединением
+        if (totalParts > 0) {
+            progressCallback?.onProgress(100, 100)
+        }
+
         if (wavFiles.isEmpty()) {
             Log.e("TTSManager", "❌ Не удалось создать ни одного WAV файла")
+            progressCallback?.onCompleted()
             return null
         }
 
@@ -861,6 +897,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             Log.e("TTSManager", "❌ Не удалось объединить WAV файлы")
             combinedWavFile.delete()
             silenceFile?.delete()
+            progressCallback?.onCompleted()
             return null
         }
 
@@ -875,13 +912,20 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             Log.d("TTSManager", "📊 Итоговая статистика:")
             Log.d("TTSManager", "   Новостей: $realNewsIndex, пауза: ${pauseMs}мс")
             Log.d("TTSManager", "   Счетчики изменений: pitch=$pitchChangeCount, rate=$rateChangeCount, voice=$voiceChangeCount")
-            Log.d("TTSManager", "🎵 === convertToAudioWithChapters() КОНЕЦ ===")
+            Log.d("TTSManager", "🎵 === convertToAudioWithChaptersWithCallback() КОНЕЦ ===")
+            progressCallback?.onCompleted()
             return AudioWithChapters(mp3File, chaptersMs)
         } else {
             Log.e("TTSManager", "❌ Не удалось конвертировать в MP3")
         }
 
+        progressCallback?.onCompleted()
         return null
+    }
+
+    // Старый метод для совместимости
+    suspend fun convertToAudioWithChapters(texts: List<String>, pauseMs: Int = 1200): AudioWithChapters? {
+        return convertToAudioWithChaptersWithCallback(texts, pauseMs, null)
     }
 
     private fun convertToMp3(wavFile: File): File? {
