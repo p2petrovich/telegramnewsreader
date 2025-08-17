@@ -151,7 +151,7 @@ class MainActivity : AppCompatActivity() {
         Log.d("MainActivity", "onCreate: начальный голос = $lastUsedVoice")
 
         // Скрываем панели прогресса по умолчанию
-        hideProgressPanels()
+            //hideProgressPanels()
     }
 
     private fun hideProgressPanels() {
@@ -704,6 +704,8 @@ class MainActivity : AppCompatActivity() {
                             runOnUiThread {
                                 updateDetailedProgress("Синтез завершен", 100, 100)
                                 updateETA(0)
+                                // Оставляем кнопку активной
+                                binding.btnCollectNews.isEnabled = true
                             }
                         }
                     }
