@@ -38,6 +38,9 @@ import android.text.method.ScrollingMovementMethod
 import com.example.telegramnewsreader.service.ProgressCallback
 import android.os.Handler
 import android.os.Looper
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity() {
 
@@ -56,8 +59,17 @@ class MainActivity : AppCompatActivity() {
 
     private val pendingPhotos = mutableMapOf<Long, String>()
 
+    private var progressHandler: Handler? = null
+    private var progressRunnable: Runnable? = null
+    private var progressExecutor: ScheduledExecutorService? = null
+    private var estimatedTimeRemaining: Long = 0
+    private var startTime: Long = 0
+    private var totalProgressSteps: Int = 0
+    private var currentProgressStep: Int = 0
+
     companion object {
         private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 1001
+        private const val PROGRESS_UPDATE_INTERVAL_MS = 500
     }
 
     private val timePeriods = arrayOf(
@@ -486,6 +498,12 @@ class MainActivity : AppCompatActivity() {
             val percentage = if (total > 0) (progress * 100 / total) else 0
             binding.progressBarDetailed.progress = percentage
             binding.tvProgressPercentage.text = "$percentage%"
+            binding.tvProgressPercentage.setTextColor(android.graphics.Color.parseColor("#FFFFFF"))
+
+            // Обновляем цвет прогресса (фиолетовый)
+            binding.progressBarDetailed.progressTintList = android.content.res.ColorStateList.valueOf(
+                                android.graphics.Color.parseColor("#9C27B0")
+            )
         }
     }
 
@@ -531,6 +549,45 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun updateETA(remainingSeconds: Long) {
+        runOnUiThread {
+            if (remainingSeconds > 0) {
+                val hours = remainingSeconds / 3600
+                val minutes = (remainingSeconds % 3600) / 60
+                val seconds = remainingSeconds % 60
+
+                val etaText = when {
+                    hours > 0 -> "Осталось: $hours ч $minutes мин"
+                    minutes > 0 -> "Осталось: $minutes мин $seconds сек"
+                    else -> "Осталось: $seconds сек"
+                }
+                binding.tvEta.text = etaText
+            } else {
+                binding.tvEta.text = "Осталось: рассчет..."
+            }
+        }
+    }
+
+    private fun startTimer() {
+        startTime = System.currentTimeMillis()
+        progressExecutor = Executors.newScheduledThreadPool(1)
+        progressExecutor?.scheduleAtFixedRate({
+            if (totalProgressSteps > 0) {
+                val elapsed = (System.currentTimeMillis() - startTime) / 1000
+                val estimatedTotal = (elapsed * totalProgressSteps) / currentProgressStep
+                val remaining = estimatedTotal - elapsed
+                runOnUiThread {
+                    updateETA(remaining)
+                }
+            }
+        }, 0, 1, TimeUnit.SECONDS)
+    }
+
+    private fun stopTimer() {
+        progressExecutor?.shutdown()
+        progressExecutor = null
+    }
+
     private fun collectNews() {
         if (!isClientReady || !telegramClient.checkAuthState()) {
             Toast.makeText(this, "Telegram клиент не готов. Попробуйте позже.", Toast.LENGTH_LONG).show()
@@ -556,34 +613,103 @@ class MainActivity : AppCompatActivity() {
         binding.progressBar.visibility = View.VISIBLE
         binding.btnCollectNews.isEnabled = false
 
+        // Запускаем таймер для ETA
+        startTimer()
+
         lifecycleScope.launch {
             try {
                 updateStatus("Собираем новости из ${selectedChannels.size} каналов...")
                 updateDetailedProgress("Начинаем сбор новостей...", 0, 100)
                 updateChannelProgress(selectedChannels)
 
-                val handler = Handler(Looper.getMainLooper())
-
-                // Имитация прогресса синтеза
-                val progressTimer = object : Runnable {
-                    var progress = 0
-                    override fun run() {
-                        progress += 5
-                        if (progress <= 100) {
-                            updateDetailedProgress("Синтез речи...", progress, 100)
-                            handler.postDelayed(this, 300) // Обновляем каждые 300 мс
-                        }
-                    }
-                }
-                handler.post(progressTimer)
-
-                // Вызов метода без progressCallback на время тестирования
+                // Вызов метода с callback для получения реального прогресса
                 val audio = newsService.collectAndSynthesizeWithChapters(
                     channels = selectedChannels,
-                    timeHours = timeHours
+                    timeHours = timeHours,
+                    progressCallback = object : ProgressCallback {
+                        override fun onUpdateProgress(status: String, progress: Int, total: Int) {
+                            runOnUiThread {
+                                updateDetailedProgress(status, progress, total)
+                                if (total > 0) {
+                                    // Обновляем ETAs
+                                    val percentage = (progress * 100) / total
+                                    val elapsed = (System.currentTimeMillis() - startTime) / 1000
+                                    if (elapsed > 0 && percentage > 0) {
+                                        val estimatedTotal = (elapsed * 100) / percentage
+                                        val remaining = estimatedTotal - elapsed
+                                        updateETA(remaining)
+                                    }
+                                }
+                            }
+                        }
+
+                        override fun onUpdateCounters(collected: Int, filtered: Int, synthesized: Int) {
+                            runOnUiThread {
+                                updateCounters(collected, filtered, synthesized)
+                            }
+                        }
+
+                        override fun onUpdateNewsPreview(newsList: List<String>) {
+                            runOnUiThread {
+                                updateNewsPreview(newsList)
+                            }
+                        }
+
+                        override fun onUpdateChannelProgress(channels: List<Channel>) {
+                            runOnUiThread {
+                                updateChannelProgress(channels)
+                            }
+                        }
+
+                        override fun onChannelProcessed(channel: Channel, messagesCount: Int) {
+                            runOnUiThread {
+                                channel.newMessagesCount = messagesCount
+                                updateChannelProgress(selectedChannels)
+                            }
+                        }
+
+                        override fun onMessageFiltered(originalCount: Int, filteredCount: Int) {
+                            runOnUiThread {
+                                updateCounters(originalCount, originalCount - filteredCount, filteredCount)
+                            }
+                        }
+
+                        override fun onSynthesisStarted(messageCount: Int) {
+                            runOnUiThread {
+                                updateDetailedProgress("Начинаем синтез речи...", 0, 100)
+                                totalProgressSteps = messageCount
+                                currentProgressStep = 0
+                            }
+                        }
+
+                        override fun onSynthesisProgress(current: Int, total: Int) {
+                            runOnUiThread {
+                                val progress = if (total > 0) (current * 100) / total else 0
+                                updateDetailedProgress("Синтез речи: $current/$total", progress, 100)
+
+                                // Обновляем текущий шаг для ETA
+                                currentProgressStep = current
+
+                                // Обновляем ETAs
+                                val elapsed = (System.currentTimeMillis() - startTime) / 1000
+                                if (elapsed > 0 && current > 0) {
+                                    val estimatedTotal = (elapsed * total) / current
+                                    val remaining = estimatedTotal - elapsed
+                                    updateETA(remaining)
+                                }
+                            }
+                        }
+
+                        override fun onSynthesisCompleted() {
+                            runOnUiThread {
+                                updateDetailedProgress("Синтез завершен", 100, 100)
+                                updateETA(0)
+                            }
+                        }
+                    }
                 )
 
-                handler.removeCallbacks(progressTimer)
+                stopTimer()
 
                 runOnUiThread {
                     binding.progressBar.visibility = View.GONE
@@ -674,6 +800,7 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 Log.e("MainActivity", "Ошибка при сборе новостей", e)
+                stopTimer()
                 runOnUiThread {
                     binding.progressBar.visibility = View.GONE
                     binding.btnCollectNews.isEnabled = true
@@ -692,6 +819,7 @@ class MainActivity : AppCompatActivity() {
         synthesizedNewsCount = 0
         updateCounters(0, 0, 0)
         updateNewsPreview(emptyList())
+        updateETA(0)
     }
 
     private fun resetCollectionState() {
@@ -859,6 +987,7 @@ class MainActivity : AppCompatActivity() {
         try {
             unregisterReceiver(progressReceiver)
         } catch (_: Exception) { }
+        stopTimer()
     }
 
     private fun confirmHideChannel(channel: Channel) {
