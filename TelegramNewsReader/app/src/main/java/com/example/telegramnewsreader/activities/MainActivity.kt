@@ -74,15 +74,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val timePeriods = arrayOf(
-        "15 минут",
+        "10 минут",
+        "20 минут",
         "30 минут",
         "1 час",
+        "2 часа",
         "3 часа",
         "6 часов",
         "12 часов",
         "24 часа"
     )
-    private val timeValues = arrayOf(0.25, 0.5, 1.0, 3.0, 6.0, 12.0, 24.0)
+    private val timeValues = arrayOf(0.16, 0.33, 0.5, 1.0, 2.0, 3.0, 6.0, 12.0, 24.0)
 
     private var currentTimePeriodIndex = 1
 

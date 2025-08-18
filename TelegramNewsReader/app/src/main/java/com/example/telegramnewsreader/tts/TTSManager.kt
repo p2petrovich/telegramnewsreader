@@ -405,22 +405,37 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     // Новые методы для SSML-улучшения
     // Новые методы для SSML-улучшения
+    // Новые методы для SSML-улучшения
     private fun enhanceWithSSML(text: String): String {
         var enhanced = text
 
-        // Добавляем паузы между предложениями и абзацами
-        enhanced = enhanced.replace(Regex("\\.\\s+"), ". <break time=\"300ms\"/> ")
-        enhanced = enhanced.replace(Regex("![\\s\n]+"), "! <break time=\"300ms\"/> ")
-        enhanced = enhanced.replace(Regex("\\?\\s+"), "? <break time=\"300ms\"/> ")
+        // Добавляем паузы после предложений, избегая сокращений
+        // Защита от сокращений
+        enhanced = enhanced.replace(Regex("(?<!т\\.д)(?<!т\\.п)(?<!млн)(?<!млрд)(?<!г)(?<!ул)(?<!просп)\\.(?=\\s+[А-ЯЁA-Z]|$)")) {
+            ". <break time=\"400ms\"/>"
+        }
 
-        // Улучшаем перечисления
+        // Паузы после восклицательных знаков
+        enhanced = enhanced.replace(Regex("!(?=\\s+[А-ЯЁA-Z]|$)")) {
+            "! <break time=\"400ms\"/>"
+        }
+
+        // Паузы после вопросительных знаков
+        enhanced = enhanced.replace(Regex("\\?(?=\\s+[А-ЯЁA-Z]|$)")) {
+            "? <break time=\"400ms\"/>"
+        }
+        // НОВОЕ: Паузы после двоеточий
+        enhanced = enhanced.replace(Regex(":\\s+"), ": <break time=\"500ms\"/> ")
+
+        // Паузы в перечислениях
         enhanced = enhanced.replace(Regex("—\\s+"), "<break time=\"200ms\"/>— ")
 
-        // Для новостей добавляем интонационные теги
+        // Паузы между абзацами
+        enhanced = enhanced.replace(Regex("\\n{2,}"), "<break time=\"600ms\"/>")
+
+        // Оборачиваем в SSML теги
         enhanced = "<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"ru-RU\">" +
-                "<voice name=\"ru-RU-Wavenet-A\">" +
                 enhanced +
-                "</voice>" +
                 "</speak>"
 
         return enhanced
