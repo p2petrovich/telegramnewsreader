@@ -403,6 +403,69 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         return t.trim()
     }
 
+    // Новые методы для SSML-улучшения
+    private fun enhanceWithSSML(text: String): String {
+        var enhanced = text
+
+        // Добавляем паузы между предложениями и абзацами
+        enhanced = enhanced.replace(Regex("\\.\\s+"), ". <break time=\"300ms\"/> ")
+        enhanced = enhanced.replace(Regex("![\\s\n]+"), "! <break time=\"300ms\"/> ")
+        enhanced = enhanced.replace(Regex("\\?\\s+"), "? <break time=\"300ms\"/> ")
+
+        // Улучшаем перечисления
+        enhanced = enhanced.replace(Regex("—\\s+"), "<break time=\"200ms\"/>— ")
+
+        // Для новостей добавляем интонационные теги
+        enhanced = "<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"ru-RU\">" +
+                "<voice name=\"ru-RU-Wavenet-A\">" +
+                enhanced +
+                "</voice>" +
+                "</speak>"
+
+        return enhanced
+    }
+
+    private fun formatForSpeech(text: String): String {
+        var processed = text
+
+        // Улучшаем названия организаций
+        processed = processed.replace(Regex("\\b(НАТО|ЕС|США|ООН|ФСБ|МВД)\\b"), {
+            when(it.value) {
+                "США" -> "США"
+                "ЕС" -> "Европейский союз"
+                "НАТО" -> "НАТО"
+                "ООН" -> "Организация Объединенных Наций"
+                "ФСБ" -> "Федеральная служба безопасности"
+                "МВД" -> "Министерство внутренних дел"
+                else -> it.value
+            }
+        })
+
+        // Улучшаем даты и числа для лучшего произношения
+        processed = processed.replace(Regex("\\b(\\d{1,2})\\.\\s*(\\d{1,2})\\.\\s*(\\d{4})\\b")) {
+            val day = it.groupValues[1]
+            val month = it.groupValues[2]
+            val year = it.groupValues[3]
+            "$day число $month месяца $year года"
+        }
+
+        // Добавляем ударение на ключевые слова
+        val keyWords = mapOf(
+            "украина" to "Украина",
+            "путин" to "Путин",
+            "зеленский" to "Зеленский",
+            "трамп" to "Трамп",
+            "россия" to "Россия",
+            "америка" to "Америка"
+        )
+
+        keyWords.forEach { (word, pronounced) ->
+            processed = processed.replace(Regex("\\b$word\\b", RegexOption.IGNORE_CASE)) { pronounced }
+        }
+
+        return processed.trim()
+    }
+
     private fun dropTrivial(texts: List<String>): List<String> {
         val trivial = Regex("^(фото|видео|аудио|ссылка|репост)\\b.*$", RegexOption.IGNORE_CASE)
         // ИСПРАВИТЬ эту строку:
@@ -780,6 +843,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             val deduped = deduplicateLines(cleaned)
             val normalized = normalizeNumbers(deduped)
             val formatted = formatForIntonation(normalized)
+            val finalText = enhanceWithSSML(formatForSpeech(formatted)) // Добавлены SSML
 
             if (formatted.isBlank()) {
                 Log.d("TTSManager", "⏭️ Пропущена пустая новость после форматирования (index=$newsIndex)")
