@@ -347,19 +347,36 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     private fun cleanTextForTts(text: String): String {
         var t = text
+        // Удаление URL
         t = t.replace(Regex("(https?://|www\\.)\\S+"), " ")
+        // Удаление хештегов и упоминаний
         t = t.replace(Regex("(^|\\s)[#@][\\p{L}0-9_]+"), " ")
+        // Удаление служебной информации
         t = t.replace(Regex("(?im)^переслано из:?\\s.*$"), "")
         t = t.replace(Regex("(?im)^ред\\.?\\s*:?\\s*\\d{1,2}:\\d{2}.*$"), "")
+
+        // УЛУЧШЕННАЯ фильтрация подписок и рекламы
         t = t.replace(Regex("(?im)^\\s*(?:[\\p{So}\\p{Sk}❗️!❤️💚💙💛💜🖤🤍🤎]\\s*)*подписывай(ся|тесь)?\\b.*$", RegexOption.MULTILINE), "")
         t = t.replace(Regex("(?im)^\\s*подписка\\b.*$", RegexOption.MULTILINE), "")
-        // Удаление всех цветных квадратов (🟩🟨🟥🟦🟪🟫⬛⬜)
+        t = t.replace(Regex("(?im)^.*\\b(реклама|промокод|скидк[аи])\\b.*$", RegexOption.MULTILINE), "")
+        t = t.replace(Regex("(?im)^.*\\b(акци[яи]|распродажа|купи)\\b.*$", RegexOption.MULTILINE), "")
+
+        // Удаление контактов (телефоны)
+        t = t.replace(Regex("\\+?\\d{1,3}[\\s-]?\\(?\\d{1,4}\\)?[\\s-]?\\d{1,4}[\\s-]?\\d{1,4}[\\s-]?\\d{1,4}"), "")
+
+        // Удаление всех цветных квадратов
         t = t.replace(Regex("[🟩🟨🟥🟦🟪🟫⬛⬜]"), "")
+        // Удаление эмодзи
         t = t.replace(Regex("[\\p{So}\\p{Sk}]"), " ")
+        // Удаление markdown разметки
         t = t.replace(Regex("[*_`]+"), "")
+        // Замена кавычек
         t = t.replace(Regex("[«»]"), "\"")
+        // Удаление повторной рекламы подписки
         t = t.replace(Regex("(?i)подписывай(ся|тесь)?\\s+на\\s+[^\\n.]+"), "")
+        // Нормализация многоточий
         t = t.replace(Regex("\\.\\.\\."), "…")
+        // Очистка пробелов
         t = t.replace(Regex("[ \\t]{2,}"), " ")
         t = t.replace(Regex("\\n{3,}"), "\n\n")
         return t.trim()
@@ -388,52 +405,101 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     private fun formatForIntonation(text: String): String {
         var t = text
+
+        // Даты
         val dateRegex = Regex("\\b(\\d{1,2})\\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\\b")
         t = dateRegex.replace(t) { match ->
             val day = match.groupValues[1].toIntOrNull() ?: return@replace match.value
             val month = match.groupValues[2]
             "${numberToOrdinalRu(day)} $month"
         }
+
+        // Единицы измерения
         t = t.replace(Regex("\\bкм/ч\\b", RegexOption.IGNORE_CASE), "километров в час")
         t = t.replace(Regex("\\bкм\\b", RegexOption.IGNORE_CASE), "километров")
         t = t.replace(Regex("\\bм\\b", RegexOption.IGNORE_CASE), "метров")
+
+        // Нумерованные списки (УЛУЧШЕНО)
+        t = t.replace(Regex("^(\\d+)\\.\\s+", RegexOption.MULTILINE)) {
+            "${it.groupValues[1]}. <break time=\"150ms\"/>"
+        }
+
+        // Буллиты (УЛУЧШЕНО)
+        t = t.replace(Regex("^[•·∙▪▫◦‣⁃]\\s+", RegexOption.MULTILINE)) {
+            "— <break time=\"150ms\"/>"
+        }
+
+        // Форматирование тире
         t = t.replace(Regex("(?m)^[-•]\\s+"), "— ")
         t = t.replace(Regex(" - "), " — ")
         t = t.replace(Regex("\\.\\.\\."), "…")
+
+        // Добавление переносов после предложений
         val abbrEnd = "(?<!т\\.д)(?<!т\\.п)(?<!млн)(?<!млрд)(?<!г)(?<!ул)(?<!просп)"
         t = t.replace(Regex("$abbrEnd(?<=[.!?])\\s+"), "\n\n")
+
         return t.trim()
     }
 
-    // Новые методы для SSML-улучшения
-    // Новые методы для SSML-улучшения
-    // Новые методы для SSML-улучшения
+    // УЛУЧШЕННЫЙ метод для вычисления динамических пауз
+    private fun calculatePauseDuration(sentenceLength: Int): String {
+        return when {
+            sentenceLength < 50 -> "400ms"
+            sentenceLength < 100 -> "600ms"
+            sentenceLength < 150 -> "800ms"
+            else -> "1000ms"
+        }
+    }
+
+    // ЗНАЧИТЕЛЬНО УЛУЧШЕННЫЙ метод для SSML
     private fun enhanceWithSSML(text: String): String {
         var enhanced = text
 
-        // Добавляем паузы после предложений, избегая сокращений
-        // Защита от сокращений
-        enhanced = enhanced.replace(Regex("(?<!т\\.д)(?<!т\\.п)(?<!млн)(?<!млрд)(?<!г)(?<!ул)(?<!просп)\\.(?=\\s+[А-ЯЁA-Z]|$)")) {
-            ". <break time=\"800ms\"/>"
+        // Добавляем короткие паузы после запятых
+        enhanced = enhanced.replace(Regex(",\\s+"), ", <break time=\"200ms\"/> ")
+
+        // Паузы после точки с запятой
+        enhanced = enhanced.replace(Regex(";\\s+"), "; <break time=\"300ms\"/> ")
+
+        // Паузы после тире в перечислениях
+        enhanced = enhanced.replace(Regex("\\s+—\\s+"), " <break time=\"250ms\"/>— ")
+
+        // Динамические паузы после предложений с учетом длины
+        enhanced = enhanced.replace(Regex("([^.!?]+)([.!?])(?=\\s+[А-ЯЁA-Z]|$)")) { match ->
+            val sentence = match.groupValues[1]
+            val punctuation = match.groupValues[2]
+            val pauseDuration = when (punctuation) {
+                "." -> calculatePauseDuration(sentence.length)
+                "!" -> "500ms"
+                "?" -> "450ms"
+                else -> "400ms"
+            }
+            "$sentence$punctuation <break time=\"$pauseDuration\"/>"
         }
 
-
-
-        // Паузы после восклицательных знаков
-        enhanced = enhanced.replace(Regex("!(?=\\s+[А-ЯЁA-Z]|$)")) {
-            "! <break time=\"400ms\"/>"
-        }
-
-
-        // Паузы после вопросительных знаков
-        enhanced = enhanced.replace(Regex("\\?(?=\\s+[А-ЯЁA-Z]|$)")) {
-            "? <break time=\"400ms\"/>"
-        }
-        // НОВОЕ: Паузы после двоеточий
+        // Паузы после двоеточий (для перечислений)
         enhanced = enhanced.replace(Regex(":\\s+"), ": <break time=\"500ms\"/> ")
 
-        // Паузы в перечислениях
-        enhanced = enhanced.replace(Regex("—\\s+"), "<break time=\"200ms\"/>— ")
+        // Паузы перед прямой речью
+        enhanced = enhanced.replace(Regex(":\\s*\""), ": <break time=\"300ms\"/>\"")
+
+        // Прямая речь с изменением темпа
+        enhanced = enhanced.replace(Regex("\"([^\"]+)\"")) {
+            "\"<prosody rate=\"95%\">${it.groupValues[1]}</prosody>\""
+        }
+
+        // Вопросительные предложения - замедляем конец
+        enhanced = enhanced.replace(Regex("([^.!?]{20,})(\\?)")) { match ->
+            val question = match.groupValues[1]
+            val words = question.split(" ")
+            if (words.size > 3) {
+                val lastWords = words.takeLast(3).joinToString(" ")
+                val firstPart = words.dropLast(3).joinToString(" ")
+                "$firstPart <prosody rate=\"90%\">$lastWords</prosody>?"
+            } else {
+                "${match.groupValues[1]}?"
+            }
+        }
 
         // Паузы между абзацами
         enhanced = enhanced.replace(Regex("\\n{2,}"), "<break time=\"600ms\"/>")
@@ -446,11 +512,12 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         return enhanced
     }
 
+    // УЛУЧШЕННЫЙ метод форматирования для речи
     private fun formatForSpeech(text: String): String {
         var processed = text
 
         // Улучшаем названия организаций
-        processed = processed.replace(Regex("\\b(НАТО|ЕС|США|ООН|ФСБ|МВД)\\b"), {
+        processed = processed.replace(Regex("\\b(НАТО|ЕС|США|ООН|ФСБ|МВД|СБУ|ЦРУ|ФБР)\\b")) {
             when(it.value) {
                 "США" -> "США"
                 "ЕС" -> "Европейский союз"
@@ -458,11 +525,14 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 "ООН" -> "Организация Объединенных Наций"
                 "ФСБ" -> "Федеральная служба безопасности"
                 "МВД" -> "Министерство внутренних дел"
+                "СБУ" -> "Служба безопасности Украины"
+                "ЦРУ" -> "Центральное разведывательное управление"
+                "ФБР" -> "Федеральное бюро расследований"
                 else -> it.value
             }
-        })
+        }
 
-        // Улучшаем даты и числа для лучшего произношения
+        // Улучшаем даты для лучшего произношения
         processed = processed.replace(Regex("\\b(\\d{1,2})\\.\\s*(\\d{1,2})\\.\\s*(\\d{4})\\b")) {
             val day = it.groupValues[1]
             val month = it.groupValues[2]
@@ -470,14 +540,26 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             "$day число $month месяца $year года"
         }
 
-        // Добавляем ударение на ключевые слова
+        // Добавляем эмфазис для важных слов
+        val importantWords = listOf("важно", "внимание", "срочно", "эксклюзив", "молния")
+        importantWords.forEach { word ->
+            processed = processed.replace(
+                Regex("\\b($word)\\b", RegexOption.IGNORE_CASE),
+                "<emphasis level=\"strong\">$1</emphasis>"
+            )
+        }
+
+        // Правильные ударения для ключевых слов
         val keyWords = mapOf(
             "украина" to "Украина",
             "путин" to "Путин",
             "зеленский" to "Зеленский",
             "трамп" to "Трамп",
+            "байден" to "Байден",
             "россия" to "Россия",
-            "америка" to "Америка"
+            "америка" to "Америка",
+            "европа" to "Европа",
+            "китай" to "Китай"
         )
 
         keyWords.forEach { (word, pronounced) ->
@@ -489,7 +571,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     private fun dropTrivial(texts: List<String>): List<String> {
         val trivial = Regex("^(фото|видео|аудио|ссылка|репост)\\b.*$", RegexOption.IGNORE_CASE)
-        // ИСПРАВИТЬ эту строку:
         val subscribe = Regex("(?i)^.*\\b(подписывай(ся|тесь)?|подписка)\\b.*$", RegexOption.IGNORE_CASE)
 
         return texts.map { it.trim() }
@@ -506,8 +587,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 !(isTrivial || hasSubscribe)
             }
     }
-
-
 
     private fun splitByParagraphs(text: String, maxChars: Int = 2800): List<String> {
         val paras = text.split(Regex("\\n{2,}")).map { it.trim() }.filter { it.isNotEmpty() }
@@ -865,7 +944,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             val normalized = normalizeNumbers(deduped)
             val formatted = formatForIntonation(normalized)
 
-            // ДОБАВИТЬ ЭТИ СТРОКИ:
+            // Применяем форматирование для речи только к реальным новостям
             val speechReadyText = if (!formatted.matches(Regex("^Новости из канала.*:$"))) {
                 formatForSpeech(formatted)  // Только для реальных новостей
             } else {
@@ -879,7 +958,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 return@forEachIndexed
             }
 
-            // НОВОЕ: Фиксируем начало главы для всех сообщений (включая заголовки), но считаем только реальные новости
+            // Фиксируем начало главы для всех сообщений
             if (!formatted.matches(Regex("^Новости из канала.*:$"))) {
                 // Это реальная новость
                 chaptersMs.add(offsetMs)
@@ -1183,6 +1262,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
         Log.d("TTSManager", "🔁 === refreshVoice() КОНЕЦ ===")
     }
+
     // 🔥 НОВЫЕ МЕТОДЫ ДЛЯ РАБОТЫ С ИНДИВИДУАЛЬНЫМИ НАСТРОЙКАМИ ГОЛОСОВ
     fun updatePitchForVoice(voiceName: String, pitch: Float) {
         Log.d("TTSManager", "🎚️ Сохраняем тембр для голоса $voiceName: $pitch")
