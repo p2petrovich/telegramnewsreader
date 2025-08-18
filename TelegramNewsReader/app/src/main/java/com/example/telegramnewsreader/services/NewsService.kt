@@ -318,7 +318,7 @@ class NewsService(
             val trimmed = original.trim()
 
             if (trimmed.matches(Regex("^Новости из канала.*:$"))) {
-                Log.v(TAG, "✅ Заголовок канала пропращен без фильтрации: \"$trimmed\"")
+                Log.v(TAG, "✅ Заголовок канала пропущен без фильтрации: \"$trimmed\"")
                 return@mapNotNull trimmed
             }
 

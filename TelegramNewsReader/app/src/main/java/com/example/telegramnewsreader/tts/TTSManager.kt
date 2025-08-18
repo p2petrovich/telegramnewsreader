@@ -405,10 +405,25 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     private fun dropTrivial(texts: List<String>): List<String> {
         val trivial = Regex("^(фото|видео|аудио|ссылка|репост)\\b.*$", RegexOption.IGNORE_CASE)
-        val subscribe = Regex("(?i)\\bподписывай(ся|тесь)?\\b|\\bподписка\\b")
+        // ИСПРАВИТЬ эту строку:
+        val subscribe = Regex("(?i)^.*\\b(подписывай(ся|тесь)?|подписка)\\b.*$", RegexOption.IGNORE_CASE)
+
         return texts.map { it.trim() }
-            .filter { it.length >= 8 && !trivial.containsMatchIn(it) && !subscribe.containsMatchIn(it) }
+            .filter { text ->
+                val isTrivial = text.length < 8 || trivial.containsMatchIn(text)
+                val hasSubscribe = subscribe.containsMatchIn(text)
+
+                // Отладка
+                if (hasSubscribe) {
+                    Log.d("TTSManager", "⚠️ Найдена подписка: '$text'")
+                }
+
+                // Разрешить текст, если он не тривиальный и НЕ содержит только подписку
+                !(isTrivial || hasSubscribe)
+            }
     }
+
+
 
     private fun splitByParagraphs(text: String, maxChars: Int = 2800): List<String> {
         val paras = text.split(Regex("\\n{2,}")).map { it.trim() }.filter { it.isNotEmpty() }
@@ -776,11 +791,11 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 // Это реальная новость
                 chaptersMs.add(offsetMs)
                 realNewsIndex++
-                Log.d("TTSManager", "챕тер фиксирован для реальной новости #$realNewsIndex (общий индекс $newsIndex)")
+                Log.d("TTSManager", "Глава фиксирована для реальной новости #$realNewsIndex (общий индекс $newsIndex)")
             } else {
                 // Это заголовок канала - тоже создаем главу для навигации
                 chaptersMs.add(offsetMs)
-                Log.d("TTSManager", "챕тер фиксирован для заголовка канала (index=$newsIndex)")
+                Log.d("TTSManager", "Глава фиксирована для заголовка канала (index=$newsIndex)")
             }
 
             val parts = splitByParagraphs(formatted, 2800)
