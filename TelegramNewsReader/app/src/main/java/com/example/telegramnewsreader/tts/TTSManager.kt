@@ -353,6 +353,8 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         t = t.replace(Regex("(?im)^ред\\.?\\s*:?\\s*\\d{1,2}:\\d{2}.*$"), "")
         t = t.replace(Regex("(?im)^\\s*(?:[\\p{So}\\p{Sk}❗️!❤️💚💙💛💜🖤🤍🤎]\\s*)*подписывай(ся|тесь)?\\b.*$", RegexOption.MULTILINE), "")
         t = t.replace(Regex("(?im)^\\s*подписка\\b.*$", RegexOption.MULTILINE), "")
+        // Удаление всех цветных квадратов (🟩🟨🟥🟦🟪🟫⬛⬜)
+        t = t.replace(Regex("[🟩🟨🟥🟦🟪🟫⬛⬜]"), "")
         t = t.replace(Regex("[\\p{So}\\p{Sk}]"), " ")
         t = t.replace(Regex("[*_`]+"), "")
         t = t.replace(Regex("[«»]"), "\"")
@@ -412,13 +414,16 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         // Добавляем паузы после предложений, избегая сокращений
         // Защита от сокращений
         enhanced = enhanced.replace(Regex("(?<!т\\.д)(?<!т\\.п)(?<!млн)(?<!млрд)(?<!г)(?<!ул)(?<!просп)\\.(?=\\s+[А-ЯЁA-Z]|$)")) {
-            ". <break time=\"400ms\"/>"
+            ". <break time=\"800ms\"/>"
         }
+
+
 
         // Паузы после восклицательных знаков
         enhanced = enhanced.replace(Regex("!(?=\\s+[А-ЯЁA-Z]|$)")) {
             "! <break time=\"400ms\"/>"
         }
+
 
         // Паузы после вопросительных знаков
         enhanced = enhanced.replace(Regex("\\?(?=\\s+[А-ЯЁA-Z]|$)")) {

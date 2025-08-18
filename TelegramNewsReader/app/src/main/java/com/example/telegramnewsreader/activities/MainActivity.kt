@@ -86,7 +86,7 @@ class MainActivity : AppCompatActivity() {
     )
     private val timeValues = arrayOf(0.16, 0.33, 0.5, 1.0, 2.0, 3.0, 6.0, 12.0, 24.0)
 
-    private var currentTimePeriodIndex = 1
+    private var currentTimePeriodIndex = 2
 
     // Переменные для отслеживания прогресса
     private var totalNewsToProcess = 0
