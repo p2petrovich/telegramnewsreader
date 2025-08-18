@@ -404,6 +404,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     }
 
     // Новые методы для SSML-улучшения
+    // Новые методы для SSML-улучшения
     private fun enhanceWithSSML(text: String): String {
         var enhanced = text
 
@@ -843,9 +844,17 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             val deduped = deduplicateLines(cleaned)
             val normalized = normalizeNumbers(deduped)
             val formatted = formatForIntonation(normalized)
-            val finalText = enhanceWithSSML(formatForSpeech(formatted)) // Добавлены SSML
 
-            if (formatted.isBlank()) {
+            // ДОБАВИТЬ ЭТИ СТРОКИ:
+            val speechReadyText = if (!formatted.matches(Regex("^Новости из канала.*:$"))) {
+                formatForSpeech(formatted)  // Только для реальных новостей
+            } else {
+                formatted  // Заголовки каналов оставляем как есть
+            }
+
+            val finalText = enhanceWithSSML(speechReadyText)
+
+            if (finalText.isBlank()) {
                 Log.d("TTSManager", "⏭️ Пропущена пустая новость после форматирования (index=$newsIndex)")
                 return@forEachIndexed
             }
