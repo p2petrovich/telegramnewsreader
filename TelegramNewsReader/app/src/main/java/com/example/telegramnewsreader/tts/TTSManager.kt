@@ -50,7 +50,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
 
     private var tts: TextToSpeech? = null
-    private var isMale = true
+    //private var isMale = true
     private var ttsInitialized = AtomicBoolean(false)
     private var initializationContinuation: CancellableContinuation<Boolean>? = null
 
@@ -232,29 +232,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         return ttsInitialized.get()
     }
 
-    fun setVoiceGender(isMale: Boolean) {
-        Log.d("TTSManager", "🚻 setVoiceGender($isMale) вызван")
-        val stackTrace = Thread.currentThread().stackTrace
-        Log.d("TTSManager", "📍 Стек вызовов setVoiceGender:")
-        stackTrace.take(6).forEach { element ->
-            Log.d("TTSManager", "   ${element.className}.${element.methodName}(${element.fileName}:${element.lineNumber})")
-        }
 
-        this.isMale = isMale
-        if (ttsInitialized.get()) {
-            val newPitch = if (isMale) 0.8f else 1.2f
-            Log.d("TTSManager", "🎚️ ВНИМАНИЕ! setVoiceGender устанавливает pitch=$newPitch (было ${currentAppliedPitch})")
-
-            val result = tts?.setPitch(newPitch)
-            pitchChangeCount++
-            currentAppliedPitch = newPitch
-
-            TTSDebugTracker.trackPitchChange(newPitch, "setVoiceGender - automatic gender adjustment")
-
-            Log.d("TTSManager", "⚠️ ПОТЕНЦИАЛЬНАЯ ПРОБЛЕМА! setVoiceGender изменил pitch на $newPitch")
-            Log.d("TTSManager", "📊 Счетчик изменений pitch: $pitchChangeCount")
-        }
-    }
 
     fun getAvailableVoices(): List<Voice> {
         return tts?.voices?.filter {
