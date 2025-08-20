@@ -27,7 +27,6 @@ object TTSManagerSingleton {
     @Volatile
     private var INSTANCE: TTSManager? = null
 
-
     fun getInstance(context: Context): TTSManager {
         return INSTANCE ?: synchronized(this) {
             INSTANCE ?: TTSManager(context.applicationContext).also {
@@ -48,9 +47,7 @@ object TTSManagerSingleton {
 
 class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
-
     private var tts: TextToSpeech? = null
-    //private var isMale = true
     private var ttsInitialized = AtomicBoolean(false)
     private var initializationContinuation: CancellableContinuation<Boolean>? = null
 
@@ -75,8 +72,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     }
 
     private fun findBestEngine(): String? {
-        // В этом месте tts ещё null; оставляем как есть, чтобы не ломать логику.
-        // Детальное логирование текущего движка добавлено в onInit().
         tts?.engines?.let { engines ->
             val preferredEngines = listOf(
                 "com.google.android.tts",
@@ -107,7 +102,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             ttsInitialized.set(true)
             Log.d("TTSManager", "✅ TTS Initialized successfully.")
 
-            // Логируем выбранный движок и голос
             try {
                 val engine = tts?.defaultEngine
                 Log.d("TTSManager", "🛠️ TTS defaultEngine: $engine")
@@ -231,8 +225,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
         return ttsInitialized.get()
     }
-
-
 
     fun getAvailableVoices(): List<Voice> {
         return tts?.voices?.filter {
@@ -381,6 +373,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         return t
     }
 
+    // ВНИМАНИЕ: никаких SSML-тегов внутри текста — Android TTS их произносит.
     private fun formatForIntonation(text: String): String {
         var t = text
 
@@ -397,14 +390,14 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         t = t.replace(Regex("\\bкм\\b", RegexOption.IGNORE_CASE), "километров")
         t = t.replace(Regex("\\bм\\b", RegexOption.IGNORE_CASE), "метров")
 
-        // Нумерованные списки (УЛУЧШЕНО)
+        // Нумерованные списки (без SSML)
         t = t.replace(Regex("^(\\d+)\\.\\s+", RegexOption.MULTILINE)) {
-            "${it.groupValues[1]}. <break time=\"150ms\"/>"
+            "${it.groupValues[1]}. "
         }
 
-        // Буллиты (УЛУЧШЕНО)
+        // Буллиты (без SSML)
         t = t.replace(Regex("^[•·∙▪▫◦‣⁃]\\s+", RegexOption.MULTILINE)) {
-            "— <break time=\"150ms\"/>"
+            "— "
         }
 
         // Форматирование тире
@@ -412,37 +405,28 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         t = t.replace(Regex(" - "), " — ")
         t = t.replace(Regex("\\.\\.\\."), "…")
 
-        // Добавление переносов после предложений
+        // Переносы после предложений для будущих пауз между абзацами
         val abbrEnd = "(?<!т\\.д)(?<!т\\.п)(?<!млн)(?<!млрд)(?<!г)(?<!ул)(?<!просп)"
         t = t.replace(Regex("$abbrEnd(?<=[.!?])\\s+"), "\n\n")
 
         return t.trim()
     }
 
-    // УЛУЧШЕННЫЙ метод для вычисления динамических пауз
-    private fun calculatePauseDuration(sentenceLength: Int): String {
+    /*private fun calculatePauseDuration(sentenceLength: Int): String {
         return when {
             sentenceLength < 50 -> "400ms"
             sentenceLength < 100 -> "600ms"
             sentenceLength < 150 -> "800ms"
             else -> "1000ms"
         }
-    }
+    }*/
 
-    // ЗНАЧИТЕЛЬНО УЛУЧШЕННЫЙ метод для SSML
-    private fun enhanceWithSSML(text: String): String {
+    // Оставляем для совместимости (не используем в локальном TTS)
+    /*private fun enhanceWithSSML(text: String): String {
         var enhanced = text
-
-        // Добавляем короткие паузы после запятых
         enhanced = enhanced.replace(Regex(",\\s+"), ", <break time=\"200ms\"/> ")
-
-        // Паузы после точки с запятой
         enhanced = enhanced.replace(Regex(";\\s+"), "; <break time=\"300ms\"/> ")
-
-        // Паузы после тире в перечислениях
         enhanced = enhanced.replace(Regex("\\s+—\\s+"), " <break time=\"250ms\"/>— ")
-
-        // Динамические паузы после предложений с учетом длины
         enhanced = enhanced.replace(Regex("([^.!?]+)([.!?])(?=\\s+[А-ЯЁA-Z]|$)")) { match ->
             val sentence = match.groupValues[1]
             val punctuation = match.groupValues[2]
@@ -454,19 +438,9 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             }
             "$sentence$punctuation <break time=\"$pauseDuration\"/>"
         }
-
-        // Паузы после двоеточий (для перечислений)
         enhanced = enhanced.replace(Regex(":\\s+"), ": <break time=\"500ms\"/> ")
-
-        // Паузы перед прямой речью
         enhanced = enhanced.replace(Regex(":\\s*\""), ": <break time=\"300ms\"/>\"")
-
-        // Прямая речь с изменением темпа
-        enhanced = enhanced.replace(Regex("\"([^\"]+)\"")) {
-            "\"<prosody rate=\"95%\">${it.groupValues[1]}</prosody>\""
-        }
-
-        // Вопросительные предложения - замедляем конец
+        enhanced = enhanced.replace(Regex("\"([^\"]+)\"")) { "\"<prosody rate=\"95%\">${it.groupValues[1]}</prosody>\"" }
         enhanced = enhanced.replace(Regex("([^.!?]{20,})(\\?)")) { match ->
             val question = match.groupValues[1]
             val words = question.split(" ")
@@ -478,25 +452,19 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 "${match.groupValues[1]}?"
             }
         }
-
-        // Паузы между абзацами
         enhanced = enhanced.replace(Regex("\\n{2,}"), "<break time=\"600ms\"/>")
-
-        // Оборачиваем в SSML теги
         enhanced = "<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"ru-RU\">" +
                 enhanced +
                 "</speak>"
-
         return enhanced
-    }
+    }*/
 
-    // УЛУЧШЕННЫЙ метод форматирования для речи
+    // Без SSML-тегов — чистый текст
     private fun formatForSpeech(text: String): String {
         var processed = text
 
-        // Улучшаем названия организаций
         processed = processed.replace(Regex("\\b(НАТО|ЕС|США|ООН|ФСБ|МВД|СБУ|ЦРУ|ФБР)\\b")) {
-            when(it.value) {
+            when (it.value) {
                 "США" -> "США"
                 "ЕС" -> "Европейский союз"
                 "НАТО" -> "НАТО"
@@ -510,7 +478,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             }
         }
 
-        // Улучшаем даты для лучшего произношения
         processed = processed.replace(Regex("\\b(\\d{1,2})\\.\\s*(\\d{1,2})\\.\\s*(\\d{4})\\b")) {
             val day = it.groupValues[1]
             val month = it.groupValues[2]
@@ -518,16 +485,12 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             "$day число $month месяца $year года"
         }
 
-        // Добавляем эмфазис для важных слов
+        // Важные слова — без SSML
         val importantWords = listOf("важно", "внимание", "срочно", "эксклюзив", "молния")
         importantWords.forEach { word ->
-            processed = processed.replace(
-                Regex("\\b($word)\\b", RegexOption.IGNORE_CASE),
-                "<emphasis level=\"strong\">$1</emphasis>"
-            )
+            processed = processed.replace(Regex("\\b($word)\\b", RegexOption.IGNORE_CASE)) { it.groupValues[1] }
         }
 
-        // Правильные ударения для ключевых слов
         val keyWords = mapOf(
             "украина" to "Украина",
             "путин" to "Путин",
@@ -556,12 +519,9 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 val isTrivial = text.length < 8 || trivial.containsMatchIn(text)
                 val hasSubscribe = subscribe.containsMatchIn(text)
 
-                // Отладка
                 if (hasSubscribe) {
                     Log.d("TTSManager", "⚠️ Найдена подписка: '$text'")
                 }
-
-                // Разрешить текст, если он не тривиальный и НЕ содержит только подписку
                 !(isTrivial || hasSubscribe)
             }
     }
@@ -678,7 +638,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
-    // Новое: чтение полного формата WAV
+    // Полные метаданные WAV
     private data class WavMeta(val sampleRate: Int, val channels: Int, val bitsPerSample: Int, val durationMs: Long?)
     private fun readWavMeta(file: File): WavMeta? {
         return try {
@@ -836,7 +796,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         val chaptersMs: List<Long>
     )
 
-    // Новое: утилита для печати логов FFmpeg-сессии
+    // Логи FFmpeg-сессии
     private fun logFfmpegSession(prefix: String, session: com.arthenica.ffmpegkit.Session) {
         try {
             session.logs.forEach { logLine ->
@@ -845,7 +805,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         } catch (_: Exception) { }
     }
 
-    // Новое: ресемплинг WAV под эталонный формат
+    // Ресемплинг WAV под эталонный формат
     private fun resampleWavToFormat(input: File, sampleRate: Int, channels: Int, bitsPerSample: Int): File? {
         val fmt = when (bitsPerSample) {
             8 -> "u8"
@@ -869,7 +829,66 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
-    // Новый метод с обратным вызовом прогресса
+    // ==== НОВОЕ: сегментация текста на текст/паузы без SSML ====
+
+    private val silenceCache = mutableMapOf<Int, File>()
+
+    private sealed class Segment {
+        data class Text(val text: String) : Segment()
+        data class Pause(val ms: Int) : Segment()
+    }
+
+    // Генерация сегментов (текст/пауза) по пунктуации и абзацам
+    private fun buildSegmentsWithPauses(input: String): List<Segment> {
+        var t = input
+
+        // Базовые паузы по знакам
+        //t = t.replace(Regex(",\\s+"), ", <<BR:10>> ")
+        t = t.replace(Regex(",\\\\s+(?!<<BR:)"), ", <<BR:200>> ")
+        t = t.replace(Regex(".\\\\s+(?!<<BR:)"), ". <<BR:400>> ")
+        t = t.replace(Regex(";\\s+"), "; <<BR:30>> ")
+        t = t.replace(Regex(":\\s+"), ": <<BR:50>> ")
+        t = t.replace(Regex("\\s+—\\s+"), " <<BR:25>>— ")
+
+        // Динамические паузы после предложений
+           /*  t = t.replace(Regex("([^.!?]+)([.!?])(?=\\s+[А-ЯЁA-Z]|\\s+\$|$)")) { m ->
+            val sentence = m.groupValues[1]
+            val punct = m.groupValues[2]
+            val ms = when (punct) {
+                "." -> when {
+                    sentence.length < 50 -> 300
+                    sentence.length < 100 -> 500
+                    sentence.length < 150 -> 600
+                    else -> 1000
+                }
+                "!" -> 400
+                "?" -> 350
+                else -> 300
+            }
+            "$sentence$punct <<BR:$ms>>"
+        }*/
+
+        // Паузы между абзацами
+        //t = t.replace(Regex("\\n{2,}"), " <<BR:600>> ")
+
+        // Парсим в сегменты
+        val out = mutableListOf<Segment>()
+        val br = Regex("\\s*<<BR:(\\d{2,4})>>\\s*")
+        var last = 0
+        br.findAll(t).forEach { m ->
+            val start = m.range.first
+            val chunk = t.substring(last, start).trim()
+            if (chunk.isNotEmpty()) out += Segment.Text(chunk)
+            val ms = m.groupValues[1].toInt()
+            out += Segment.Pause(ms)
+            last = m.range.last + 1
+        }
+        val tail = t.substring(last).trim()
+        if (tail.isNotEmpty()) out += Segment.Text(tail)
+        return out
+    }
+
+    // Новый метод с обратным вызовом прогресса (без SSML, паузы — реально вставляем тишину)
     suspend fun convertToAudioWithChaptersWithCallback(
         texts: List<String>,
         pauseMs: Int = 1200,
@@ -892,7 +911,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         Log.d("TTSManager", "   voiceParametersApplied=$voiceParametersApplied")
         Log.d("TTSManager", "   Счетчики: pitch=$pitchChangeCount, rate=$rateChangeCount, voice=$voiceChangeCount")
 
-        // Вызываем стартовый callback
         progressCallback?.onStarted(texts.size)
 
         val filteredNews = dropTrivial(texts)
@@ -902,6 +920,51 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             return null
         }
 
+        // Подготовительный проход
+        data class PreparedNews(
+            val originalIndex: Int,
+            val formattedForIntonation: String,
+            val textForSplitting: String,
+            val isHeader: Boolean
+        )
+
+        val prepared = mutableListOf<PreparedNews>()
+
+        filteredNews.forEachIndexed { newsIndex, raw ->
+            val cleaned = cleanTextForTts(raw)
+            val deduped = deduplicateLines(cleaned)
+            val normalized = normalizeNumbers(deduped)
+            val formattedForIntonation = formatForIntonation(normalized)
+
+            val isHeader = formattedForIntonation.matches(Regex("^Новости из канала.+?:\\s*$"))
+            val textForSplitting = if (!isHeader) {
+                formatForSpeech(formattedForIntonation)
+            } else {
+                formattedForIntonation
+            }
+
+            if (textForSplitting.isBlank()) {
+                Log.d("TTSManager", "⏭️ Пропущена пустая новость после formatForSpeech (index=$newsIndex)")
+            } else {
+                prepared += PreparedNews(
+                    originalIndex = newsIndex,
+                    formattedForIntonation = formattedForIntonation,
+                    textForSplitting = textForSplitting,
+                    isHeader = isHeader
+                )
+            }
+        }
+
+        if (prepared.isEmpty()) {
+            Log.w("TTSManager", "После предобработки не осталось текстов для синтеза.")
+            progressCallback?.onCompleted()
+            return null
+        }
+
+        // Корректный totalParts — по реальному тексту после formatForSpeech
+        val totalParts = prepared.sumOf { splitByParagraphs(it.textForSplitting, 2800).size }
+        var processedParts = 0
+
         val baseUtteranceId = "ttsAudioConversion_${System.currentTimeMillis()}"
 
         val wavFiles = mutableListOf<File>()
@@ -910,114 +973,145 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         val chaptersMs = mutableListOf<Long>()
         var offsetMs = 0L
-        var realNewsIndex = 0 // Счетчик только реальных новостей
+        var realNewsIndex = 0
 
-        // Новые переменные для отслеживания прогресса
-        val totalParts = filteredNews.sumOf { splitByParagraphs(it, 2800).size }
-        var processedParts = 0
+        prepared.forEachIndexed { idx, item ->
+            val newsIndex = item.originalIndex
 
-        filteredNews.forEachIndexed { newsIndex, raw ->
-            val cleaned = cleanTextForTts(raw)
-            val deduped = deduplicateLines(cleaned)
-            val normalized = normalizeNumbers(deduped)
-            val formatted = formatForIntonation(normalized)
-
-            // Применяем форматирование для речи только к реальным новостям
-            val speechReadyText = if (!formatted.matches(Regex("^Новости из канала.*:$"))) {
-                formatForSpeech(formatted)  // Только для реальных новостей
-            } else {
-                formatted  // Заголовки каналов оставляем как есть
-            }
-
-            val finalText = enhanceWithSSML(speechReadyText)
-
-            if (finalText.isBlank()) {
-                Log.d("TTSManager", "⏭️ Пропущена пустая новость после форматирования (index=$newsIndex)")
-                return@forEachIndexed
-            }
-
-            // Фиксируем начало главы для всех сообщений
-            if (!formatted.matches(Regex("^Новости из канала.*:$"))) {
-                // Это реальная новость
-                chaptersMs.add(offsetMs)
+            // Фиксируем главу (для заголовков и реальных новостей)
+            chaptersMs.add(offsetMs)
+            if (!item.isHeader) {
                 realNewsIndex++
                 Log.d("TTSManager", "Глава фиксирована для реальной новости #$realNewsIndex (общий индекс $newsIndex)")
             } else {
-                // Это заголовок канала - тоже создаем главу для навигации
-                chaptersMs.add(offsetMs)
                 Log.d("TTSManager", "Глава фиксирована для заголовка канала (index=$newsIndex)")
             }
 
-            val parts = splitByParagraphs(formatted, 2800)
-            Log.d("TTSManager", "📝 Новость ${newsIndex + 1}/${filteredNews.size}: частей=${parts.size}, длина=${formatted.length}")
+            // Разделяем на части текст, прошедший formatForSpeech
+            val parts = splitByParagraphs(item.textForSplitting, 2800)
+            Log.d("TTSManager", "📝 Новость ${idx + 1}/${prepared.size}: частей=${parts.size}, длина=${item.textForSplitting.length}")
 
             for (i in parts.indices) {
-                val wav = synthesizePartToWav(parts[i], (newsIndex + 1) * 1000 + (i + 1), baseUtteranceId)
-                if (wav == null || !wav.exists() || wav.length() == 0L) {
-                    Log.e("TTSManager", "❌ Не удалось синтезировать часть ${i + 1} для новости ${newsIndex + 1}")
-                    wavFiles.forEach { if (it.exists()) it.delete() }
-                    silenceFile?.delete()
-                    progressCallback?.onCompleted()
-                    return null
-                }
+                val currentPartText = parts[i]
 
-                // Читаем метаданные части
-                val meta = readWavMeta(wav)
-                if (meta == null) {
-                    Log.e("TTSManager", "❌ Не удалось прочитать формат WAV части ${i + 1}")
-                    wavFiles.forEach { if (it.exists()) it.delete() }
-                    silenceFile?.delete()
-                    progressCallback?.onCompleted()
-                    return null
-                }
+                // Сегментация: текстовые сегменты + паузы (без SSML)
+                val segments = buildSegmentsWithPauses(currentPartText)
+                Log.d("TTSManager", "🔧 Сегментация части ${i + 1}: сегментов=${segments.size}")
 
-                Log.d("TTSManager", "📄 WAV часть: file=${wav.name} sr=${meta.sampleRate}Hz ch=${meta.channels} bps=${meta.bitsPerSample} dur=${meta.durationMs}ms")
+                val pendingPauses = mutableListOf<Int>() // паузы до определения baseline
+                var segIndex = 0
 
-                // Фиксируем эталонный формат на первой части
-                if (baselineFormat == null) {
-                    baselineFormat = meta
-                    Log.d("TTSManager", "📌 Эталонный формат: sr=${baselineFormat!!.sampleRate} ch=${baselineFormat!!.channels} bps=${baselineFormat!!.bitsPerSample}")
-                    if (pauseMs > 0) {
-                        silenceFile = createSilenceWav(pauseMs, sampleRate = baselineFormat!!.sampleRate, channels = baselineFormat!!.channels, bitsPerSample = baselineFormat!!.bitsPerSample)
-                        Log.d("TTSManager", "🤫 Сгенерирован файл тишины: ${silenceFile?.name}")
+                for (seg in segments) {
+                    when (seg) {
+                        is Segment.Text -> {
+                            // Уникальный индекс файла на основе новости/части/сегмента
+                            val partIndex = ((newsIndex + 1) * 1000 + (i + 1)) * 100 + segIndex
+                            segIndex++
+
+                            val wav = synthesizePartToWav(seg.text, partIndex, baseUtteranceId)
+                            if (wav == null || !wav.exists() || wav.length() == 0L) {
+                                Log.e("TTSManager", "❌ Не удалось синтезировать сегмент для части ${i + 1} новости ${idx + 1}")
+                                wavFiles.forEach { if (it.exists()) it.delete() }
+                                silenceFile?.delete()
+                                progressCallback?.onCompleted()
+                                return null
+                            }
+
+                            val meta = readWavMeta(wav)
+                            if (meta == null) {
+                                Log.e("TTSManager", "❌ Не удалось прочитать формат WAV сегмента части ${i + 1}")
+                                wavFiles.forEach { if (it.exists()) it.delete() }
+                                silenceFile?.delete()
+                                progressCallback?.onCompleted()
+                                return null
+                            }
+
+                            // Инициализируем baseline форматом первой синтезированной части
+                            if (baselineFormat == null) {
+                                baselineFormat = meta
+                                Log.d("TTSManager", "📌 Эталонный формат: sr=${baselineFormat!!.sampleRate} ch=${baselineFormat!!.channels} bps=${baselineFormat!!.bitsPerSample}")
+                                if (pauseMs > 0) {
+                                    silenceFile = createSilenceWav(
+                                        durationMs = pauseMs,
+                                        sampleRate = baselineFormat!!.sampleRate,
+                                        channels = baselineFormat!!.channels,
+                                        bitsPerSample = baselineFormat!!.bitsPerSample
+                                    )
+                                    Log.d("TTSManager", "🤫 Сгенерирован файл тишины для межновостных пауз: ${silenceFile?.name}")
+                                }
+                            }
+
+                            // Если формат сегмента отличается — пересэмплируем к baseline
+                            val usesBaseline = meta.sampleRate == baselineFormat!!.sampleRate &&
+                                    meta.channels == baselineFormat!!.channels &&
+                                    meta.bitsPerSample == baselineFormat!!.bitsPerSample
+
+                            val usedWav = if (!usesBaseline) {
+                                Log.w("TTSManager", "⚠️ Формат сегмента отличается от эталона. Будет выполнен ресемплинг.")
+                                val resampled = resampleWavToFormat(
+                                    input = wav,
+                                    sampleRate = baselineFormat!!.sampleRate,
+                                    channels = baselineFormat!!.channels,
+                                    bitsPerSample = baselineFormat!!.bitsPerSample
+                                )
+                                if (resampled != null) {
+                                    try { wav.delete() } catch (_: Exception) {}
+                                    resampled
+                                } else {
+                                    Log.e("TTSManager", "❌ Ресемплинг сегмента не удался")
+                                    wavFiles.forEach { if (it.exists()) it.delete() }
+                                    silenceFile?.delete()
+                                    progressCallback?.onCompleted()
+                                    return null
+                                }
+                            } else {
+                                wav
+                            }
+
+// Вставим отложенные паузы перед текстом (после инициализации
+                            if (pendingPauses.isNotEmpty()) {
+                                for (ms in pendingPauses) {
+                                    val sil = silenceCache.getOrPut(ms) {
+                                        createSilenceWav(
+                                            durationMs = ms,
+                                            sampleRate = baselineFormat!!.sampleRate,
+                                            channels = baselineFormat!!.channels,
+                                            bitsPerSample = baselineFormat!!.bitsPerSample
+                                        )
+                                    }
+                                    wavFiles.add(sil)
+                                    offsetMs += ms
+                                }
+                                pendingPauses.clear()
+                            }
+
+
+                            // Добавляем сам текстовый сегмент
+                            wavFiles.add(usedWav)
+                            val dur = readWavDurationMs(usedWav) ?: meta.durationMs ?: 0L
+                            offsetMs += dur
+                        }
+                        is Segment.Pause -> {
+                            if (baselineFormat == null) {
+                                // Пока не знаем формат — отложим паузу
+                                pendingPauses += seg.ms
+                            } else {
+                                val sil = silenceCache.getOrPut(seg.ms) {
+                                    createSilenceWav(
+                                        durationMs = seg.ms,
+                                        sampleRate = baselineFormat!!.sampleRate,
+                                        channels = baselineFormat!!.channels,
+                                        bitsPerSample = baselineFormat!!.bitsPerSample
+                                    )
+                                }
+                                wavFiles.add(sil)
+                                offsetMs += seg.ms
+                            }
+                        }
                     }
                 }
 
-                // Если формат части отличается — пересэмплируем
-                val usesBaseline = meta.sampleRate == baselineFormat!!.sampleRate &&
-                        meta.channels == baselineFormat!!.channels &&
-                        meta.bitsPerSample == baselineFormat!!.bitsPerSample
-
-                val usedWav = if (!usesBaseline) {
-                    Log.w("TTSManager", "⚠️ Формат части отличается от эталона. Будет выполнен ресемплинг.")
-                    val resampled = resampleWavToFormat(
-                        input = wav,
-                        sampleRate = baselineFormat!!.sampleRate,
-                        channels = baselineFormat!!.channels,
-                        bitsPerSample = baselineFormat!!.bitsPerSample
-                    )
-                    if (resampled != null) {
-                        // удаляем оригинал, используем ресемплированный
-                        try { wav.delete() } catch (_: Exception) {}
-                        resampled
-                    } else {
-                        Log.e("TTSManager", "❌ Ресемплинг части не удался")
-                        wavFiles.forEach { if (it.exists()) it.delete() }
-                        silenceFile?.delete()
-                        progressCallback?.onCompleted()
-                        return null
-                    }
-                } else {
-                    wav
-                }
-
-                wavFiles.add(usedWav)
-
-                // Прибавим длительность части к offset
-                val dur = readWavDurationMs(usedWav) ?: meta.durationMs ?: 0L
-                offsetMs += dur
-
-                // Обновляем прогресс
+                // Прогресс считаем по «частям» (как и раньше в логике прогресса)
                 processedParts++
                 if (totalParts > 0) {
                     val progress = (processedParts * 100 / totalParts).coerceAtMost(100)
@@ -1025,14 +1119,14 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 }
             }
 
-            // Пауза после каждой новости (кроме последней)
-            if (newsIndex != filteredNews.lastIndex && pauseMs > 0 && silenceFile != null) {
+            // Пауза между новостями (кроме последней)
+            if (idx != prepared.lastIndex && pauseMs > 0 && silenceFile != null) {
                 wavFiles.add(silenceFile!!)
                 offsetMs += pauseMs
             }
         }
 
-        // Обновляем прогресс до 100% перед объединением
+        // Прогресс на 100% перед объединением
         if (totalParts > 0) {
             progressCallback?.onProgress(100, 100)
         }
@@ -1047,21 +1141,27 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         val concatSuccess = if (wavFiles.size == 1) {
             wavFiles.first().renameTo(combinedWavFile)
         } else {
-            Log.d("TTSManager", "🔗 Объединяем ${wavFiles.size} WAV файлов в один (включая тишину между новостями)")
+            Log.d("TTSManager", "🔗 Объединяем ${wavFiles.size} WAV файлов в один (включая тишину между новостями и сегментами)")
             AudioUtils.concatWavFiles(wavFiles, combinedWavFile)
         }
 
+        // Чистим временные WAV (кроме объединённого и файлов из silenceCache)
+        val silencePaths = silenceCache.values.map { it.absolutePath }.toSet()
         wavFiles.forEach { file ->
-            if (file.exists() && file != combinedWavFile && (silenceFile == null || file.absolutePath != silenceFile!!.absolutePath)) {
-                file.delete()
-                Log.d("TTSManager", "🗑️ Удалили временный WAV: ${file.name}")
+            if (file.exists() &&
+                file != combinedWavFile &&
+                !silencePaths.contains(file.absolutePath)
+            ) {
+                try {
+                    file.delete()
+                    Log.d("TTSManager", "🗑️ Удалили временный WAV: ${file.name}")
+                } catch (_: Exception) { }
             }
         }
 
         if (!concatSuccess || !combinedWavFile.exists() || combinedWavFile.length() == 0L) {
             Log.e("TTSManager", "❌ Не удалось объединить WAV файлы")
-            combinedWavFile.delete()
-            silenceFile?.delete()
+            try { combinedWavFile.delete() } catch (_: Exception) { }
             progressCallback?.onCompleted()
             return null
         }
@@ -1069,23 +1169,25 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         Log.d("TTSManager", "✅ Объединенный WAV создан: ${combinedWavFile.name} (${combinedWavFile.length()} байт)")
 
         val mp3File = convertToMp3(combinedWavFile)
-        combinedWavFile.delete()
-        silenceFile?.delete()
+        try { combinedWavFile.delete() } catch (_: Exception) { }
+
+        // Кэш тишины оставляем (для повторного использования в рамках сессии). При желании можно чистить:
+        // silenceCache.values.forEach { try { it.delete() } catch (_: Exception) {} }
+        // silenceCache.clear()
 
         if (mp3File != null) {
             Log.d("TTSManager", "🎉 Синтез завершен успешно: ${mp3File.name} (${mp3File.length()} байт)")
             Log.d("TTSManager", "📊 Итоговая статистика:")
-            Log.d("TTSManager", "   Новостей: $realNewsIndex, пауза: ${pauseMs}мс")
+            Log.d("TTSManager", "   Новостей: $realNewsIndex, пауза между новостями: ${pauseMs}мс")
             Log.d("TTSManager", "   Счетчики изменений: pitch=$pitchChangeCount, rate=$rateChangeCount, voice=$voiceChangeCount")
             Log.d("TTSManager", "🎵 === convertToAudioWithChaptersWithCallback() КОНЕЦ ===")
             progressCallback?.onCompleted()
             return AudioWithChapters(mp3File, chaptersMs)
         } else {
             Log.e("TTSManager", "❌ Не удалось конвертировать в MP3")
+            progressCallback?.onCompleted()
+            return null
         }
-
-        progressCallback?.onCompleted()
-        return null
     }
 
     // Старый метод для совместимости
@@ -1127,8 +1229,10 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             return null
         } finally {
             if (wavFile.exists()) {
-                wavFile.delete()
-                Log.d("TTSManager", "🗑️ Удалили временный WAV файл: ${wavFile.name}")
+                try {
+                    wavFile.delete()
+                    Log.d("TTSManager", "🗑️ Удалили временный WAV файл: ${wavFile.name}")
+                } catch (_: Exception) { }
             }
         }
     }
@@ -1241,7 +1345,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         Log.d("TTSManager", "🔁 === refreshVoice() КОНЕЦ ===")
     }
 
-    // 🔥 НОВЫЕ МЕТОДЫ ДЛЯ РАБОТЫ С ИНДИВИДУАЛЬНЫМИ НАСТРОЙКАМИ ГОЛОСОВ
+    // Индивидуальные настройки голосов
     fun updatePitchForVoice(voiceName: String, pitch: Float) {
         Log.d("TTSManager", "🎚️ Сохраняем тембр для голоса $voiceName: $pitch")
         PreferenceManager.saveTtsPitchForVoice(context, voiceName, pitch)
