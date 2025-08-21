@@ -94,7 +94,6 @@ class VoiceAdapter(
         Log.d("VoiceAdapter", "📋 onBindViewHolder: position=$position, voice=${voiceEntry.displayName} (${voiceEntry.systemName}), isChecked=${holder.radio.isChecked}")
 
         holder.radio.setOnClickListener {
-            // ✅ ИСПРАВЛЕНИЕ: Используем bindingAdapterPosition вместо adapterPosition
             val clickedPosition = holder.bindingAdapterPosition
             if (clickedPosition != RecyclerView.NO_POSITION) {
                 TTSDebugTracker.trackUserAction("Voice selected via RadioButton: ${voiceEntries[clickedPosition].displayName}")
@@ -127,7 +126,6 @@ class VoiceAdapter(
         }
 
         holder.play.setOnClickListener {
-            // ✅ ИСПРАВЛЕНИЕ: Используем bindingAdapterPosition вместо adapterPosition
             val clickedPosition = holder.bindingAdapterPosition
             if (clickedPosition != RecyclerView.NO_POSITION) {
                 Log.d("VoiceAdapter", "▶️ === Play button НАЖАТ ===")
@@ -161,16 +159,17 @@ class VoiceAdapter(
         holder.seekPitch.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // ✅ ИСПРАВЛЕНИЕ: Используем bindingAdapterPosition
                     val currentPosition = holder.bindingAdapterPosition
                     if (currentPosition != RecyclerView.NO_POSITION) {
                         val currentVoiceEntry = voiceEntries[currentPosition]
                         val newPitch = progress / 100f
                         TTSDebugTracker.trackUserAction("SeekBar pitch changed to $newPitch")
-                        Log.d("VoiceAdapter", "🎚️ Изменен тембр: $newPitch для ${currentVoiceEntry.displayName}")
+                        Log.d("VoiceAdapter", "🎚️ Изменен тембр для ${currentVoiceEntry.displayName}: $newPitch")
 
+                        // 🔥 СОХРАНЯЕМ значение ТОЛЬКО для этого голоса
                         ttsManager.updatePitchForVoice(currentVoiceEntry.systemName, newPitch)
-                        ttsManager.updatePitch(newPitch)
+
+                        // ❗НЕ вызываем updatePitch(newPitch) - это влияет на глобальные параметры
 
                         updatePitchValue(holder, newPitch)
                     }
@@ -183,16 +182,17 @@ class VoiceAdapter(
         holder.seekRate.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    // ✅ ИСПРАВЛЕНИЕ: Используем bindingAdapterPosition
                     val currentPosition = holder.bindingAdapterPosition
                     if (currentPosition != RecyclerView.NO_POSITION) {
                         val currentVoiceEntry = voiceEntries[currentPosition]
                         val newRate = progress / 100f
                         TTSDebugTracker.trackUserAction("SeekBar rate changed to $newRate")
-                        Log.d("VoiceAdapter", "⏩ Изменена скорость: $newRate для ${currentVoiceEntry.displayName}")
+                        Log.d("VoiceAdapter", "⏩ Изменена скорость для ${currentVoiceEntry.displayName}: $newRate")
 
+                        // 🔥 СОХРАНЯЕМ значение ТОЛЬКО для этого голоса
                         ttsManager.updateRateForVoice(currentVoiceEntry.systemName, newRate)
-                        ttsManager.updateRate(newRate)
+
+                        // ❗НЕ вызываем updateRate(newRate) - это влияет на глобальные параметры
 
                         updateSpeedValue(holder, newRate)
                     }
@@ -203,7 +203,6 @@ class VoiceAdapter(
         })
 
         holder.btnResetPitch?.setOnClickListener {
-            // ✅ ИСПРАВЛЕНИЕ: Используем bindingAdapterPosition
             val currentPosition = holder.bindingAdapterPosition
             if (currentPosition != RecyclerView.NO_POSITION) {
                 val currentVoiceEntry = voiceEntries[currentPosition]
@@ -211,15 +210,16 @@ class VoiceAdapter(
                 holder.seekPitch.progress = 100
                 val resetPitch = 1.0f
                 TTSDebugTracker.trackUserAction("Pitch reset to 1.0 for ${currentVoiceEntry.displayName}")
+
+                // 🔥 СБРАСЫВАЕМ значение ТОЛЬКО для этого голоса
                 ttsManager.updatePitchForVoice(currentVoiceEntry.systemName, resetPitch)
-                ttsManager.updatePitch(resetPitch)
+
                 updatePitchValue(holder, resetPitch)
                 Toast.makeText(context, "Тембр сброшен на 1.0", Toast.LENGTH_SHORT).show()
             }
         }
 
         holder.btnResetRate?.setOnClickListener {
-            // ✅ ИСПРАВЛЕНИЕ: Используем bindingAdapterPosition
             val currentPosition = holder.bindingAdapterPosition
             if (currentPosition != RecyclerView.NO_POSITION) {
                 val currentVoiceEntry = voiceEntries[currentPosition]
@@ -227,8 +227,10 @@ class VoiceAdapter(
                 holder.seekRate.progress = 100
                 val resetRate = 1.0f
                 TTSDebugTracker.trackUserAction("Rate reset to 1.0 for ${currentVoiceEntry.displayName}")
+
+                // 🔥 СБРАСЫВАЕМ значение ТОЛЬКО для этого голоса
                 ttsManager.updateRateForVoice(currentVoiceEntry.systemName, resetRate)
-                ttsManager.updateRate(resetRate)
+
                 updateSpeedValue(holder, resetRate)
                 Toast.makeText(context, "Скорость сброшена на 1.0", Toast.LENGTH_SHORT).show()
             }

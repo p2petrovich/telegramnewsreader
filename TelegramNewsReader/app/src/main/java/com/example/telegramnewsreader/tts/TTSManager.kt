@@ -185,27 +185,30 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         Log.d("TTSManager", "🔍 Текущие параметры: currentAppliedPitch=$currentAppliedPitch, currentAppliedRate=$currentAppliedRate")
 
         if (!voiceParametersApplied) {
-            val pitch = PreferenceManager.getTtsPitch(context)
-            val rate = PreferenceManager.getTtsRate(context)
+            val savedVoiceName = PreferenceManager.getTtsVoiceName(context)
+            if (savedVoiceName != null) {
+                // Применяем индивидуальные настройки для сохраненного голоса
+                applyVoiceSettings(savedVoiceName)
+            } else {
+                // Если голос не сохранен, применяем глобальные настройки
+                val pitch = PreferenceManager.getTtsPitch(context)
+                val rate = PreferenceManager.getTtsRate(context)
+                Log.d("TTSManager", "📖 Считанные глобальные настройки: pitch=$pitch, rate=$rate")
 
-            Log.d("TTSManager", "📖 Считанные настройки: pitch=$pitch, rate=$rate")
+                tts?.setPitch(pitch)
+                tts?.setSpeechRate(rate)
+                pitchChangeCount++
+                rateChangeCount++
 
-            val pitchResult = tts?.setPitch(pitch)
-            val rateResult = tts?.setSpeechRate(rate)
-            pitchChangeCount++
-            rateChangeCount++
+                TTSDebugTracker.trackPitchChange(pitch, "applyVoiceParametersOnce - global init")
+                TTSDebugTracker.trackRateChange(rate, "applyVoiceParametersOnce - global init")
 
-            TTSDebugTracker.trackPitchChange(pitch, "applyVoiceParametersOnce - system init")
-            TTSDebugTracker.trackRateChange(rate, "applyVoiceParametersOnce - system init")
-
-            Log.d("TTSManager", "🎚️ Результат setPitch($pitch): $pitchResult")
-            Log.d("TTSManager", "⏩ Результат setSpeechRate($rate): $rateResult")
-
-            currentAppliedPitch = pitch
-            currentAppliedRate = rate
+                currentAppliedPitch = pitch
+                currentAppliedRate = rate
+            }
             voiceParametersApplied = true
 
-            Log.d("TTSManager", "🎯 Параметры голоса применены ЕДИНОКРАТНО: pitch=$pitch, rate=$rate")
+            Log.d("TTSManager", "🎯 Параметры голоса применены ЕДИНОКРАТНО")
             Log.d("TTSManager", "📊 Счетчики изменений: pitch=$pitchChangeCount, rate=$rateChangeCount, voice=$voiceChangeCount")
         } else {
             Log.d("TTSManager", "✅ Параметры голоса уже применены, пропускаем повторное применение")
@@ -251,52 +254,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     fun setVoiceByEntry(voiceEntry: VoiceEntry) {
         Log.d("TTSManager", "🎤 setVoiceByEntry(${voiceEntry.displayName}) вызван")
         setVoiceByName(voiceEntry.systemName)
-    }
-
-    fun updatePitch(pitch: Float) {
-        TTSDebugTracker.trackPitchChange(pitch, "updatePitch method - user change")
-
-        Log.d("TTSManager", "🎚️ === updatePitch($pitch) НАЧАЛО ===")
-        val stackTrace = Thread.currentThread().stackTrace
-        Log.d("TTSManager", "📍 Стек вызовов updatePitch:")
-        stackTrace.take(8).forEach { element ->
-            Log.d("TTSManager", "   ${element.className}.${element.methodName}(${element.fileName}:${element.lineNumber})")
-        }
-
-        Log.d("TTSManager", "🔍 Было: currentAppliedPitch=$currentAppliedPitch")
-        Log.d("TTSManager", "🔍 Устанавливаем: pitch=$pitch")
-
-        val result = tts?.setPitch(pitch)
-        pitchChangeCount++
-        currentAppliedPitch = pitch
-
-        Log.d("TTSManager", "🎚️ Результат setPitch: $result")
-        Log.d("TTSManager", "📊 Счетчик изменений pitch: $pitchChangeCount")
-        Log.d("TTSManager", "🎚️ Тембр речи обновлён ПОЛЬЗОВАТЕЛЕМ: $pitch")
-        Log.d("TTSManager", "🎚️ === updatePitch($pitch) КОНЕЦ ===")
-    }
-
-    fun updateRate(rate: Float) {
-        TTSDebugTracker.trackRateChange(rate, "updateRate method - user change")
-
-        Log.d("TTSManager", "⏩ === updateRate($rate) НАЧАЛО ===")
-        val stackTrace = Thread.currentThread().stackTrace
-        Log.d("TTSManager", "📍 Стек вызовов updateRate:")
-        stackTrace.take(8).forEach { element ->
-            Log.d("TTSManager", "   ${element.className}.${element.methodName}(${element.fileName}:${element.lineNumber})")
-        }
-
-        Log.d("TTSManager", "🔍 Было: currentAppliedRate=$currentAppliedRate")
-        Log.d("TTSManager", "🔍 Устанавливаем: rate=$rate")
-
-        val result = tts?.setSpeechRate(rate)
-        rateChangeCount++
-        currentAppliedRate = rate
-
-        Log.d("TTSManager", "⏩ Результат setSpeechRate: $result")
-        Log.d("TTSManager", "📊 Счетчик изменений rate: $rateChangeCount")
-        Log.d("TTSManager", "⏩ Скорость речи обновлена ПОЛЬЗОВАТЕЛЕМ: $rate")
-        Log.d("TTSManager", "⏩ === updateRate($rate) КОНЕЦ ===")
     }
 
     private fun numberToOrdinalRu(number: Int): String {
@@ -417,53 +374,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         return t.trim()
     }
-
-    /*private fun calculatePauseDuration(sentenceLength: Int): String {
-        return when {
-            sentenceLength < 50 -> "400ms"
-            sentenceLength < 100 -> "600ms"
-            sentenceLength < 150 -> "800ms"
-            else -> "1000ms"
-        }
-    }*/
-
-    // Оставляем для совместимости (не используем в локальном TTS)
-    /*private fun enhanceWithSSML(text: String): String {
-        var enhanced = text
-        enhanced = enhanced.replace(Regex(",\\s+"), ", <break time=\"200ms\"/> ")
-        enhanced = enhanced.replace(Regex(";\\s+"), "; <break time=\"300ms\"/> ")
-        enhanced = enhanced.replace(Regex("\\s+—\\s+"), " <break time=\"250ms\"/>— ")
-        enhanced = enhanced.replace(Regex("([^.!?]+)([.!?])(?=\\s+[А-ЯЁA-Z]|$)")) { match ->
-            val sentence = match.groupValues[1]
-            val punctuation = match.groupValues[2]
-            val pauseDuration = when (punctuation) {
-                "." -> calculatePauseDuration(sentence.length)
-                "!" -> "500ms"
-                "?" -> "450ms"
-                else -> "400ms"
-            }
-            "$sentence$punctuation <break time=\"$pauseDuration\"/>"
-        }
-        enhanced = enhanced.replace(Regex(":\\s+"), ": <break time=\"500ms\"/> ")
-        enhanced = enhanced.replace(Regex(":\\s*\""), ": <break time=\"300ms\"/>\"")
-        enhanced = enhanced.replace(Regex("\"([^\"]+)\"")) { "\"<prosody rate=\"95%\">${it.groupValues[1]}</prosody>\"" }
-        enhanced = enhanced.replace(Regex("([^.!?]{20,})(\\?)")) { match ->
-            val question = match.groupValues[1]
-            val words = question.split(" ")
-            if (words.size > 3) {
-                val lastWords = words.takeLast(3).joinToString(" ")
-                val firstPart = words.dropLast(3).joinToString(" ")
-                "$firstPart <prosody rate=\"90%\">$lastWords</prosody>?"
-            } else {
-                "${match.groupValues[1]}?"
-            }
-        }
-        enhanced = enhanced.replace(Regex("\\n{2,}"), "<break time=\"600ms\"/>")
-        enhanced = "<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"ru-RU\">" +
-                enhanced +
-                "</speak>"
-        return enhanced
-    }*/
 
     // Без SSML-тегов — чистый текст
     private fun formatForSpeech(text: String): String {
@@ -849,33 +759,13 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         var t = input
 
         // Базовые паузы по знакам
-        //t = t.replace(Regex(",\\s+"), ", <<BR:10>> ")
-        t = t.replace(Regex(",\\\\s+(?!<<BR:)"), ", <<BR:100>> ")
-        t.replace(Regex("\\.\\s+(?!<<BR:)"), ". <<BR:100>> ")
-        t = t.replace(Regex(";\\s+"), "; <<BR:200>> ")
-        t = t.replace(Regex(":\\s+"), ": <<BR:200>> ")
-            //t = t.replace(Regex("\\s+—\\s+"), " <<BR:200>>— ")
-
-        // Динамические паузы после предложений
-            /*   t = t.replace(Regex("([^.!?]+)([.!?])(?=\\s+[А-ЯЁA-Z]|\\s+\$|$)")) { m ->
-            val sentence = m.groupValues[1]
-            val punct = m.groupValues[2]
-            val ms = when (punct) {
-                "." -> when {
-                    sentence.length < 50 -> 200
-                    sentence.length < 100 -> 300
-                    sentence.length < 150 -> 400
-                    else -> 10
-                }
-                "!" -> 400
-                "?" -> 350
-                else -> 300
-            }
-            "$sentence$punct <<BR:$ms>>"
-        }*/
+        //t = t.replace(Regex(",\\s+"), ", <<BR:100>> ")
+        //t = t.replace(Regex("\\.\\s+"), ". <<BR:100>> ")
+        //t = t.replace(Regex(";\\s+"), "; <<BR:200>> ")
+        //t = t.replace(Regex(":\\s+"), ": <<BR:200>> ")
 
         // Паузы между абзацами
-        t = t.replace(Regex("\\n{2,}"), " <<BR:200>> ")
+        //t = t.replace(Regex("\\n{2,}"), " <<BR:200>> ")
 
         // Парсим в сегменты
         val out = mutableListOf<Segment>()
@@ -1290,8 +1180,10 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             voiceChangeCount++
             PreferenceManager.saveTtsVoiceName(context, voiceName)
 
-            Log.d("TTSManager", "💾 Голос сохранен и применен: $voiceName (параметры НЕ изменены)")
-            Log.d("TTSManager", "📊 Текущие параметры остаются: pitch=${currentAppliedPitch}, rate=${currentAppliedRate}")
+            // 🔥 ВАЖНО: Применяем настройки для этого конкретного голоса
+            applyVoiceSettings(voiceName)
+
+            Log.d("TTSManager", "💾 Голос сохранен и применен: $voiceName с параметрами pitch=${currentAppliedPitch}, rate=${currentAppliedRate}")
             Log.d("TTSManager", "📊 Счетчики: pitch=$pitchChangeCount, rate=$rateChangeCount, voice=$voiceChangeCount")
         } ?: run {
             Log.w("TTSManager", "❗ Голос '$voiceName' не найден среди доступных")
@@ -1340,11 +1232,16 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 tts?.language = it.locale
                 tts?.voice = it
                 voiceChangeCount++
+
+                // 🔥 ВАЖНО: Применяем настройки для этого голоса
+                if (savedVoiceName != null) {
+                    applyVoiceSettings(savedVoiceName)
+                }
             } ?: run {
                 Log.w("TTSManager", "❗ refreshVoice(): голос $savedVoiceName не найден среди доступных")
             }
 
-            Log.d("TTSManager", "🔄 refreshVoice() завершен: голос обновлен, параметры НЕ ИЗМЕНЕНЫ")
+            Log.d("TTSManager", "🔄 refreshVoice() завершен: голос и параметры обновлены")
             Log.d("TTSManager", "   pitch=${currentAppliedPitch}, rate=${currentAppliedRate}")
             Log.d("TTSManager", "   Счетчики: pitch=$pitchChangeCount, rate=$rateChangeCount, voice=$voiceChangeCount")
         }
@@ -1374,18 +1271,22 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         return savedRate
     }
 
+    // 🔥 ОСНОВНОЙ МЕТОД ДЛЯ ПРИМЕНЕНИЯ НАСТРОЕК ГОЛОСА
     fun applyVoiceSettings(voiceName: String) {
-        Log.d("TTSManager", "🎚️ Применяем настройки для голоса: $voiceName")
         val pitch = getPitchForVoice(voiceName)
         val rate = getRateForVoice(voiceName)
 
-        val pitchResult = tts?.setPitch(pitch)
-        val rateResult = tts?.setSpeechRate(rate)
+        Log.d("TTSManager", "🎚️ Применяем настройки для голоса $voiceName: pitch=$pitch, rate=$rate")
+
+        tts?.setPitch(pitch)
+        tts?.setSpeechRate(rate)
 
         currentAppliedPitch = pitch
         currentAppliedRate = rate
 
-        Log.d("TTSManager", "🎚️ Применен тембр: $pitch (результат: $pitchResult)")
-        Log.d("TTSManager", "⏩ Применена скорость: $rate (результат: $rateResult)")
+        pitchChangeCount++
+        rateChangeCount++
+
+        Log.d("TTSManager", "📊 Установлены параметры: pitch=$pitch (счетчик=$pitchChangeCount), rate=$rate (счетчик=$rateChangeCount)")
     }
 }
