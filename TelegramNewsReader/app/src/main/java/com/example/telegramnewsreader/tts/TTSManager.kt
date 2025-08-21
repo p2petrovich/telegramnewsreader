@@ -331,6 +331,12 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         t = t.replace(Regex("(?im)^.*\\b(реклама|промокод|скидк[аи])\\b.*$", RegexOption.MULTILINE), "")
         t = t.replace(Regex("(?im)^.*\\b(акци[яи]|распродажа|купи)\\b.*$", RegexOption.MULTILINE), "")
 
+// *** НАЧАЛО ВСТАВКИ ДЛЯ УДАЛЕНИЯ "Фото:" и "Следить за новостями" ***
+        // Удалить строку, начинающуюся с "Фото:" (с учетом возможного текста после)
+        t = t.replace(Regex("""^Фото:.*${'$'}""", RegexOption.MULTILINE), "")
+        // - Заканчиваются на этой же строке
+        t = t.replace(Regex("""^[\p{So}\p{Sk}]?\s*(Читать РБК в Telegram|Следить за новостями РБК в Telegram|(Другие видео|Картина дня).*в телеграм-канале РБК).*${'$'}""", setOf(RegexOption.MULTILINE, RegexOption.IGNORE_CASE)), "")
+        // *** КОНЕЦ ОБНОВЛЕННОЙ ВСТАВКИ ***
         // Удаление контактов (телефоны)
         t = t.replace(Regex("\\+?\\d{1,3}[\\s-]?\\(?\\d{1,4}\\)?[\\s-]?\\d{1,4}[\\s-]?\\d{1,4}[\\s-]?\\d{1,4}"), "")
 
@@ -845,10 +851,10 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         // Базовые паузы по знакам
         //t = t.replace(Regex(",\\s+"), ", <<BR:10>> ")
         t = t.replace(Regex(",\\\\s+(?!<<BR:)"), ", <<BR:100>> ")
-        t.replace(Regex("\\.\\s+(?!<<BR:)"), ". <<BR:300>> ")
-        t = t.replace(Regex(";\\s+"), "; <<BR:300>> ")
-        t = t.replace(Regex(":\\s+"), ": <<BR:300>> ")
-        t = t.replace(Regex("\\s+—\\s+"), " <<BR:250>>— ")
+        t.replace(Regex("\\.\\s+(?!<<BR:)"), ". <<BR:100>> ")
+        t = t.replace(Regex(";\\s+"), "; <<BR:200>> ")
+        t = t.replace(Regex(":\\s+"), ": <<BR:200>> ")
+            //t = t.replace(Regex("\\s+—\\s+"), " <<BR:200>>— ")
 
         // Динамические паузы после предложений
             /*   t = t.replace(Regex("([^.!?]+)([.!?])(?=\\s+[А-ЯЁA-Z]|\\s+\$|$)")) { m ->
@@ -869,7 +875,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }*/
 
         // Паузы между абзацами
-        t = t.replace(Regex("\\n{2,}"), " <<BR:300>> ")
+        t = t.replace(Regex("\\n{2,}"), " <<BR:200>> ")
 
         // Парсим в сегменты
         val out = mutableListOf<Segment>()
