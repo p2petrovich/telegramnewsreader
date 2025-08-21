@@ -477,7 +477,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 else -> it.value
             }
         }
-
+        processed = processed.replace(Regex("\\bMAX\\b"), "Макс")
         processed = processed.replace(Regex("\\b(\\d{1,2})\\.\\s*(\\d{1,2})\\.\\s*(\\d{4})\\b")) {
             val day = it.groupValues[1]
             val month = it.groupValues[2]
@@ -844,22 +844,22 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         // Базовые паузы по знакам
         //t = t.replace(Regex(",\\s+"), ", <<BR:10>> ")
-        t = t.replace(Regex(",\\\\s+(?!<<BR:)"), ", <<BR:200>> ")
-        t = t.replace(Regex(".\\\\s+(?!<<BR:)"), ". <<BR:400>> ")
-        t = t.replace(Regex(";\\s+"), "; <<BR:30>> ")
-        t = t.replace(Regex(":\\s+"), ": <<BR:50>> ")
-        t = t.replace(Regex("\\s+—\\s+"), " <<BR:25>>— ")
+        t = t.replace(Regex(",\\\\s+(?!<<BR:)"), ", <<BR:100>> ")
+        t.replace(Regex("\\.\\s+(?!<<BR:)"), ". <<BR:300>> ")
+        t = t.replace(Regex(";\\s+"), "; <<BR:300>> ")
+        t = t.replace(Regex(":\\s+"), ": <<BR:300>> ")
+        t = t.replace(Regex("\\s+—\\s+"), " <<BR:250>>— ")
 
         // Динамические паузы после предложений
-           /*  t = t.replace(Regex("([^.!?]+)([.!?])(?=\\s+[А-ЯЁA-Z]|\\s+\$|$)")) { m ->
+            /*   t = t.replace(Regex("([^.!?]+)([.!?])(?=\\s+[А-ЯЁA-Z]|\\s+\$|$)")) { m ->
             val sentence = m.groupValues[1]
             val punct = m.groupValues[2]
             val ms = when (punct) {
                 "." -> when {
-                    sentence.length < 50 -> 300
-                    sentence.length < 100 -> 500
-                    sentence.length < 150 -> 600
-                    else -> 1000
+                    sentence.length < 50 -> 200
+                    sentence.length < 100 -> 300
+                    sentence.length < 150 -> 400
+                    else -> 10
                 }
                 "!" -> 400
                 "?" -> 350
@@ -869,7 +869,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }*/
 
         // Паузы между абзацами
-        //t = t.replace(Regex("\\n{2,}"), " <<BR:600>> ")
+        t = t.replace(Regex("\\n{2,}"), " <<BR:300>> ")
 
         // Парсим в сегменты
         val out = mutableListOf<Segment>()
