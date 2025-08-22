@@ -141,7 +141,7 @@ class NewsService(
 
         val audio = ttsManager.convertToAudioWithChaptersWithCallback(
             list.preparedMessages,
-            pauseMs = 1200,
+            pauseMs = 1000,
             progressCallback = object : TTSManager.SynthesisProgressCallback {
                 override fun onProgress(current: Int, total: Int) {
                     progressCallback.onSynthesisProgress(current, total)

@@ -787,7 +787,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     // Новый метод с обратным вызовом прогресса (без SSML, паузы — реально вставляем тишину)
     suspend fun convertToAudioWithChaptersWithCallback(
         texts: List<String>,
-        pauseMs: Int = 1200,
+        pauseMs: Int = 1000,
         progressCallback: SynthesisProgressCallback?
     ): AudioWithChapters? {
         Log.d("TTSManager", "🎵 === convertToAudioWithChaptersWithCallback() НАЧАЛО ===")
@@ -1087,7 +1087,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     }
 
     // Старый метод для совместимости
-    suspend fun convertToAudioWithChapters(texts: List<String>, pauseMs: Int = 1200): AudioWithChapters? {
+    suspend fun convertToAudioWithChapters(texts: List<String>, pauseMs: Int = 1000): AudioWithChapters? {
         return convertToAudioWithChaptersWithCallback(texts, pauseMs, null)
     }
 
