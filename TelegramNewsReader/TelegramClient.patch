@@ -1,0 +1,48 @@
+--- a/TelegramNewsReader/app/src/main/java/com/example/telegramnewsreader/telegram/TelegramClient.kt
++++ b/TelegramNewsReader/app/src/main/java/com/example/telegramnewsreader/telegram/TelegramClient.kt
+@@ -30,6 +30,9 @@
+     private var parametersSetTime: Long = 0
+ 
+     private val authLatch = CountDownLatch(1)
++
++    // StateFlow для отслеживания состояния клиента
++    private val _clientState = MutableStateFlow<ClientState>(ClientState.Initializing)
+ 
+     // Для загрузки аватаров
+     private val fileIdToChatId = ConcurrentHashMap<Int, Long>()
+@@ -44,6 +47,8 @@
+     var onClientReady: (() -> Unit)? = null
+     var onPasswordRequired: (() -> Unit)? = null
+ 
++    val clientState: StateFlow<ClientState> = _clientState.asStateFlow()
++
+     // колбэк завершения логаута
+     private var onLoggedOut: (() -> Unit)? = null
+ 
+@@ -195,6 +200,7 @@
+                 Log.d(TAG, "CLIENT READY: TelegramClient готов")
+                 isReady = true
+                 isAuthorized = true
++                _clientState.value = ClientState.Ready
+                 onClientReady?.invoke()
+             }
+         }
+@@ -202,6 +208,7 @@
+         if (checkAuthState()) {
+             Log.d(TAG, "CLIENT READY: Клиент уже готов")
+             isReady = true
++            _clientState.value = ClientState.Ready
+             onClientReady?.invoke()
+         } else {
+             Log.d(TAG, "CLIENT INIT: Ожидаем готовности клиента...")
+@@ -220,3 +227,9 @@
+         }
+     }
+ }
++
++// Состояния клиента
++sealed class ClientState {
++    object Initializing : ClientState()
++    object Ready : ClientState()
++    data class Error(val message: String) : ClientState()
++}

@@ -1,0 +1,23 @@
+--- a/TelegramNewsReader/app/src/main/java/com/example/telegramnewsreader/activities/MainActivity.kt
++++ b/TelegramNewsReader/app/src/main/java/com/example/telegramnewsreader/activities/MainActivity.kt
+@@ -225,12 +225,21 @@
+             loadChannels()\n            updateUIForReadyClient()\n        } else {\n            Log.d(\"MainActivity\", \"CLIENT INIT: Ожидаем готовности клиента...\")\n            updateStatus(\"Инициализация Telegram клиента...\")\n        }\n    }\n+
++    // Подписываемся на StateFlow для отслеживания состояния клиента
++    lifecycleScope.launch {
++        telegramClient.clientState.collect { clientState ->
++            when (clientState) {
++                is ClientState.Ready -> {
++                    Log.d("MainActivity", "Client is ready, loading channels and initial news")
++                    loadChannels()
++                    updateUIForReadyClient()
++                }
++                is ClientState.Initializing -> updateStatus("Инициализация Telegram клиента...")
++                is ClientState.Error -> {
++                    updateStatus("Ошибка инициализации Telegram клиента: ${clientState.message}")
++                    Toast.makeText(this@MainActivity, "Ошибка: ${clientState.message}", Toast.LENGTH_LONG).show()
++                }
++            }
++        }
++    }
+ 
+     private fun updateUIForReadyClient() {\n        binding.btnCollectNews.isEnabled = channelAdapter.getSelectedChannels().isNotEmpty()\n        updateStatus(\"Клиент готов. Выберите каналы для сбора новостей.\")\n    }\n

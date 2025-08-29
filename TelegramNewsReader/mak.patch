@@ -1,0 +1,11 @@
+--- a/TelegramNewsReader/app/src/main/java/com/example/telegramnewsreader/activities/MainActivity.kt
++++ b/TelegramNewsReader/app/src/main/java/com/example/telegramnewsreader/activities/MainActivity.kt
+@@ -350,7 +350,11 @@
+         val newsInfo = if (totalNewsCount > 0) {\n            \"Новостей за 30 мин: $totalNewsCount\"\n        } else {\n            \"Нет новостей за 30 мин\"\n        }\n+
++        // Если есть каналы с ошибками, добавляем информацию об этом
++        val errorChannels = channels.filter { it.newMessagesCount == -1 }
++        val errorInfo = if (errorChannels.isNotEmpty()) {
++            "Ошибка при получении новостей из: ${errorChannels.joinToString { it.title }}"
++        } else ""
+ 
+         val statusText = if (isClientReady) {\n            \"Выберите каналы\\n$channelInfo\\n$newsInfo\"\n        } else {\\n            \"Инициализация...\\n$channelInfo\\n$newsInfo\"\n        }\n
