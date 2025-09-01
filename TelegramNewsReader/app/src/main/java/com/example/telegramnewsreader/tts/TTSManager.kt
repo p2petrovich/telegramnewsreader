@@ -281,22 +281,21 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         // Удаление служебной информации
         t = t.replace(Regex("(?im)^переслано из:?\\s.*$"), "")
         t = t.replace(Regex("(?im)^ред\\.?\\s*:?\\s*\\d{1,2}:\\d{2}.*$"), "")
-
         // УЛУЧШЕННАЯ фильтрация подписок и рекламы
         t = t.replace(Regex("(?im)^\\s*(?:[\\p{So}\\p{Sk}❗️!❤️💚💙💛💜🖤🤍🤎]\\s*)*подписывай(ся|тесь)?\\b.*$", RegexOption.MULTILINE), "")
         t = t.replace(Regex("(?im)^\\s*подписка\\b.*$", RegexOption.MULTILINE), "")
         t = t.replace(Regex("(?im)^.*\\b(реклама|промокод|скидк[аи])\\b.*$", RegexOption.MULTILINE), "")
         t = t.replace(Regex("(?im)^.*\\b(акци[яи]|распродажа|купи)\\b.*$", RegexOption.MULTILINE), "")
 
-// *** НАЧАЛО ВСТАВКИ ДЛЯ УДАЛЕНИЯ "Фото:" и "Следить за новостями" ***
+        // *** НАЧАЛО ВСТАВКИ ДЛЯ УДАЛЕНИЯ "Фото:" и "Следить за новостями" ***
         // Удалить строку, начинающуюся с "Фото:" (с учетом возможного текста после)
-        t = t.replace(Regex("""^Фото:.*${'$'}""", RegexOption.MULTILINE), "")
+        t = t.replace(Regex("""^Фото:.*$""", RegexOption.MULTILINE), "")
         // - Заканчиваются на этой же строке
-        t = t.replace(Regex("""^[\p{So}\p{Sk}]?\s*(Читать РБК в Telegram|Следить за новостями РБК в Telegram|(Другие видео|Картина дня).*в телеграм-канале РБК).*${'$'}""", setOf(RegexOption.MULTILINE, RegexOption.IGNORE_CASE)), "")
+        t = t.replace(Regex("""^[\p{So}\p{Sk}]?\s*(Читать РБК в Telegram|Следить за новостями РБК в Telegram|(Другие видео|Картина дня).*в телеграм-канале РБК).*$""", setOf(RegexOption.MULTILINE, RegexOption.IGNORE_CASE)), "")
         // *** КОНЕЦ ОБНОВЛЕННОЙ ВСТАВКИ ***
+
         // Удаление контактов (телефоны)
         t = t.replace(Regex("\\+?\\d{1,3}[\\s-]?\\(?\\d{1,4}\\)?[\\s-]?\\d{1,4}[\\s-]?\\d{1,4}[\\s-]?\\d{1,4}"), "")
-
         // Удаление всех цветных квадратов
         t = t.replace(Regex("[🟩🟨🟥🟦🟪🟫⬛⬜]"), "")
         // Удаление эмодзи
@@ -331,15 +330,44 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     private fun normalizeNumbers(text: String): String {
         var t = text
         t = t.replace(Regex("\\b№\\s*(\\d+)"), "номер $1")
+
+        // УЛУЧШЕНО: Обработка больших денежных сумм
+        t = t.replace(Regex("\\b(\\d+[\\d\\s]*)\\s*(млн|млрд)\\s*(?:₽|руб\\.?|р\\.)\\b", RegexOption.IGNORE_CASE)) { match ->
+            val num = match.groupValues[1].replace("\\s".toRegex(), "")
+            val scale = if (match.groupValues[2].lowercase() == "млн") "миллионов" else "миллиардов"
+            "$num $scale рублей"
+        }
+
+        // Обычные суммы
         t = t.replace(Regex("\\b(\\d+[\\d\\s]*)(?:₽|руб\\.?|р\\.)\\b", RegexOption.IGNORE_CASE), "$1 рублей")
-        t = t.replace(Regex("\\b(\\d+[\\d\\s]*)\\s?%\\b"), "$1 процентов")
+
+        // НОВОЕ: Улучшенная обработка процентов с контекстом
+        t = t.replace(Regex("на\\s+(\\d+[,.]?\\d*)\\s?%")) { "на ${it.groupValues[1]} процентов" }
+        t = t.replace(Regex("(\\d+[,.]?\\d*)%-й")) { "${it.groupValues[1]}-процентный" }
+        t = t.replace(Regex("(\\d+[,.]?\\d*)%-е")) { "${it.groupValues[1]}-процентные" }
+        t = t.replace(Regex("\\b(\\d+[,.]?\\d*)\\s?%\\b")) { "${it.groupValues[1]} процентов" }
+
+        // НОВОЕ: Обработка времени
+        t = t.replace(Regex("\\b(\\d{1,2}):(\\d{2})\\b")) { match ->
+            val hour = match.groupValues[1].toInt()
+            val minute = match.groupValues[2].toInt()
+            when {
+                minute == 0 -> "$hour часов"
+                minute < 10 -> "$hour часов ноль $minute минут"
+                else -> "$hour часов $minute минут"
+            }
+        }
+
+        // НОВОЕ: Температура
+        t = t.replace(Regex("([+-]?\\d+[,.]?\\d*)\\s?°C?\\b")) { "${it.groupValues[1]} градусов" }
+        t = t.replace(Regex("([+-]?\\d+[,.]?\\d*)\\s?градусов\\s+цельсия", RegexOption.IGNORE_CASE)) { "${it.groupValues[1]} градусов цельсия" }
+
         return t
     }
 
     // ВНИМАНИЕ: никаких SSML-тегов внутри текста — Android TTS их произносит.
     private fun formatForIntonation(text: String): String {
         var t = text
-
         // Даты
         val dateRegex = Regex("\\b(\\d{1,2})\\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\\b")
         t = dateRegex.replace(t) { match ->
@@ -347,39 +375,67 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             val month = match.groupValues[2]
             "${numberToOrdinalRu(day)} $month"
         }
-
+        // НОВОЕ: Полные даты с годом
+        t = t.replace(Regex("\\b(\\d{1,2})\\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\\s+(\\d{4})\\b")) { match ->
+            val day = match.groupValues[1].toIntOrNull() ?: return@replace match.value
+            val month = match.groupValues[2]
+            val year = match.groupValues[3]
+            "${numberToOrdinalRu(day)} $month $year года"
+        }
+        // НОВОЕ: Обработка кавычек и цитат
+        t = t.replace(Regex("\"([^\"]{1,100})\"")) { "цитата ${it.groupValues[1]} конец цитаты" }
         // Единицы измерения
         t = t.replace(Regex("\\bкм/ч\\b", RegexOption.IGNORE_CASE), "километров в час")
         t = t.replace(Regex("\\bкм\\b", RegexOption.IGNORE_CASE), "километров")
-        t = t.replace(Regex("\\bм\\b", RegexOption.IGNORE_CASE), "метров")
-
+        t = t.replace(Regex("\\bм\\b(?!\\w)", RegexOption.IGNORE_CASE), "метров")
+        t = t.replace(Regex("\\bсм\\b(?!\\w)", RegexOption.IGNORE_CASE), "сантиметров")
+        t = t.replace(Regex("\\bмм\\b(?!\\w)", RegexOption.IGNORE_CASE), "миллиметров")
+        t = t.replace(Regex("\\bкг\\b(?!\\w)", RegexOption.IGNORE_CASE), "килограммов")
+        t = t.replace(Regex("\\bг\\b(?!\\w)(?<!\\d)", RegexOption.IGNORE_CASE), "граммов")
+        // НОВОЕ: Математические операции
+        t = t.replace(Regex("\\b(\\d+)\\s?\\+\\s?(\\d+)\\b")) { "${it.groupValues[1]} плюс ${it.groupValues[2]}" }
+        t = t.replace(Regex("\\b(\\d+)\\s?-\\s?(\\d+)\\b")) { "${it.groupValues[1]} минус ${it.groupValues[2]}" }
+        t = t.replace(Regex("\\b(\\d+)\\s?\\*\\s?(\\d+)\\b")) { "${it.groupValues[1]} умножить на ${it.groupValues[2]}" }
+        t = t.replace(Regex("\\b(\\d+)\\s?/\\s?(\\d+)\\b")) { "${it.groupValues[1]} разделить на ${it.groupValues[2]}" }
         // Нумерованные списки (без SSML)
         t = t.replace(Regex("^(\\d+)\\.\\s+", RegexOption.MULTILINE)) {
             "${it.groupValues[1]}. "
         }
-
         // Буллиты (без SSML)
         t = t.replace(Regex("^[•·∙▪▫◦‣⁃]\\s+", RegexOption.MULTILINE)) {
             "— "
         }
 
+
         // Форматирование тире
         t = t.replace(Regex("(?m)^[-•]\\s+"), "— ")
         t = t.replace(Regex(" - "), " — ")
         t = t.replace(Regex("\\.\\.\\."), "…")
-
         // Переносы после предложений для будущих пауз между абзацами
-        val abbrEnd = "(?<!т\\.д)(?<!т\\.п)(?<!млн)(?<!млрд)(?<!г)(?<!ул)(?<!просп)"
+        val abbrEnd = "(?<!т\\.д)(?<!т\\.п)(?<!млн)(?<!млрд)(?<!г)(?<!ул)(?<!просп)(?<!др)(?<!и\\.т\\.д)(?<!и\\.т\\.п)"
         t = t.replace(Regex("$abbrEnd(?<=[.!?])\\s+"), "\n\n")
+
+        // Добавляем маленькие паузы между абзацами
+        t = addSmallPausesBetweenParagraphs(t)
 
         return t.trim()
     }
 
+    private fun addSmallPausesBetweenParagraphs(text: String): String {
+        // Разделяем по точкам с запятой и создаем абзацы с маленькими паузами
+        val paragraphs = text.split(Regex("[;\n]+"))
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+
+        // Вариант 4: Комбинированный подход - точка, многоточие и переносы
+        return paragraphs.joinToString("... \n\n\n\n")
+    }
     // Без SSML-тегов — чистый текст
     private fun formatForSpeech(text: String): String {
         var processed = text
 
-        processed = processed.replace(Regex("\\b(НАТО|ЕС|США|ООН|ФСБ|МВД|СБУ|ЦРУ|ФБР)\\b")) {
+        // РАСШИРЕНО: Больше аббревиатур
+        processed = processed.replace(Regex("\\b(НАТО|ЕС|США|ООН|ФСБ|МВД|СБУ|ЦРУ|ФБР|ВТО|МОК|ФИФА|УЕФА|НБА|НХЛ|ВВС|ВМФ|ВКС|СВО|ДНР|ЛНР)\\b")) {
             when (it.value) {
                 "США" -> "США"
                 "ЕС" -> "Европейский союз"
@@ -390,35 +446,93 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 "СБУ" -> "Служба безопасности Украины"
                 "ЦРУ" -> "Центральное разведывательное управление"
                 "ФБР" -> "Федеральное бюро расследований"
+                "ВТО" -> "Всемирная торговая организация"
+                "МОК" -> "Международный олимпийский комитет"
+                "ФИФА" -> "ФИФА"
+                "УЕФА" -> "УЕФА"
+                "НБА" -> "НБА"
+                "НХЛ" -> "НХЛ"
+                "ВВС" -> "Военно-воздушные силы"
+                "ВМФ" -> "Военно-морской флот"
+                "ВКС" -> "Воздушно-космические силы"
+                "СВО" -> "специальная военная операция"
+                "ДНР" -> "Донецкая народная республика"
+                "ЛНР" -> "Луганская народная республика"
                 else -> it.value
             }
         }
+
+        // НОВОЕ: Технические сокращения
+        processed = processed.replace(Regex("\\b(IT|AI|VR|AR|GPS|USB|WiFi|Bluetooth|HTML|CSS|JS|API|SQL|XML|JSON)\\b", RegexOption.IGNORE_CASE)) {
+            when (it.value.uppercase()) {
+                "IT" -> "Ай-Ти"
+                "AI" -> "искусственный интеллект"
+                "VR" -> "виртуальная реальность"
+                "AR" -> "дополненная реальность"
+                "GPS" -> "Джи-Пи-Эс"
+                "USB" -> "ЮСБ"
+                "WIFI" -> "Вай-Фай"
+                "BLUETOOTH" -> "Блютуз"
+                "HTML" -> "ЭйчТиЭмЭль"
+                "CSS" -> "Си-Эс-Эс"
+                "JS" -> "Джава-Скрипт"
+                "API" -> "АПИ"
+                "SQL" -> "Эс-Кью-Эль"
+                "XML" -> "ИксЭмЭль"
+                "JSON" -> "Джейсон"
+                else -> it.value
+            }
+        }
+
         processed = processed.replace(Regex("\\bMAX\\b"), "Макс")
-        processed = processed.replace(Regex("\\b(\\d{1,2})\\.\\s*(\\d{1,2})\\.\\s*(\\d{4})\\b")) {
+
+        // УЛУЧШЕНО: Даты в формате ДД.ММ.ГГГГ
+        processed = processed.replace(Regex("\\b(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4})\\b")) {
             val day = it.groupValues[1]
             val month = it.groupValues[2]
             val year = it.groupValues[3]
             "$day число $month месяца $year года"
         }
 
-        // Важные слова — без SSML
-        val importantWords = listOf("важно", "внимание", "срочно", "эксклюзив", "молния")
-        importantWords.forEach { word ->
-            processed = processed.replace(Regex("\\b($word)\\b", RegexOption.IGNORE_CASE)) { it.groupValues[1] }
+        // НОВОЕ: Обработка веб-адресов, которые остались
+        processed = processed.replace(Regex("\\b[a-zA-Z0-9]+\\.(com|ru|org|net)\\b", RegexOption.IGNORE_CASE)) {
+            val parts = it.value.split(".")
+            "${parts[0]} точка ${parts[1]}"
         }
 
+        // НОВОЕ: Email-адреса
+        processed = processed.replace(Regex("\\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}\\b")) {
+            "электронная почта"
+        }
+
+        // Важные слова — без SSML
+        val importantWords = listOf("важно", "внимание", "срочно", "эксклюзив", "молния", "Breaking", "BREAKING")
+        importantWords.forEach { word ->
+            processed = processed.replace(Regex("\\b($word)\\b", RegexOption.IGNORE_CASE)) {
+                "ВАЖНО: ${it.groupValues[1].lowercase()}"
+            }
+        }
+
+        // РАСШИРЕНО: Больше ключевых слов
         val keyWords = mapOf(
             "украина" to "Украина",
             "путин" to "Путин",
             "зеленский" to "Зеленский",
             "трамп" to "Трамп",
             "байден" to "Байден",
+            "си цзиньпин" to "Си Цзиньпин",
             "россия" to "Россия",
             "америка" to "Америка",
             "европа" to "Европа",
-            "китай" to "Китай"
+            "китай" to "Китай",
+            "япония" to "Япония",
+            "германия" to "Германия",
+            "франция" to "Франция",
+            "великобритания" to "Великобритания",
+            "индия" to "Индия",
+            "иран" to "Иран",
+            "израиль" to "Израиль"
         )
-
         keyWords.forEach { (word, pronounced) ->
             processed = processed.replace(Regex("\\b$word\\b", RegexOption.IGNORE_CASE)) { pronounced }
         }
@@ -429,20 +543,23 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     private fun dropTrivial(texts: List<String>): List<String> {
         val trivial = Regex("^(фото|видео|аудио|ссылка|репост)\\b.*$", RegexOption.IGNORE_CASE)
         val subscribe = Regex("(?i)^.*\\b(подписывай(ся|тесь)?|подписка)\\b.*$", RegexOption.IGNORE_CASE)
+        // НОВОЕ: Дополнительные паттерны для фильтрации
+        val spam = Regex("(?i)^.*(лайк|репост|поделись|нажми|кликни|переходи)\\b.*$", RegexOption.IGNORE_CASE)
 
         return texts.map { it.trim() }
             .filter { text ->
                 val isTrivial = text.length < 8 || trivial.containsMatchIn(text)
                 val hasSubscribe = subscribe.containsMatchIn(text)
-
-                if (hasSubscribe) {
-                    Log.d("TTSManager", "⚠️ Найдена подписка: '$text'")
+                val hasSpam = spam.containsMatchIn(text)
+                if (hasSubscribe || hasSpam) {
+                    Log.d("TTSManager", "⚠️ Найден спам/подписка: '$text'")
                 }
-                !(isTrivial || hasSubscribe)
+                !(isTrivial || hasSubscribe || hasSpam)
             }
     }
 
-    private fun splitByParagraphs(text: String, maxChars: Int = 2800): List<String> {
+    // УЛУЧШЕНО: Уменьшен размер чанков для лучшего качества TTS
+    private fun splitByParagraphs(text: String, maxChars: Int = 1800): List<String> {
         val paras = text.split(Regex("\\n{2,}")).map { it.trim() }.filter { it.isNotEmpty() }
         val parts = mutableListOf<String>()
         val cur = StringBuilder()
@@ -476,30 +593,38 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         return parts
     }
 
-    private fun splitTextSafely(text: String, maxChars: Int = 2800): List<String> {
+    // УЛУЧШЕНО: Уменьшен размер чанков
+    private fun splitTextSafely(text: String, maxChars: Int = 1800): List<String> {
         if (text.length <= maxChars) return listOf(text)
         val parts = mutableListOf<String>()
         var currentPart = ""
-        val sentences = text.split(Regex("(?<=[.!?])\\s+"))
+
+        // УЛУЧШЕНО: Лучшее разделение по предложениям
+        val sentences = text.split(Regex("(?<=[.!?…])\\s+"))
 
         for (sentence in sentences) {
-            if ((currentPart + if (currentPart.isEmpty()) "" else " " + sentence).length <= maxChars) {
+            val newLength = currentPart.length + if (currentPart.isEmpty()) 0 else 1 + sentence.length
+
+            if (newLength <= maxChars) {
                 currentPart += if (currentPart.isEmpty()) sentence else " $sentence"
             } else {
                 if (currentPart.isNotEmpty()) {
                     parts.add(currentPart.trim())
                     currentPart = sentence
                 } else {
+                    // Предложение слишком длинное, разбиваем по словам
                     val words = sentence.split(" ")
                     var wordPart = ""
                     for (word in words) {
-                        if ((wordPart + if (wordPart.isEmpty()) "" else " " + word).length <= maxChars) {
+                        val wordLength = wordPart.length + if (wordPart.isEmpty()) 0 else 1 + word.length
+                        if (wordLength <= maxChars) {
                             wordPart += if (wordPart.isEmpty()) word else " $word"
                         } else {
                             if (wordPart.isNotEmpty()) {
                                 parts.add(wordPart.trim())
                                 wordPart = word
                             } else {
+                                // Слишком длинное слово, принудительно обрезаем
                                 parts.add(word.take(maxChars))
                                 wordPart = ""
                             }
@@ -530,7 +655,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             null
         }
     }
-
     private fun readWavDurationMs(file: File): Long? {
         return try {
             RandomAccessFile(file, "r").use { raf ->
