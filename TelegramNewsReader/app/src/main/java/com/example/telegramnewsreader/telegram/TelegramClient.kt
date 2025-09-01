@@ -1,7 +1,10 @@
+// TelegramClient.kt
 package com.example.telegramnewsreader.telegram
 
 import android.content.Context
 import android.util.Log
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import org.drinkless.tdlib.Client
 import org.drinkless.tdlib.TdApi
 import com.example.telegramnewsreader.ApiConfig
@@ -25,6 +28,10 @@ class TelegramClient(private val context: Context) {
     private var isAuthorized = false
     private var isReady = false
     private var authorizationState: TdApi.AuthorizationState? = null
+
+    // Новое: LiveData для отслеживания состояния загрузки каналов
+    private val _areChannelsLoaded = MutableLiveData<Boolean>(false)
+    val areChannelsLoaded: LiveData<Boolean> = _areChannelsLoaded
 
     private val TAG = "TelegramClient"
 
@@ -276,9 +283,13 @@ class TelegramClient(private val context: Context) {
         Log.d(TAG, "loadChannels; client=${System.identityHashCode(client)}")
         Log.d(TAG, getInitializationStatus())
 
+        // Сбрасываем состояние перед началом новой загрузки
+        _areChannelsLoaded.value = false
+
         if (!isInitialized) {
             Log.e(TAG, "Client not initialized")
             callback(emptyList())
+            _areChannelsLoaded.value = true // Новое: уведомляем, что каналы загружены (даже если ошибка)
             return
         }
 
@@ -286,12 +297,14 @@ class TelegramClient(private val context: Context) {
             if (!waitForReady(15)) {
                 Log.e(TAG, "Client not ready after timeout")
                 callback(emptyList())
+                _areChannelsLoaded.value = true // Новое: уведомляем, что каналы загружены (даже если ошибка)
                 return@Thread
             }
 
             if (!isAuthorized) {
                 Log.e(TAG, "Client not authorized")
                 callback(emptyList())
+                _areChannelsLoaded.value = true // Новое: уведомляем, что каналы загружены (даже если ошибка)
                 return@Thread
             }
 
@@ -301,6 +314,14 @@ class TelegramClient(private val context: Context) {
                         val channels = mutableListOf<Channel>()
                         var processed = 0
                         val total = result.chatIds.size
+
+                        // Обработка случая, когда нет чатов
+                        if (total == 0) {
+                            Log.d(TAG, "loadChannels: no chats found")
+                            callback(emptyList())
+                            _areChannelsLoaded.value = true // Новое: уведомляем, что каналы загружены
+                            return@send
+                        }
 
                         for (chatId in result.chatIds) {
                             client?.send(TdApi.GetChat(chatId)) { chatResult ->
@@ -345,13 +366,15 @@ class TelegramClient(private val context: Context) {
                                 processed++
                                 if (processed == total) {
                                     Log.d(TAG, "RETURN channels=${channels.size}")
-                                    callback(channels)
+                                    callback(channels.toList()) // Новое: передаем копию списка
+                                    _areChannelsLoaded.value = true // Новое: уведомляем, что каналы загружены
                                 }
                             }
                         }
                     }
                     else -> {
                         callback(emptyList())
+                        _areChannelsLoaded.value = true // Новое: уведомляем, что каналы загружены (даже если ошибка)
                     }
                 }
             }
