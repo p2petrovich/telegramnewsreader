@@ -378,7 +378,7 @@ class NewsService(
             finalMessage
         }
             .distinct()
-            .take(100)
+            .take(200)
 
         Log.d(TAG, "🎯 prepareMessages: итого ${filtered.size} сообщений после фильтрации")
 
