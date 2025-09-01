@@ -39,6 +39,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Job
+import androidx.lifecycle.Observer
 import kotlinx.coroutines.CancellationException
 
 class MainActivity : AppCompatActivity() {
@@ -51,6 +52,11 @@ class MainActivity : AppCompatActivity() {
 
     private var lastUsedVoice: String? = null
     private var isClientReady = false
+    // Новое: Observer для отслеживания загрузки каналов
+    private val channelsLoadedObserver = Observer<Boolean> { areLoaded ->
+        // Этот observer может быть использован для других целей, если нужно
+        Log.d("MainActivity", "Channels loaded observer triggered: areLoaded=$areLoaded")
+    }
 
     private var currentPlaylist: List<File> = emptyList()
     private var currentChapters: List<Long> = emptyList()
@@ -399,8 +405,10 @@ class MainActivity : AppCompatActivity() {
                     updateChannelStats()
                     Log.d("MainActivity", "Загружено каналов: ${filtered.size}")
 
-                    // 🔥 Загружаем начальное количество новостей для всех каналов
-                    loadInitialNewsForChannels(filtered)
+                    // 🔥 Вместо прямого вызова, проверяем, загружены ли каналы
+                    // БЫЛО: loadInitialNewsForChannels(filtered)
+                    // СТАЛО:
+                    waitForChannelsAndLoadNews(filtered) // <<< ИЗМЕНЕНО ЗДЕСЬ
 
                 } else {
                     updateStatus("Каналы не найдены")
@@ -412,8 +420,10 @@ class MainActivity : AppCompatActivity() {
                     updateChannelStats()
                     updateStatus("Тестовые каналы загружены")
 
-                    // 🔥 Загружаем начальное количество новостей для тестовых каналов
-                    loadInitialNewsForChannels(testChannels)
+                    // 🔥 Вместо прямого вызова, проверяем, загружены ли каналы
+                    // БЫЛО: loadInitialNewsForChannels(testChannels)
+                    // СТАЛО:
+                    waitForChannelsAndLoadNews(testChannels) // <<< ИЗМЕНЕНО ЗДЕСЬ
                 }
             }
         }
@@ -1267,6 +1277,21 @@ class MainActivity : AppCompatActivity() {
                 startActivity(Intent(this, AuthActivity::class.java))
                 finish()
             }
+        }
+    }
+    // 🔥 Новый метод: ждет загрузки каналов и вызывает loadInitialNewsForChannels
+    private fun waitForChannelsAndLoadNews(channels: List<Channel>) {
+        if (!isClientReady) {
+            Log.w("MainActivity", "Клиент еще не готов, ждем...")
+            return
+        }
+
+        if (channels.isNotEmpty()) {
+            loadInitialNewsForChannels(channels)
+        } else {
+            Log.d("MainActivity", "Список каналов пуст, подписываемся на изменения")
+            // Здесь можно подписаться на LiveData/Observer, когда каналы будут загружены
+            loadInitialNewsForChannels(channels)
         }
     }
 }
