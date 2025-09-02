@@ -371,6 +371,14 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         fun longPause(): String = ".  .  .  .  .      " // ~2–2.5 сек
         var t = text
 
+        // Обработка местоимений ПЕРЕД всеми остальными заменами
+        t = t.replace(" в нем", " в нём")
+
+        // Замена заголовков RT на "Главное"
+        t = t.replace(Regex("\\s*‼‼‼\\s*"), "Главное")
+
+
+
         // Даты
         val dateRegex = Regex("\\b(\\d{1,2})\\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\\b")
         t = dateRegex.replace(t) { match ->
@@ -414,6 +422,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         t = t.replace(Regex("^(\\d+)\\.\\s+", RegexOption.MULTILINE)) { "${it.groupValues[1]}. " }
         t = t.replace(Regex("^[•·∙▪▫◦‣⁃]\\s+", RegexOption.MULTILINE)) { "— " }
 
+
         // Удаление белых квадратов
         t = t.replace(Regex("[◻️◻⬜▫□]+"), "")
 
@@ -430,6 +439,11 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         t = t.replace(Regex("(?m)^[-•]\\s+"), "— ")
         t = t.replace(Regex(" - "), " — ")
         t = t.replace(Regex("\\.\\.\\."), "…")
+
+        // Заменить точку с запятой перед абзацным отступом на точку с отступом
+        // Заменить точку с запятой перед абзацным отступом на точку с отступом
+        // Заменить точку с запятой перед абзацным отступом на точку с отступом
+        t = t.replace(Regex(";\\s*(?=\\n{2,})"), ". ") // Правильное экранирование \n
 
         // Переносы после предложений для пауз между абзацами
         val abbrEnd = "(?<!т\\.д)(?<!т\\.п)(?<!млн)(?<!млрд)(?<!г)(?<!ул)(?<!просп)(?<!др)(?<!и\\.т\\.д)(?<!и\\.т\\.п)"
