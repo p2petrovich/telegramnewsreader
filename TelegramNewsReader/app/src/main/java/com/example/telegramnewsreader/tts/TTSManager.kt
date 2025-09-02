@@ -367,7 +367,10 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     // ВНИМАНИЕ: никаких SSML-тегов внутри текста — Android TTS их произносит.
     private fun formatForIntonation(text: String): String {
+        fun smallPause(): String = ".  .  "           // ~1 сек
+        fun longPause(): String = ".  .  .  .  .      " // ~2–2.5 сек
         var t = text
+
         // Даты
         val dateRegex = Regex("\\b(\\d{1,2})\\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\\b")
         t = dateRegex.replace(t) { match ->
@@ -375,15 +378,23 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             val month = match.groupValues[2]
             "${numberToOrdinalRu(day)} $month"
         }
-        // НОВОЕ: Полные даты с годом
+
+        // Полные даты с годом
         t = t.replace(Regex("\\b(\\d{1,2})\\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\\s+(\\d{4})\\b")) { match ->
             val day = match.groupValues[1].toIntOrNull() ?: return@replace match.value
             val month = match.groupValues[2]
             val year = match.groupValues[3]
             "${numberToOrdinalRu(day)} $month $year года"
         }
-        // НОВОЕ: Обработка кавычек и цитат
-        t = t.replace(Regex("\"([^\"]{1,100})\"")) { "цитата ${it.groupValues[1]} конец цитаты" }
+
+        // СНАЧАЛА обрабатываем годы и диапазоны (ПЕРЕМЕСТИЛИ СЮДА)
+        // 2025/2026 → 2025 – 2026
+        t = t.replace(Regex("(\\d{4})/(\\d{4})")) { "${it.groupValues[1]} – ${it.groupValues[2]}" }
+        // 2024-2025 → 2024 – 2025
+        t = t.replace(Regex("(\\d{4})-(\\d{4})")) { "${it.groupValues[1]} – ${it.groupValues[2]}" }
+        // Случаи вида "3/4 финала" → "три четверти финала"
+        t = t.replace(Regex("\\b(\\d)\\/(\\d)\\s+финала\\b")) { "${it.groupValues[1]} четверти финала" }
+
         // Единицы измерения
         t = t.replace(Regex("\\bкм/ч\\b", RegexOption.IGNORE_CASE), "километров в час")
         t = t.replace(Regex("\\bкм\\b", RegexOption.IGNORE_CASE), "километров")
@@ -392,45 +403,51 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         t = t.replace(Regex("\\bмм\\b(?!\\w)", RegexOption.IGNORE_CASE), "миллиметров")
         t = t.replace(Regex("\\bкг\\b(?!\\w)", RegexOption.IGNORE_CASE), "килограммов")
         t = t.replace(Regex("\\bг\\b(?!\\w)(?<!\\d)", RegexOption.IGNORE_CASE), "граммов")
-        // НОВОЕ: Математические операции
+
+        // ПОТОМ математические операции (теперь годы уже обработаны)
         t = t.replace(Regex("\\b(\\d+)\\s?\\+\\s?(\\d+)\\b")) { "${it.groupValues[1]} плюс ${it.groupValues[2]}" }
         t = t.replace(Regex("\\b(\\d+)\\s?-\\s?(\\d+)\\b")) { "${it.groupValues[1]} минус ${it.groupValues[2]}" }
         t = t.replace(Regex("\\b(\\d+)\\s?\\*\\s?(\\d+)\\b")) { "${it.groupValues[1]} умножить на ${it.groupValues[2]}" }
         t = t.replace(Regex("\\b(\\d+)\\s?/\\s?(\\d+)\\b")) { "${it.groupValues[1]} разделить на ${it.groupValues[2]}" }
-        // Нумерованные списки (без SSML)
-        t = t.replace(Regex("^(\\d+)\\.\\s+", RegexOption.MULTILINE)) {
-            "${it.groupValues[1]}. "
-        }
-        // Буллиты (без SSML)
-        t = t.replace(Regex("^[•·∙▪▫◦‣⁃]\\s+", RegexOption.MULTILINE)) {
-            "— "
-        }
 
+        // Нумерованные списки и буллиты
+        t = t.replace(Regex("^(\\d+)\\.\\s+", RegexOption.MULTILINE)) { "${it.groupValues[1]}. " }
+        t = t.replace(Regex("^[•·∙▪▫◦‣⁃]\\s+", RegexOption.MULTILINE)) { "— " }
+
+        // Удаление белых квадратов
+        t = t.replace(Regex("[◻️◻⬜▫□]+"), "")
+
+        // Длинные паузы после организаций
+        val orgs = listOf(
+            "МЧС России", "МВД России", "ФСБ России",
+            "Минобороны России", "Росгвардии", "Генпрокуратуры"
+        )
+        for (org in orgs) {
+            t = t.replace(Regex("$org\\."), "$org.${longPause()}\n\n")
+        }
 
         // Форматирование тире
         t = t.replace(Regex("(?m)^[-•]\\s+"), "— ")
         t = t.replace(Regex(" - "), " — ")
         t = t.replace(Regex("\\.\\.\\."), "…")
-        // Переносы после предложений для будущих пауз между абзацами
+
+        // Переносы после предложений для пауз между абзацами
         val abbrEnd = "(?<!т\\.д)(?<!т\\.п)(?<!млн)(?<!млрд)(?<!г)(?<!ул)(?<!просп)(?<!др)(?<!и\\.т\\.д)(?<!и\\.т\\.п)"
         t = t.replace(Regex("$abbrEnd(?<=[.!?])\\s+"), "\n\n")
 
-        // Добавляем маленькие паузы между абзацами
-        t = addSmallPausesBetweenParagraphs(t)
+        // Маленькая пауза на каждом двойном переносе
+        t = t.replace(Regex("\\n\\n"), smallPause() + "\n\n")
+
+        // Маленькая пауза после закрывающих кавычек и скобок
+        t = t.replace(Regex("»")) { "»${smallPause()}" }
+        t = t.replace(Regex("\\)")) { ")${smallPause()}" }
 
         return t.trim()
     }
 
-    private fun addSmallPausesBetweenParagraphs(text: String): String {
-        // Разделяем по точкам с запятой и создаем абзацы с маленькими паузами
-        val paragraphs = text.split(Regex("[;\n]+"))
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
 
-        // Вариант 4: Комбинированный подход - точка, многоточие и переносы
-        return paragraphs.joinToString("... \n\n\n\n")
-    }
-    // Без SSML-тегов — чистый текст
+
+
     private fun formatForSpeech(text: String): String {
         var processed = text
 

@@ -340,7 +340,7 @@ class TelegramClient(private val context: Context) {
                                                     val path = file!!.local.path
                                                     chatIdToChannel[chatId]?.let { ch -> ch.photoPath = path }
                                                     onChannelPhotoUpdated?.invoke(chatId, path)
-                                                    Log.d(TAG, "Avatar local ready for chat=$chatId")
+                                                    //Log.d(TAG, "Avatar local ready for chat=$chatId")
                                                 } else {
                                                     client?.send(TdApi.DownloadFile(small.id, 32, 0, 0, true)) {
                                                         // Тихо ставим загрузку; результат придет в UpdateFile

@@ -238,7 +238,7 @@ class MainActivity : AppCompatActivity() {
             isClientReady = true
             runOnUiThread {
                 telegramClient.onChannelPhotoUpdated = { channelId, path ->
-                    Log.d("MainActivity", "onChannelPhotoUpdated: id=$channelId path=$path")
+                    //Log.d("MainActivity", "onChannelPhotoUpdated: id=$channelId path=$path")
                     runOnUiThread {
                         val all = channelAdapter.getAllChannels()
                         val idx = all.indexOfFirst { it.id == channelId }
