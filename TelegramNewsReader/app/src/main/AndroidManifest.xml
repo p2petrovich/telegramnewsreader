@@ -2,31 +2,33 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Интернет -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- ✅ ИСПРАВЛЕНО: Новые permissions для Android 13+ вместо READ_EXTERNAL_STORAGE -->
-    <!-- Для аудиофайлов на Android 13+ -->
+    <!-- Доступ к медиа (Android 13+) -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
 
-    <!-- Для обратной совместимости с Android 12 и ниже -->
+    <!-- Только если реально нужен доступ к файлам на старых Android -->
+    <!--
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
-
-    <!-- Если пишете/читаете в общую память на старых API -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
+    -->
 
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Аудио -->
+    <!-- Удали, если не используешь запись микрофона -->
+    <!-- <uses-permission android:name="android.permission.RECORD_AUDIO" /> -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
-    <!-- Для Android 9+ -->
+    <!-- Foreground сервисы -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- Для Android 14+ уточняем тип сервиса -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
+    <!-- Уведомления -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
