@@ -6,7 +6,7 @@ plugins {
     }
 
 android {
-    namespace 'com.example.telegramnewsreader'
+    namespace 'com.p2petrovich.telegramnewsreader'
     compileSdk 34
 
     lintOptions {
@@ -19,7 +19,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.telegramnewsreader"
+        applicationId = "com.p2petrovich.telegramnewsreader"
         minSdk 24
         targetSdk 34
         versionCode 1
