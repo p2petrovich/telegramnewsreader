@@ -22,7 +22,6 @@ class AuthActivity : AppCompatActivity() {
 
         telegramClient = TelegramClientManager.getTelegramClient(this)
 
-        // 🔐 Обработка ожидания облачного пароля
         telegramClient.onPasswordRequired = {
             runOnUiThread {
                 binding.etPassword.visibility = View.VISIBLE
@@ -31,7 +30,6 @@ class AuthActivity : AppCompatActivity() {
             }
         }
 
-        // ✅ Переход в MainActivity только после полной авторизации
         telegramClient.onClientReady = {
             runOnUiThread {
                 Toast.makeText(this, "Авторизация успешна", Toast.LENGTH_SHORT).show()
@@ -47,52 +45,43 @@ class AuthActivity : AppCompatActivity() {
     private fun setupClickListeners() {
         binding.btnSendCode.setOnClickListener {
             val phone = binding.etPhone.text.toString().trim()
-            if (phone.isNotEmpty()) {
-                binding.progressBar.visibility = View.VISIBLE
-                binding.tvError.visibility = View.GONE
+            if (phone.isEmpty()) {
+                showError("Введите номер телефона")
+                return@setOnClickListener
+            }
 
-                telegramClient.sendCode(phone) { success ->
-                    runOnUiThread {
-                        binding.progressBar.visibility = View.GONE
-                        if (success) {
-                            Toast.makeText(this, "Код отправлен", Toast.LENGTH_SHORT).show()
-                            binding.etCode.visibility = View.VISIBLE
-                            binding.btnVerify.visibility = View.VISIBLE
-                            binding.etCode.isEnabled = true
-                            binding.btnVerify.isEnabled = true
-                        } else {
-                            binding.tvError.text = "Не удалось отправить код"
-                            binding.tvError.visibility = View.VISIBLE
-                        }
+            showLoading(true)
+            telegramClient.sendCode(phone) { success ->
+                runOnUiThread {
+                    showLoading(false)
+                    if (success) {
+                        Toast.makeText(this, "Код отправлен", Toast.LENGTH_SHORT).show()
+                        binding.etCode.visibility = View.VISIBLE
+                        binding.btnVerify.visibility = View.VISIBLE
+                    } else {
+                        showError("Не удалось отправить код")
                     }
                 }
-            } else {
-                binding.tvError.text = "Введите номер телефона"
-                binding.tvError.visibility = View.VISIBLE
             }
         }
 
         binding.btnVerify.setOnClickListener {
             val code = binding.etCode.text.toString().trim()
-            if (code.isNotEmpty()) {
-                binding.progressBar.visibility = View.VISIBLE
-                binding.tvError.visibility = View.GONE
+            if (code.isEmpty()) {
+                showError("Введите код из SMS")
+                return@setOnClickListener
+            }
 
-                telegramClient.verifyCode(code) { success ->
-                    runOnUiThread {
-                        binding.progressBar.visibility = View.GONE
-                        if (success) {
-                            Toast.makeText(this, "Код принят. Ожидание авторизации...", Toast.LENGTH_SHORT).show()
-                            // ❗️ Переход в MainActivity будет выполнен через onClientReady
-                        } else {
-                            binding.tvError.text = "Неверный код"
-                            binding.tvError.visibility = View.VISIBLE
-                        }
+            showLoading(true)
+            telegramClient.verifyCode(code) { success ->
+                runOnUiThread {
+                    showLoading(false)
+                    if (success) {
+                        Toast.makeText(this, "Код принят. Ожидание авторизации...", Toast.LENGTH_SHORT).show()
+                    } else {
+                        showError("Неверный код")
                     }
                 }
-            } else {
-                binding.tvError.text = "Введите код из SMS"
-                binding.tvError.visibility = View.VISIBLE
             }
         }
 
@@ -103,22 +92,25 @@ class AuthActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            binding.progressBar.visibility = View.VISIBLE
-            binding.tvError.visibility = View.GONE
-
+            showLoading(true)
             telegramClient.verifyPassword(password) { success ->
                 runOnUiThread {
-                    binding.progressBar.visibility = View.GONE
-                    if (success) {
-                        Toast.makeText(this, "Авторизация завершена", Toast.LENGTH_SHORT).show()
-                        // ✅ Переход в MainActivity выполнится через onClientReady
-                    } else {
-                        binding.tvError.text = "Неверный пароль"
-                        binding.tvError.visibility = View.VISIBLE
-                        Toast.makeText(this, "Ошибка при проверке пароля", Toast.LENGTH_SHORT).show()
+                    showLoading(false)
+                    if (!success) {
+                        showError("Неверный пароль")
                     }
                 }
             }
         }
+    }
+
+    private fun showLoading(show: Boolean) {
+        binding.progressBar.visibility = if (show) View.VISIBLE else View.GONE
+        binding.tvError.visibility = View.GONE
+    }
+
+    private fun showError(message: String) {
+        binding.tvError.text = message
+        binding.tvError.visibility = View.VISIBLE
     }
 }

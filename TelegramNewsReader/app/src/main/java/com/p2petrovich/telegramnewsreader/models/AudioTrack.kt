@@ -1,7 +1,11 @@
 package com.p2petrovich.telegramnewsreader.models
 
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "audio_tracks")
 data class AudioTrack(
-    val id: Long,
+    @PrimaryKey val id: Long,
     val name: String,
     val filePath: String,
     val duration: Long

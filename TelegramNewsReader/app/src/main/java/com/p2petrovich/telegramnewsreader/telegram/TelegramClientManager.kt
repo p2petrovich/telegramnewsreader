@@ -16,32 +16,20 @@ object TelegramClientManager {
         val c = telegramClient
         if (c == null) {
             deleteTdlibDirs(context)
-            Handler(Looper.getMainLooper()).post {
-                onDone?.invoke()
-            }
+            Handler(Looper.getMainLooper()).post { onDone?.invoke() }
             return
         }
-        Log.d("TelegramClientManager", "logoutAndClearDb: start")
         c.logOut {
-            Log.d("TelegramClientManager", "logoutAndClearDb: onLoggedOut (Closed)")
-            try {
-                c.close()
-            } catch (_: Exception) {}
+            try { c.close() } catch (_: Exception) {}
             telegramClient = null
             deleteTdlibDirs(context)
-            Handler(Looper.getMainLooper()).post {
-                onDone?.invoke()
-            }
+            Handler(Looper.getMainLooper()).post { onDone?.invoke() }
         }
     }
 
     private fun deleteTdlibDirs(context: Context) {
-        try {
-            File(context.filesDir, ApiConfig.DATABASE_DIRECTORY).deleteRecursively()
-        } catch (_: Exception) {}
-        try {
-            File(context.filesDir, ApiConfig.FILES_DIRECTORY).deleteRecursively()
-        } catch (_: Exception) {}
+        try { File(context.filesDir, ApiConfig.DATABASE_DIRECTORY).deleteRecursively() } catch (_: Exception) {}
+        try { File(context.filesDir, ApiConfig.FILES_DIRECTORY).deleteRecursively() } catch (_: Exception) {}
     }
 
     fun clearClient() {
@@ -51,9 +39,6 @@ object TelegramClientManager {
 
     fun getTelegramClient(context: Context): TelegramClient {
         return telegramClient ?: synchronized(this) {
-            if (telegramClient == null) {
-                Log.d("TelegramClientManager", "=== INIT TRACKING === Creating NEW TelegramClient instance")
-            }
             telegramClient ?: TelegramClient(context.applicationContext).also {
                 telegramClient = it
             }

@@ -2,33 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Интернет -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
-    <!-- Доступ к медиа (Android 13+) -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-
-    <!-- Только если реально нужен доступ к файлам на старых Android -->
-    <!--
-    <uses-permission
-        android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
-    <uses-permission
-        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="28" />
-    -->
-
-    <!-- Аудио -->
-    <!-- Удали, если не используешь запись микрофона -->
-    <!-- <uses-permission android:name="android.permission.RECORD_AUDIO" /> -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-
-    <!-- Foreground сервисы -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-
-    <!-- Уведомления -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
@@ -53,30 +32,13 @@
         </activity>
 
         <activity android:name=".activities.AuthActivity" android:exported="false" />
-        <activity android:name=".activities.ChannelSelectionActivity" android:exported="false" />
         <activity android:name=".activities.PlayerActivity" android:exported="false" />
-        <activity android:name=".activities.SettingsActivity" android:exported="false" />
-        <activity android:name=".activities.CategorySelectionActivity" android:exported="false" />
-        <activity android:name=".activities.PreviewActivity" android:exported="false" />
-        <activity android:name=".activities.FavoritesActivity" android:exported="false" />
 
         <activity
             android:name=".activities.VoiceSelectionActivity"
             android:exported="false"
             android:label="Настройки голоса"
             android:parentActivityName=".activities.MainActivity" />
-
-        <service
-            android:name=".services.TelegramService"
-            android:exported="false" />
-
-        <service
-            android:name=".services.TTSService"
-            android:exported="false" />
-
-        <service
-            android:name=".services.NewsCollectorService"
-            android:exported="false" />
 
         <service
             android:name=".services.AudioPlayerService"

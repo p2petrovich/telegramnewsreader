@@ -8,5 +8,5 @@ data class Channel(
     var isSelected: Boolean = false,
     var newMessagesCount: Int = 0,
     var photoPath: String? = null,
-    var isFavorite: Boolean = false  // 🔥 НОВОЕ: флаг избранного
+    var isFavorite: Boolean = false
 )

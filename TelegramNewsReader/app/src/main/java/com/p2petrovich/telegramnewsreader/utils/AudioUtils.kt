@@ -7,36 +7,36 @@ import java.io.File
 
 object AudioUtils {
 
+    private const val TAG = "AudioUtils"
+
     fun concatWavFiles(parts: List<File>, output: File): Boolean {
         if (parts.isEmpty()) return false
 
-        try {
-            // 🔧 Создаем список .wav в виде файла input.txt для FFmpeg
+        return try {
             val concatFile = File(output.parentFile, "concat_input.txt")
             concatFile.writeText(parts.joinToString("\n") { "file '${it.absolutePath}'" })
 
             val cmd = arrayOf(
-                "-f", "concat",
-                "-safe", "0",
+                "-y", "-f", "concat", "-safe", "0",
                 "-i", concatFile.absolutePath,
                 "-c", "copy",
                 output.absolutePath
             )
 
             val session = FFmpegKit.executeWithArguments(cmd)
-
             val success = ReturnCode.isSuccess(session.returnCode)
+
             if (success) {
-                Log.d("AudioUtils", "✅ Объединение WAV успешно: ${output.name}")
+                Log.d(TAG, "WAV concat success: ${output.name}")
             } else {
-                Log.e("AudioUtils", "❌ Ошибка объединения WAV: ${session.returnCode}")
+                Log.e(TAG, "WAV concat failed: ${session.returnCode}")
             }
 
             concatFile.delete()
-            return success
+            success
         } catch (e: Exception) {
-            Log.e("AudioUtils", "❌ Исключение при объединении WAV", e)
-            return false
+            Log.e(TAG, "WAV concat exception", e)
+            false
         }
     }
 }

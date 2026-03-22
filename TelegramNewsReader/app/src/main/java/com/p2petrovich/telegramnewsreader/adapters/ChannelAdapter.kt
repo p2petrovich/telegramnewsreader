@@ -1,9 +1,9 @@
 package com.p2petrovich.telegramnewsreader.adapter
 
 import android.content.Context
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.p2petrovich.telegramnewsreader.databinding.ItemChannelBinding
 import com.p2petrovich.telegramnewsreader.model.Channel
@@ -21,33 +21,20 @@ class ChannelAdapter(
 
     private val channels = mutableListOf<Channel>()
 
-    // 🔥 НОВОЕ: Callback для избранного
-    private var onFavoriteClick: ((Channel) -> Unit)? = null
-
-    fun setOnFavoriteClickListener(onFavoriteClick: (Channel) -> Unit) {
-        this.onFavoriteClick = onFavoriteClick
-    }
-
     fun updateChannels(newChannels: List<Channel>) {
-        Log.d("ChannelAdapter", "updateChannels: size=${newChannels.size}")
-        channels.clear()
+        newChannels.forEach { it.isFavorite = PreferenceManager.isChannelFavorite(context, it.id) }
 
-        // 🔥 Обновляем флаги избранного для всех каналов
-        newChannels.forEach { channel ->
-            channel.isFavorite = PreferenceManager.isChannelFavorite(context, channel.id)
-        }
-
-        // 🔥 Сначала избранные, потом остальные (все по алфавиту)
-        val sortedChannels = newChannels.sortedWith(
+        val sorted = newChannels.sortedWith(
             compareBy<Channel> { !it.isFavorite }.thenBy { it.title.lowercase() }
         )
 
-        channels.addAll(sortedChannels)
-        notifyDataSetChanged()
+        val diffResult = DiffUtil.calculateDiff(ChannelDiffCallback(channels.toList(), sorted))
+        channels.clear()
+        channels.addAll(sorted)
+        diffResult.dispatchUpdatesTo(this)
     }
 
     fun getSelectedChannels(): List<Channel> = channels.filter { it.isSelected }
-
     fun getAllChannels(): List<Channel> = channels.toList()
 
     fun updateChannelPhoto(channelId: Long, path: String) {
@@ -73,14 +60,10 @@ class ChannelAdapter(
 
         fun bind(channel: Channel) {
             binding.textChannelName.text = channel.title
+            binding.textNewMessages.text = if (channel.newMessagesCount > 0)
+                "${channel.newMessagesCount} новых" else "Нет новостей"
 
-            binding.textNewMessages.text = if (channel.newMessagesCount > 0) {
-                "${channel.newMessagesCount} новых"
-            } else {
-                "Нет новостей"
-            }
-
-            // 🔥 НОВОЕ: Проверка избранного при биндинге
+            // Favorite icon
             channel.isFavorite = PreferenceManager.isChannelFavorite(context, channel.id)
             if (channel.isFavorite) {
                 binding.imageFavorite.setImageResource(R.drawable.ic_star)
@@ -89,6 +72,7 @@ class ChannelAdapter(
                 binding.imageFavorite.visibility = android.view.View.GONE
             }
 
+            // Avatar
             val path = channel.photoPath
             if (!path.isNullOrBlank()) {
                 val f = File(path)
@@ -96,14 +80,13 @@ class ChannelAdapter(
                     placeholder(R.drawable.ic_channel_placeholder)
                     error(R.drawable.ic_channel_placeholder)
                     transformations(CircleCropTransformation())
-                    val key = f.absolutePath + "#" + f.lastModified()
-                    memoryCacheKey(key)
-                    diskCacheKey(key)
+                    memoryCacheKey(f.absolutePath + "#" + f.lastModified())
                 }
             } else {
                 binding.ivAvatar.setImageResource(R.drawable.ic_channel_placeholder)
             }
 
+            // Checkbox
             binding.checkboxChannel.setOnCheckedChangeListener(null)
             binding.checkboxChannel.isChecked = channel.isSelected
             binding.checkboxChannel.setOnCheckedChangeListener { _, isChecked ->
@@ -111,21 +94,15 @@ class ChannelAdapter(
                 onSelectionChanged(channel, isChecked)
             }
 
-            // 🔥 ИЗМЕНЕНО: Клик переключает избранное, долгий клик - скрытие
+            // Favorite toggle on click
             binding.root.setOnClickListener {
-                // Переключаем избранное
                 channel.isFavorite = !channel.isFavorite
                 if (channel.isFavorite) {
                     PreferenceManager.addFavoriteChannel(context, channel.id)
-                    binding.imageFavorite.setImageResource(R.drawable.ic_star)
-                    binding.imageFavorite.visibility = android.view.View.VISIBLE
                 } else {
                     PreferenceManager.removeFavoriteChannel(context, channel.id)
-                    binding.imageFavorite.visibility = android.view.View.GONE
                 }
-                // 🔥 Пересортировка после изменения избранного
-                resortChannels()
-                onFavoriteClick?.invoke(channel)
+                resortAndUpdate()
             }
 
             binding.root.setOnLongClickListener {
@@ -133,25 +110,30 @@ class ChannelAdapter(
                 true
             }
         }
-
-        // 🔥 НОВОЕ: Метод для пересортировки каналов
-        private fun resortChannels() {
-            val sortedChannels = channels.sortedWith(
-                compareBy<Channel> { !it.isFavorite }.thenBy { it.title.lowercase() }
-            )
-            channels.clear()
-            channels.addAll(sortedChannels)
-            notifyDataSetChanged()
-        }
     }
 
-    // 🔥 НОВОЕ: Публичный метод для пересортировки извне
-    fun resortChannels() {
-        val sortedChannels = channels.sortedWith(
+    private fun resortAndUpdate() {
+        val sorted = channels.sortedWith(
             compareBy<Channel> { !it.isFavorite }.thenBy { it.title.lowercase() }
         )
+        val diffResult = DiffUtil.calculateDiff(ChannelDiffCallback(channels.toList(), sorted))
         channels.clear()
-        channels.addAll(sortedChannels)
-        notifyDataSetChanged()
+        channels.addAll(sorted)
+        diffResult.dispatchUpdatesTo(this)
+    }
+
+    private class ChannelDiffCallback(
+        private val oldList: List<Channel>,
+        private val newList: List<Channel>
+    ) : DiffUtil.Callback() {
+        override fun getOldListSize() = oldList.size
+        override fun getNewListSize() = newList.size
+        override fun areItemsTheSame(oldPos: Int, newPos: Int) = oldList[oldPos].id == newList[newPos].id
+        override fun areContentsTheSame(oldPos: Int, newPos: Int): Boolean {
+            val old = oldList[oldPos]; val new = newList[newPos]
+            return old.title == new.title && old.isSelected == new.isSelected &&
+                   old.isFavorite == new.isFavorite && old.newMessagesCount == new.newMessagesCount &&
+                   old.photoPath == new.photoPath
+        }
     }
 }

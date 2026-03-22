@@ -3,7 +3,7 @@ package com.p2petrovich.telegramnewsreader
 import android.app.Application
 import android.content.Context
 import androidx.appcompat.app.AppCompatDelegate
-import com.jakewharton.threetenabp.AndroidThreeTen  // ✅ Добавлен импорт
+import com.jakewharton.threetenabp.AndroidThreeTen
 
 class TelegramNewsApplication : Application() {
     companion object {
@@ -13,10 +13,8 @@ class TelegramNewsApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES) // Для тёмной
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
         instance = this
-
-        // ✅ Инициализация ThreeTenABP
         AndroidThreeTen.init(this)
     }
 

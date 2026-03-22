@@ -7,7 +7,11 @@ import com.p2petrovich.telegramnewsreader.models.NewsMessage
 import com.p2petrovich.telegramnewsreader.models.AudioTrack
 import com.p2petrovich.telegramnewsreader.models.UserSettings
 
-@Database(entities = [TelegramChannel::class, NewsMessage::class, AudioTrack::class, UserSettings::class], version = 1)
+@Database(
+    entities = [TelegramChannel::class, NewsMessage::class, AudioTrack::class, UserSettings::class],
+    version = 1,
+    exportSchema = false
+)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun channelDao(): ChannelDao
     // Добавьте DAO для других сущностей
