@@ -53,6 +53,7 @@ class MainActivity : AppCompatActivity() {
     private var isClientReady = false
     private var currentPlaylist: List<File> = emptyList()
     private var currentChapters: List<Long> = emptyList()
+    private var currentRealNewsCount: Int = 0
     private var savedDurationInfo: String? = null
     private val pendingPhotos = mutableMapOf<Long, String>()
 
@@ -358,7 +359,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             override fun onMessageFiltered(originalCount: Int, filteredCount: Int) {
-                // Этот callback теперь информационный — основные счётчики обновляются в onUpdateCounters
                 runOnUiThread {
                     Log.d("MainActivity", "Filter: $originalCount -> $filteredCount")
                 }
@@ -368,7 +368,7 @@ class MainActivity : AppCompatActivity() {
                     updateDetailedProgress("Начинаем синтез речи...", 0, 100)
                     totalProgressSteps = messageCount
                     currentProgressStep = 0
-                    startTime = System.currentTimeMillis() // сбрасываем таймер на начало синтеза
+                    startTime = System.currentTimeMillis()
                 }
             }
             override fun onSynthesisProgress(current: Int, total: Int) {
@@ -398,6 +398,7 @@ class MainActivity : AppCompatActivity() {
         if (audio != null) {
             currentPlaylist = listOf(audio.file)
             currentChapters = audio.chaptersMs
+            currentRealNewsCount = audio.realNewsCount
             lastUsedVoice = PreferenceManager.getTtsVoiceName(this)
 
             var player: MediaPlayer? = null
@@ -427,6 +428,7 @@ class MainActivity : AppCompatActivity() {
                 putExtra(AudioPlayerService.EXTRA_START_INDEX, 0)
                 putExtra(AudioPlayerService.EXTRA_TITLE, "Новости")
                 putExtra(AudioPlayerService.EXTRA_CHAPTERS, currentChapters.toLongArray())
+                putExtra(AudioPlayerService.EXTRA_REAL_NEWS_COUNT, currentRealNewsCount)
             })
 
             channelAdapter.notifyDataSetChanged()
@@ -535,6 +537,7 @@ class MainActivity : AppCompatActivity() {
         startService(Intent(this, AudioPlayerService::class.java).setAction(AudioPlayerService.ACTION_STOP))
         currentPlaylist = emptyList()
         currentChapters = emptyList()
+        currentRealNewsCount = 0
         savedDurationInfo = null
         binding.llPlayer.visibility = View.GONE
         binding.btnPlay.isEnabled = false

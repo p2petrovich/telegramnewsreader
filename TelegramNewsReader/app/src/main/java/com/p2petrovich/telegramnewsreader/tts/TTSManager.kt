@@ -11,7 +11,7 @@ import com.arthenica.ffmpegkit.ReturnCode
 import com.p2petrovich.telegramnewsreader.models.VoiceEntry
 import com.p2petrovich.telegramnewsreader.models.VoiceMappings
 import com.p2petrovich.telegramnewsreader.utils.AudioUtils
-import com.p2petrovich.telegramnewsreader.utils.NewsCache          // CACHE: добавлен импорт
+import com.p2petrovich.telegramnewsreader.utils.NewsCache
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.TextProcessor
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -189,11 +189,13 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         fun onProgress(current: Int, total: Int)
         fun onStarted(messageCount: Int)
         fun onCompleted()
+        fun onActualCounts(newsCount: Int, partsCount: Int) {}
     }
 
     data class AudioWithChapters(
         val file: File,
-        val chaptersMs: List<Long>
+        val chaptersMs: List<Long>,
+        val actualNewsCount: Int = 0
     )
 
     suspend fun convertToAudioWithChaptersWithCallback(
@@ -242,23 +244,37 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             return null
         }
 
+        // Считаем реальное число новостей (без заголовков) и общее число частей
+        val actualNewsCount = prepared.count { !it.isHeader }
         val totalParts = prepared.sumOf { TextProcessor.splitByParagraphs(it.textForSplitting, 2800).size }
+
+        // Сообщаем реальные числа — NewsService обновит свои счётчики
+        progressCallback?.onActualCounts(actualNewsCount, totalParts)
+        Log.d(TAG, "TTS actual: news=$actualNewsCount, parts=$totalParts, prepared=${prepared.size}, headers=${prepared.count { it.isHeader }}")
+
         var processedParts = 0
 
         val baseUtteranceId = "tts_${System.currentTimeMillis()}"
         val wavFiles = mutableListOf<File>()
-        val cachedWavPaths = mutableSetOf<String>()  // CACHE: отслеживаем кэшированные файлы
+        val cachedWavPaths = mutableSetOf<String>()
         var silenceFile: File? = null
         var baselineFormat: WavMeta? = null
 
         val chaptersMs = mutableListOf<Long>()
+        // Отдельный список для глав только по реальным новостям (без заголовков)
+        val newsOnlyChaptersMs = mutableListOf<Long>()
         var offsetMs = 0L
 
-        var cachedPartsCount = 0      // CACHE: статистика
-        var synthesizedPartsCount = 0 // CACHE: статистика
+        var cachedPartsCount = 0
+        var synthesizedPartsCount = 0
 
         prepared.forEachIndexed { idx, item ->
             chaptersMs.add(offsetMs)
+
+            // Добавляем в newsOnlyChaptersMs только если это не заголовок
+            if (!item.isHeader) {
+                newsOnlyChaptersMs.add(offsetMs)
+            }
 
             val parts = TextProcessor.splitByParagraphs(item.textForSplitting, 2800)
 
@@ -273,13 +289,11 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 val wav: File?
 
                 if (cachedFile != null) {
-                    // CACHE: используем кэшированный файл
                     wav = cachedFile
                     cachedWavPaths.add(cachedFile.absolutePath)
                     cachedPartsCount++
                     Log.d(TAG, "Cache hit for part $partIndex (hash=$hash)")
                 } else {
-                    // Синтезируем как раньше
                     wav = synthesizePartToWav(partText, partIndex, baseUtteranceId)
 
                     if (wav == null || !wav.exists() || wav.length() == 0L) {
@@ -289,7 +303,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                         return null
                     }
 
-                    // CACHE: сохраняем в кэш
                     NewsCache.saveWavToCache(context, hash, wav)
                     synthesizedPartsCount++
                     Log.d(TAG, "Synthesized and cached part $partIndex (hash=$hash)")
@@ -316,7 +329,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                     return null
                 }
 
-                // CACHE: если формат был преобразован, отслеживаем и новый файл
                 if (usedWav.absolutePath != wav.absolutePath && cachedWavPaths.contains(wav.absolutePath)) {
                     cachedWavPaths.add(usedWav.absolutePath)
                 }
@@ -337,8 +349,8 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             }
         }
 
-        // CACHE: логируем статистику
-        Log.d(TAG, "Synthesis complete: $cachedPartsCount from cache, $synthesizedPartsCount synthesized, $totalParts total")
+        Log.d(TAG, "Synthesis complete: $cachedPartsCount from cache, $synthesizedPartsCount synthesized, $totalParts total parts")
+        Log.d(TAG, "Chapters: all=${chaptersMs.size}, newsOnly=${newsOnlyChaptersMs.size}")
 
         progressCallback?.onProgress(processedParts, totalParts)
 
@@ -349,19 +361,18 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         val combinedWav = File(context.cacheDir, "${baseUtteranceId}_combined.wav")
         val concatOk = if (wavFiles.size == 1) {
-            wavFiles.first().copyTo(combinedWav, overwrite = true)  // CACHE: copyTo вместо renameTo
+            wavFiles.first().copyTo(combinedWav, overwrite = true)
             true
         } else {
             AudioUtils.concatWavFiles(wavFiles, combinedWav)
         }
 
-        // CACHE: очищаем только временные WAV, не трогаем кэш
         val silencePath = silenceFile?.absolutePath
         wavFiles.forEach { f ->
             if (f.exists()
                 && f != combinedWav
                 && f.absolutePath != silencePath
-                && !cachedWavPaths.contains(f.absolutePath)  // CACHE: не удаляем кэш
+                && !cachedWavPaths.contains(f.absolutePath)
             ) {
                 try { f.delete() } catch (_: Exception) {}
             }
@@ -377,15 +388,14 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         val mp3File = convertToMp3(combinedWav)
         try { combinedWav.delete() } catch (_: Exception) {}
 
-        // CACHE: периодическая очистка старых записей кэша
         NewsCache.cleanup(context)
 
         progressCallback?.onCompleted()
 
-        return if (mp3File != null) AudioWithChapters(mp3File, chaptersMs) else null
+        // Возвращаем newsOnlyChaptersMs — только главы для реальных новостей (без заголовков каналов)
+        return if (mp3File != null) AudioWithChapters(mp3File, newsOnlyChaptersMs, actualNewsCount) else null
     }
 
-    // CACHE: обновлённый cleanup — не удаляет кэшированные файлы
     private fun cleanupFiles(wavFiles: List<File>, silenceFile: File?, cachedPaths: Set<String> = emptySet()) {
         wavFiles.forEach {
             if (it.exists() && !cachedPaths.contains(it.absolutePath)) {
@@ -414,8 +424,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             out.absolutePath
         )
         val session = FFmpegKit.executeWithArguments(cmd)
-        // CACHE: не удаляем wav, если это кэшированный файл
-        // (оригинал остаётся в кэше, а resampled версия используется для конкатенации)
 
         return if (ReturnCode.isSuccess(session.returnCode) && out.exists() && out.length() > 0) out
         else { if (out.exists()) out.delete(); null }

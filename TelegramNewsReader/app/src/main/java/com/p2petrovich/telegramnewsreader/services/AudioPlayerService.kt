@@ -37,6 +37,7 @@ class AudioPlayerService : Service() {
         const val EXTRA_START_INDEX = "extra.START_INDEX"
         const val EXTRA_TITLE = "extra.TITLE"
         const val EXTRA_CHAPTERS = "extra.CHAPTERS"
+        const val EXTRA_REAL_NEWS_COUNT = "extra.REAL_NEWS_COUNT"
 
         const val ACTION_PROGRESS = "com.p2petrovich.telegramnewsreader.PLAYER_PROGRESS"
         const val EXTRA_CURRENT_ITEM = "extra_current_item"
@@ -82,7 +83,8 @@ class AudioPlayerService : Service() {
                     val start = intent.getIntExtra(EXTRA_START_INDEX, 0)
                     title = intent.getStringExtra(EXTRA_TITLE) ?: "Новости"
                     val chapters = intent.getLongArrayExtra(EXTRA_CHAPTERS)?.toList() ?: emptyList()
-                    setPlaylist(paths, start, chapters)
+                    val realNews = intent.getIntExtra(EXTRA_REAL_NEWS_COUNT, 0)
+                    setPlaylist(paths, start, chapters, realNews)
                 }
                 ACTION_PLAY -> play()
                 ACTION_PAUSE -> pause()
@@ -108,14 +110,18 @@ class AudioPlayerService : Service() {
         } catch (_: Exception) {}
     }
 
-    private fun setPlaylist(paths: List<String>, startIndex: Int, chapters: List<Long>) {
+    private fun setPlaylist(paths: List<String>, startIndex: Int, chapters: List<Long>, realNewsCount: Int = 0) {
         playlist = paths
         currentIndex = startIndex.coerceIn(0, (playlist.size - 1).coerceAtLeast(0))
         chapterStartsMs = if (paths.size == 1) chapters.sorted().distinct() else emptyList()
-        totalNewsCount = chapterStartsMs.size
+
+        // Используем реальное число новостей, если передано; иначе fallback на число глав
+        totalNewsCount = if (realNewsCount > 0) realNewsCount else chapterStartsMs.size
         currentChapter = 0
         preparedButNotPlaying = true
         pendingSeekStart = false
+
+        Log.d(TAG, "setPlaylist: chapters=${chapterStartsMs.size}, realNewsCount=$realNewsCount, totalNewsCount=$totalNewsCount")
 
         sendProgress(computeProgress().first, computeProgress().second, false)
         if (playlist.isNotEmpty()) prepareCurrentSilently()
@@ -365,7 +371,7 @@ class AudioPlayerService : Service() {
         val isPlaying = mediaPlayer?.isPlaying == true
         val total = playlist.size
         val posText = if (total > 0) "${currentIndex + 1}/$total" else "0/0"
-        val chapterText = if (hasChapters()) " • ${currentChapter + 1}/${chapterStartsMs.size}" else ""
+        val chapterText = if (hasChapters()) " • ${currentChapter + 1}/$totalNewsCount" else ""
 
         val openIntent = PendingIntent.getActivity(this, 0,
             Intent(this, MainActivity::class.java),
