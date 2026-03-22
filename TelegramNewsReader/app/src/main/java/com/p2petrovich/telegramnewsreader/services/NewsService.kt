@@ -27,6 +27,18 @@ class NewsService(
         private const val TAG = "NewsService"
         private const val CHANNEL_TIMEOUT_MS = 15000L
         private const val TOTAL_TIMEOUT_MS = 120000L
+
+        // Единый маркер заголовка: невидимые Unicode-символы, которые не удаляются trim()
+        // и не совпадают ни с одним regex-фильтром
+        private const val HEADER_MARKER = "\u200B\u200C\u200B" // ZWS + ZWNJ + ZWS
+
+        fun isChannelHeader(text: String): Boolean {
+            return text.contains(HEADER_MARKER)
+        }
+
+        fun makeChannelHeader(title: String): String {
+            return "${HEADER_MARKER}Новости из канала ${title}:"
+        }
     }
 
     data class Prepared(
@@ -72,7 +84,6 @@ class NewsService(
             ?: return@withContext null
         if (list.preparedMessages.isEmpty()) return@withContext null
 
-        // Реальное число новостей к озвучке — обновится из TTS callback
         var actualTtsNewsCount = list.totalToSynthesize
 
         val audio = ttsManager.convertToAudioWithChaptersWithCallback(
@@ -80,7 +91,6 @@ class NewsService(
             pauseMs = 1000,
             progressCallback = object : TTSManager.SynthesisProgressCallback {
                 override fun onActualCounts(newsCount: Int, partsCount: Int) {
-                    // TTS сообщил реальное число новостей после своей фильтрации (dropTrivial)
                     actualTtsNewsCount = newsCount
                     Log.d(TAG, "TTS actual counts: news=$newsCount, parts=$partsCount, was totalToSynthesize=${list.totalToSynthesize}")
                     progressCallback.onUpdateCounters(list.totalCollected, newsCount, 0)
@@ -88,7 +98,6 @@ class NewsService(
 
                 override fun onProgress(current: Int, total: Int) {
                     progressCallback.onSynthesisProgress(current, total)
-                    // total — число ЧАСТЕЙ (chunks), пропорционально пересчитываем в новости
                     val synthesizedNews = if (total > 0) {
                         (current.toLong() * actualTtsNewsCount / total).toInt()
                             .coerceIn(0, actualTtsNewsCount)
@@ -101,7 +110,6 @@ class NewsService(
                 }
 
                 override fun onCompleted() {
-                    // Финальное обновление: всё озвучено
                     progressCallback.onUpdateCounters(list.totalCollected, actualTtsNewsCount, actualTtsNewsCount)
                     progressCallback.onSynthesisCompleted()
                 }
@@ -144,14 +152,13 @@ class NewsService(
 
                 channelResults.forEach { (channel, messages) ->
                     if (messages.isNotEmpty()) {
-                        allMessages.add("   ${channel.title}:")
+                        allMessages.add(makeChannelHeader(channel.title))
                         allMessages.addAll(messages)
                         realNewsCount += messages.size
                         newsPreview.addAll(messages.take(5))
                     }
                 }
 
-                // Реальное число собранных сообщений из Telegram (без заголовков)
                 val totalCollected = realNewsCount
 
                 progressCallback.onUpdateNewsPreview(newsPreview)
@@ -163,7 +170,7 @@ class NewsService(
 
                 ensureActive()
 
-                // Дедупликация между каналами
+                // Дедупликация
                 progressCallback.onUpdateProgress("Дедупликация...", 0, 100)
                 val deduplicated = TextProcessor.deduplicateAcrossChannels(allMessages)
                 val removedByDedup = allMessages.size - deduplicated.size
@@ -171,25 +178,21 @@ class NewsService(
 
                 ensureActive()
 
-                // Фильтрация спама/рекламы
+                // Фильтрация
                 progressCallback.onUpdateProgress("Фильтрация...", 0, 100)
-
                 val preparedMessages = TextProcessor.filterMessages(deduplicated) { originalCount, filteredCount ->
                     progressCallback.onMessageFiltered(originalCount, filteredCount)
                 }
 
-                // Предварительная оценка: применяем dropTrivial так же, как это сделает TTSManager,
-                // чтобы totalToSynthesize соответствовал реальному числу новостей
-                val headerPattern = Regex("^\\s{2,}.{1,60}:\\s*$")
+                // Предварительная оценка: применяем dropTrivial как TTSManager
                 val afterDropTrivial = TextProcessor.dropTrivial(preparedMessages)
-                val totalToSynthesize = afterDropTrivial.count { !it.matches(headerPattern) }
+                val totalToSynthesize = afterDropTrivial.count { !isChannelHeader(it) }
 
-                val rawCount = preparedMessages.count { !it.matches(headerPattern) }
-                Log.d(TAG, "Filter: rawNews=$rawCount, afterDropTrivial=${afterDropTrivial.size}, totalToSynthesize=$totalToSynthesize")
+                val rawNewsInPrepared = preparedMessages.count { !isChannelHeader(it) }
+                Log.d(TAG, "Counts: collected=$totalCollected, rawInPrepared=$rawNewsInPrepared, afterDropTrivial=${afterDropTrivial.size}, toSynthesize=$totalToSynthesize")
 
                 ensureActive()
 
-                // Собрано = из Telegram, К озвучке = после всех фильтров, Синтезировано = 0 пока
                 progressCallback.onUpdateCounters(totalCollected, totalToSynthesize, 0)
                 progressCallback.onUpdateProgress("Подготовлено к озвучке", 100, 100)
 

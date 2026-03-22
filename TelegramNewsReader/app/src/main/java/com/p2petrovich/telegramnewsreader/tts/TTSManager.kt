@@ -10,6 +10,7 @@ import com.arthenica.ffmpegkit.FFmpegKit
 import com.arthenica.ffmpegkit.ReturnCode
 import com.p2petrovich.telegramnewsreader.models.VoiceEntry
 import com.p2petrovich.telegramnewsreader.models.VoiceMappings
+import com.p2petrovich.telegramnewsreader.service.NewsService
 import com.p2petrovich.telegramnewsreader.utils.AudioUtils
 import com.p2petrovich.telegramnewsreader.utils.NewsCache
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
@@ -198,6 +199,18 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         val actualNewsCount: Int = 0
     )
 
+    /**
+     * Убирает маркер заголовка канала и возвращает чистое название для озвучки.
+     * Например: "\u200B\u200C\u200BНовости:" -> "Новости"
+     */
+    private fun stripHeaderMarker(text: String): String {
+        return text
+            .replace("\u200B", "")
+            .replace("\u200C", "")
+            .trim()
+    }
+
+
     suspend fun convertToAudioWithChaptersWithCallback(
         texts: List<String>,
         pauseMs: Int = 1000,
@@ -213,7 +226,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             return null
         }
 
-        // CACHE: получаем параметры голоса для хеширования
         val voiceName = PreferenceManager.getTtsVoiceName(context) ?: "default"
         val cachePitch = currentAppliedPitch ?: PreferenceManager.getTtsPitch(context)
         val cacheRate = currentAppliedRate ?: PreferenceManager.getTtsRate(context)
@@ -227,15 +239,24 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         val prepared = mutableListOf<PreparedNews>()
 
         filteredNews.forEachIndexed { newsIndex, raw ->
-            val cleaned = TextProcessor.cleanForTts(raw)
-            val deduped = TextProcessor.deduplicateLines(cleaned)
-            val normalized = TextProcessor.normalizeNumbers(deduped)
-            val formatted = TextProcessor.formatForIntonation(normalized)
-            val isHeader = formatted.matches(Regex("^  .+?:\\s*$"))
-            val finalText = if (!isHeader) TextProcessor.formatForSpeech(formatted) else formatted
+            val isHeader = NewsService.isChannelHeader(raw)
 
-            if (finalText.isNotBlank()) {
-                prepared += PreparedNews(newsIndex, finalText, isHeader)
+            if (isHeader) {
+                // Для заголовка: убираем маркер и готовим чистый текст для озвучки
+                val cleanTitle = stripHeaderMarker(raw)
+                if (cleanTitle.isNotBlank()) {
+                    prepared += PreparedNews(newsIndex, cleanTitle, true)
+                }
+            } else {
+                val cleaned = TextProcessor.cleanForTts(raw)
+                val deduped = TextProcessor.deduplicateLines(cleaned)
+                val normalized = TextProcessor.normalizeNumbers(deduped)
+                val formatted = TextProcessor.formatForIntonation(normalized)
+                val finalText = TextProcessor.formatForSpeech(formatted)
+
+                if (finalText.isNotBlank()) {
+                    prepared += PreparedNews(newsIndex, finalText, false)
+                }
             }
         }
 
@@ -244,11 +265,9 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             return null
         }
 
-        // Считаем реальное число новостей (без заголовков) и общее число частей
         val actualNewsCount = prepared.count { !it.isHeader }
         val totalParts = prepared.sumOf { TextProcessor.splitByParagraphs(it.textForSplitting, 2800).size }
 
-        // Сообщаем реальные числа — NewsService обновит свои счётчики
         progressCallback?.onActualCounts(actualNewsCount, totalParts)
         Log.d(TAG, "TTS actual: news=$actualNewsCount, parts=$totalParts, prepared=${prepared.size}, headers=${prepared.count { it.isHeader }}")
 
@@ -260,8 +279,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         var silenceFile: File? = null
         var baselineFormat: WavMeta? = null
 
-        val chaptersMs = mutableListOf<Long>()
-        // Отдельный список для глав только по реальным новостям (без заголовков)
         val newsOnlyChaptersMs = mutableListOf<Long>()
         var offsetMs = 0L
 
@@ -269,9 +286,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         var synthesizedPartsCount = 0
 
         prepared.forEachIndexed { idx, item ->
-            chaptersMs.add(offsetMs)
-
-            // Добавляем в newsOnlyChaptersMs только если это не заголовок
             if (!item.isHeader) {
                 newsOnlyChaptersMs.add(offsetMs)
             }
@@ -282,7 +296,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 val partText = parts[i]
                 val partIndex = ((item.originalIndex + 1) * 1000 + (i + 1))
 
-                // CACHE: проверяем кэш
                 val hash = NewsCache.messageHash(partText, voiceName, cachePitch, cacheRate)
                 val cachedFile = NewsCache.findCachedWav(context, hash)
 
@@ -342,7 +355,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 }
             }
 
-            // Пауза между новостями
             if (idx != prepared.lastIndex && pauseMs > 0 && silenceFile != null) {
                 wavFiles.add(silenceFile!!)
                 offsetMs += pauseMs
@@ -350,7 +362,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
 
         Log.d(TAG, "Synthesis complete: $cachedPartsCount from cache, $synthesizedPartsCount synthesized, $totalParts total parts")
-        Log.d(TAG, "Chapters: all=${chaptersMs.size}, newsOnly=${newsOnlyChaptersMs.size}")
+        Log.d(TAG, "NewsOnly chapters: ${newsOnlyChaptersMs.size}, actualNewsCount=$actualNewsCount")
 
         progressCallback?.onProgress(processedParts, totalParts)
 
@@ -392,7 +404,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         progressCallback?.onCompleted()
 
-        // Возвращаем newsOnlyChaptersMs — только главы для реальных новостей (без заголовков каналов)
         return if (mp3File != null) AudioWithChapters(mp3File, newsOnlyChaptersMs, actualNewsCount) else null
     }
 
@@ -515,7 +526,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             os.write("RIFF".toByteArray()); writeLE(totalSize, 4)
             os.write("WAVE".toByteArray())
             os.write("fmt ".toByteArray()); writeLE(16, 4)
-            writeLE(1, 2) // PCM
+            writeLE(1, 2)
             writeLE(channels, 2); writeLE(sampleRate, 4)
             writeLE(sampleRate * channels * bitsPerSample / 8, 4)
             writeLE(blockAlign, 2); writeLE(bitsPerSample, 2)
