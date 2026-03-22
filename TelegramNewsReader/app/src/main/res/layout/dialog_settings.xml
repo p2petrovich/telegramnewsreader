@@ -36,7 +36,7 @@
         android:layout_height="wrap_content"
         android:text="Очистить кэш аудио"
         android:layout_marginBottom="8dp"
-        style="@style/Widget.Material3.Button.OutlinedButton" />
+        style="@style/Widget.Material3.Button" />
 
     <Button
         android:id="@+id/btn_reset_auth"
@@ -44,14 +44,13 @@
         android:layout_height="wrap_content"
         android:text="Сбросить авторизацию"
         android:layout_marginBottom="8dp"
-        style="@style/Widget.Material3.Button.OutlinedButton" />
+        style="@style/Widget.Material3.Button" />
 
     <Button
         android:id="@+id/btn_about"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="О программе"
-        style="@style/Widget.Material3.Button.TextButton" />
+        style="@style/Widget.Material3.Button" />
 
 </LinearLayout>
-

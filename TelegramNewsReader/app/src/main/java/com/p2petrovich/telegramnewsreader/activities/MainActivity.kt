@@ -33,13 +33,13 @@ import com.p2petrovich.telegramnewsreader.tts.TTSManager
 import com.p2petrovich.telegramnewsreader.tts.TTSManagerSingleton
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.services.AudioPlayerService
+import com.p2petrovich.telegramnewsreader.utils.NewsCache
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
-import com.p2petrovich.telegramnewsreader.utils.NewsCache
 
 class MainActivity : AppCompatActivity() {
 
@@ -63,7 +63,7 @@ class MainActivity : AppCompatActivity() {
     private var newsCollectionJob: Job? = null
 
     private var lastTotalCollected = 0
-    private var lastTotalFiltered = 0
+    private var lastTotalToSynthesize = 0
 
     companion object {
         private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 1001
@@ -341,7 +341,7 @@ class MainActivity : AppCompatActivity() {
             override fun onUpdateCounters(collected: Int, filtered: Int, synthesized: Int) {
                 runOnUiThread {
                     lastTotalCollected = collected
-                    lastTotalFiltered = filtered
+                    lastTotalToSynthesize = filtered
                     updateCounters(collected, filtered, synthesized)
                 }
             }
@@ -358,8 +358,9 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             override fun onMessageFiltered(originalCount: Int, filteredCount: Int) {
+                // Этот callback теперь информационный — основные счётчики обновляются в onUpdateCounters
                 runOnUiThread {
-                    updateCounters(originalCount, originalCount - filteredCount, 0)
+                    Log.d("MainActivity", "Filter: $originalCount -> $filteredCount")
                 }
             }
             override fun onSynthesisStarted(messageCount: Int) {
@@ -367,14 +368,14 @@ class MainActivity : AppCompatActivity() {
                     updateDetailedProgress("Начинаем синтез речи...", 0, 100)
                     totalProgressSteps = messageCount
                     currentProgressStep = 0
+                    startTime = System.currentTimeMillis() // сбрасываем таймер на начало синтеза
                 }
             }
             override fun onSynthesisProgress(current: Int, total: Int) {
                 runOnUiThread {
-                    val progress = if (total > 0) (current * 100) / total else 0
-                    updateDetailedProgress("Синтез речи: $current/$total", progress, 100)
+                    updateDetailedProgress("Синтез речи: $current из $total", current, total)
                     currentProgressStep = current
-                    updateCounters(lastTotalCollected, lastTotalFiltered, current)
+                    totalProgressSteps = total
                     updateETA()
                 }
             }
@@ -445,14 +446,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateDetailedProgress(status: String, progress: Int, total: Int) {
         binding.tvDetailedStatus.text = status
-        val percentage = if (total > 0) (progress * 100 / total) else 0
+        val percentage = if (total > 0) (progress * 100 / total).coerceIn(0, 100) else 0
         binding.progressBarDetailed.progress = percentage
         binding.tvProgressPercentage.text = "$percentage%"
     }
 
-    private fun updateCounters(collected: Int, filtered: Int, synthesized: Int) {
+    private fun updateCounters(collected: Int, toSynthesize: Int, synthesized: Int) {
         binding.tvCollectedCount.text = "Собрано: $collected"
-        binding.tvFilteredCount.text = "Отфильтр.: $filtered"
+        binding.tvFilteredCount.text = "К озвучке: $toSynthesize"
         binding.tvSynthesizedCount.text = "Озвучено: $synthesized"
     }
 
@@ -482,19 +483,40 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateETA() {
-        val elapsed = (System.currentTimeMillis() - startTime) / 1000
-        if (elapsed > 0 && currentProgressStep > 0 && totalProgressSteps > 0) {
-            val estimatedTotal = (elapsed * totalProgressSteps) / currentProgressStep
-            val remaining = estimatedTotal - elapsed
-            val etaText = when {
-                remaining / 3600 > 0 -> "Осталось: ${remaining / 3600} ч ${(remaining % 3600) / 60} мин"
-                remaining / 60 > 0 -> "Осталось: ${remaining / 60} мин ${remaining % 60} сек"
-                else -> "Осталось: $remaining сек"
-            }
-            binding.tvEta.text = etaText
-        } else {
-            binding.tvEta.text = "Осталось: рассчет..."
+        val elapsedMs = System.currentTimeMillis() - startTime
+        val elapsedSec = elapsedMs / 1000
+
+        if (elapsedSec < 3 || currentProgressStep <= 0 || totalProgressSteps <= 0) {
+            binding.tvEta.text = "Осталось: расчёт..."
+            return
         }
+
+        val remainingSteps = totalProgressSteps - currentProgressStep
+
+        if (remainingSteps <= 0) {
+            binding.tvEta.text = "Осталось: завершение..."
+            return
+        }
+
+        val msPerStep = elapsedMs.toDouble() / currentProgressStep
+        val remainingSec = (msPerStep * remainingSteps / 1000).toLong()
+
+        val etaText = when {
+            remainingSec <= 0 -> "Осталось: завершение..."
+            remainingSec < 60 -> "Осталось: ~$remainingSec сек"
+            remainingSec < 3600 -> {
+                val min = remainingSec / 60
+                val sec = remainingSec % 60
+                "Осталось: ~${min} мин ${sec} сек"
+            }
+            else -> {
+                val hours = remainingSec / 3600
+                val min = (remainingSec % 3600) / 60
+                "Осталось: ~${hours} ч ${min} мин"
+            }
+        }
+
+        binding.tvEta.text = etaText
     }
 
     private fun showProgressPanels() {
@@ -506,7 +528,7 @@ class MainActivity : AppCompatActivity() {
     private fun resetProgressCounters() {
         updateCounters(0, 0, 0)
         updateNewsPreview(emptyList())
-        binding.tvEta.text = "Осталось: рассчет..."
+        binding.tvEta.text = "Осталось: расчёт..."
     }
 
     private fun resetCollectionState() {
@@ -605,7 +627,7 @@ class MainActivity : AppCompatActivity() {
             val (count, bytes) = NewsCache.getStats(this)
             val sizeMb = bytes / (1024 * 1024)
             AlertDialog.Builder(this)
-                .setTitle("Очистить кэш")
+                .setTitle("Очистить кэш аудио")
                 .setMessage("В кэше $count файлов ($sizeMb МБ).\nОчистить?")
                 .setPositiveButton("Очистить") { _, _ ->
                     NewsCache.clearAll(this)

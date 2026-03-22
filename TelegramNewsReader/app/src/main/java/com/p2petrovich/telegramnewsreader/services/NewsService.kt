@@ -31,7 +31,8 @@ class NewsService(
 
     data class Prepared(
         val preparedMessages: List<String>,
-        val totalRawMessages: Int,
+        val totalCollected: Int,
+        val totalToSynthesize: Int,
         val realNewsCount: Int = 0
     )
 
@@ -77,15 +78,24 @@ class NewsService(
             progressCallback = object : TTSManager.SynthesisProgressCallback {
                 override fun onProgress(current: Int, total: Int) {
                     progressCallback.onSynthesisProgress(current, total)
+                    // Пересчитываем: сколько новостей озвучено пропорционально частям
+                    val synthesizedNews = if (total > 0) {
+                        (current.toLong() * list.totalToSynthesize / total).toInt()
+                            .coerceIn(0, list.totalToSynthesize)
+                    } else 0
+                    progressCallback.onUpdateCounters(list.totalCollected, list.totalToSynthesize, synthesizedNews)
                 }
                 override fun onStarted(messageCount: Int) {
                     progressCallback.onSynthesisStarted(messageCount)
                 }
                 override fun onCompleted() {
+                    // Финальное обновление: всё озвучено
+                    progressCallback.onUpdateCounters(list.totalCollected, list.totalToSynthesize, list.totalToSynthesize)
                     progressCallback.onSynthesisCompleted()
                 }
             }
         ) ?: return@withContext null
+
 
         AudioWithChapters(audio.file, audio.chaptersMs, list.realNewsCount)
     }
@@ -123,47 +133,59 @@ class NewsService(
 
                 channelResults.forEach { (channel, messages) ->
                     if (messages.isNotEmpty()) {
-                        allMessages.add("Новости из канала ${channel.title}:")
+                        allMessages.add("   ${channel.title}:")
                         allMessages.addAll(messages)
                         realNewsCount += messages.size
                         newsPreview.addAll(messages.take(5))
                     }
                 }
 
+                // Реальное число собранных сообщений из Telegram (без заголовков)
+                val totalCollected = allMessages.count { msg ->
+                    val trimmed = msg.trimEnd()
+                    !(trimmed.endsWith(":") && !trimmed.contains("\n") && trimmed.length < 80)
+                }
+
                 progressCallback.onUpdateNewsPreview(newsPreview)
 
                 if (allMessages.isEmpty()) {
-                    progressCallback.onUpdateProgress("Новостей нет", 100, 100)
-                    return@withTimeout Prepared(emptyList(), 0, 0)
+                    progressCallback.onUpdateProgress("Нет новостей", 100, 100)
+                    return@withTimeout Prepared(emptyList(), 0, 0, 0)
                 }
 
                 ensureActive()
 
                 // Дедупликация между каналами
-                progressCallback.onUpdateProgress("Удаление дубликатов...", 0, 100)
+                progressCallback.onUpdateProgress("Дедупликация...", 0, 100)
                 val deduplicated = TextProcessor.deduplicateAcrossChannels(allMessages)
-                Log.d(TAG, "After cross-channel dedup: ${allMessages.size} -> ${deduplicated.size}")
+                val removedByDedup = allMessages.size - deduplicated.size
+                Log.d(TAG, "Dedup: ${allMessages.size} -> ${deduplicated.size} (removed $removedByDedup)")
 
                 ensureActive()
 
+                // Фильтрация спама/рекламы
                 progressCallback.onUpdateProgress("Фильтрация...", 0, 100)
 
-                val totalRaw = deduplicated.size
                 val preparedMessages = TextProcessor.filterMessages(deduplicated) { originalCount, filteredCount ->
                     progressCallback.onMessageFiltered(originalCount, filteredCount)
-                    progressCallback.onUpdateCounters(originalCount, originalCount - filteredCount, 0)
                 }
+
+                val headerPattern = Regex("^\\s{2,}.{1,60}:\\s*$")
+                val totalToSynthesize = preparedMessages.count { !it.matches(headerPattern) }.coerceAtMost(totalCollected)
+                val removedByFilter = deduplicated.size - totalToSynthesize
+                Log.d(TAG, "Filter: ${deduplicated.size} -> $totalToSynthesize (removed $removedByFilter)")
 
                 ensureActive()
 
-                progressCallback.onUpdateCounters(totalRaw, totalRaw - preparedMessages.size, 0)
-                progressCallback.onUpdateProgress("Фильтрация завершена", 100, 100)
+                // Собрано = из Telegram, К озвучке = после фильтров, Синтезировано = 0 пока
+                progressCallback.onUpdateCounters(totalCollected, totalToSynthesize, 0)
+                progressCallback.onUpdateProgress("Подготовлено к озвучке", 100, 100)
 
-                Prepared(preparedMessages, totalRaw, realNewsCount)
+                Prepared(preparedMessages, totalCollected, totalToSynthesize, realNewsCount)
             }
         } catch (e: TimeoutCancellationException) {
             Log.e(TAG, "Timeout", e)
-            progressCallback.onUpdateProgress("Таймаут сбора новостей", 0, 100)
+            progressCallback.onUpdateProgress("Превышено время ожидания", 0, 100)
             null
         } catch (e: CancellationException) {
             Log.d(TAG, "Collection cancelled by user")
@@ -191,4 +213,3 @@ class NewsService(
         }
     }
 }
-
