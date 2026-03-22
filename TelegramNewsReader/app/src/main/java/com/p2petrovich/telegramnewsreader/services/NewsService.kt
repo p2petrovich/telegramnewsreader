@@ -103,7 +103,7 @@ class NewsService(
                 val currentTimeSeconds = System.currentTimeMillis() / 1000
                 val fromDate = currentTimeSeconds - (timeHours * 3600).toLong()
 
-                progressCallback.onUpdateProgress("Собираем новости из ${channels.size} каналов...", 0, channels.size)
+                progressCallback.onUpdateProgress("Сбор из ${channels.size} каналов...", 0, channels.size)
                 progressCallback.onUpdateChannelProgress(channels)
 
                 val channelResults = channels.mapIndexed { index, channel ->
@@ -111,7 +111,7 @@ class NewsService(
                         ensureActive()
                         val result = processChannelWithTimeout(channel, fromDate)
                         progressCallback.onChannelProcessed(result.first, result.second.size)
-                        progressCallback.onUpdateProgress("Обработан канал ${index + 1} из ${channels.size}", index + 1, channels.size)
+                        progressCallback.onUpdateProgress("Канал ${index + 1} из ${channels.size}", index + 1, channels.size)
                         result
                     }
                 }.awaitAll()
@@ -133,35 +133,41 @@ class NewsService(
                 progressCallback.onUpdateNewsPreview(newsPreview)
 
                 if (allMessages.isEmpty()) {
-                    progressCallback.onUpdateProgress("Новостей не найдено", 100, 100)
+                    progressCallback.onUpdateProgress("Новостей нет", 100, 100)
                     return@withTimeout Prepared(emptyList(), 0, 0)
                 }
 
                 ensureActive()
 
-                progressCallback.onUpdateProgress("Фильтруем новости...", 0, 100)
+                // Дедупликация между каналами
+                progressCallback.onUpdateProgress("Удаление дубликатов...", 0, 100)
+                val deduplicated = TextProcessor.deduplicateAcrossChannels(allMessages)
+                Log.d(TAG, "After cross-channel dedup: ${allMessages.size} -> ${deduplicated.size}")
 
-                val totalRaw = allMessages.size
-                val preparedMessages = TextProcessor.filterMessages(allMessages) { originalCount, filteredCount ->
+                ensureActive()
+
+                progressCallback.onUpdateProgress("Фильтрация...", 0, 100)
+
+                val totalRaw = deduplicated.size
+                val preparedMessages = TextProcessor.filterMessages(deduplicated) { originalCount, filteredCount ->
                     progressCallback.onMessageFiltered(originalCount, filteredCount)
-                    // ИСПРАВЛЕНО: правильный подсчёт отфильтрованных
                     progressCallback.onUpdateCounters(originalCount, originalCount - filteredCount, 0)
                 }
 
                 ensureActive()
 
                 progressCallback.onUpdateCounters(totalRaw, totalRaw - preparedMessages.size, 0)
-                progressCallback.onUpdateProgress("Подготовка завершена", 100, 100)
+                progressCallback.onUpdateProgress("Фильтрация завершена", 100, 100)
 
                 Prepared(preparedMessages, totalRaw, realNewsCount)
             }
         } catch (e: TimeoutCancellationException) {
             Log.e(TAG, "Timeout", e)
-            progressCallback.onUpdateProgress("Ошибка: превышено время ожидания", 0, 100)
+            progressCallback.onUpdateProgress("Таймаут сбора новостей", 0, 100)
             null
         } catch (e: CancellationException) {
             Log.d(TAG, "Collection cancelled by user")
-            throw e // Пробрасываем CancellationException
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Error", e)
             progressCallback.onUpdateProgress("Ошибка: ${e.message}", 0, 100)
@@ -185,3 +191,4 @@ class NewsService(
         }
     }
 }
+

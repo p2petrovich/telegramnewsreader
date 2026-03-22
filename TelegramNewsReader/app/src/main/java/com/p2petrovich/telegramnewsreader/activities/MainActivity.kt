@@ -39,6 +39,7 @@ import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
+import com.p2petrovich.telegramnewsreader.utils.NewsCache
 
 class MainActivity : AppCompatActivity() {
 
@@ -598,6 +599,20 @@ class MainActivity : AppCompatActivity() {
         }
         dialogView.findViewById<Button>(R.id.btn_voice_settings).setOnClickListener {
             dialog.dismiss(); startActivity(Intent(this, VoiceSelectionActivity::class.java))
+        }
+        dialogView.findViewById<Button>(R.id.btn_clear_cache).setOnClickListener {
+            dialog.dismiss()
+            val (count, bytes) = NewsCache.getStats(this)
+            val sizeMb = bytes / (1024 * 1024)
+            AlertDialog.Builder(this)
+                .setTitle("Очистить кэш")
+                .setMessage("В кэше $count файлов ($sizeMb МБ).\nОчистить?")
+                .setPositiveButton("Очистить") { _, _ ->
+                    NewsCache.clearAll(this)
+                    Toast.makeText(this, "Кэш очищен", Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("Отмена", null)
+                .show()
         }
         dialogView.findViewById<Button>(R.id.btn_reset_auth).setOnClickListener {
             dialog.dismiss(); showResetAuthConfirmation()

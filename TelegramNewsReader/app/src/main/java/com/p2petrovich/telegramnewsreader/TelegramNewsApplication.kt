@@ -16,7 +16,25 @@ class TelegramNewsApplication : Application() {
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
         instance = this
         AndroidThreeTen.init(this)
+        cleanupOldTempFiles()
     }
 
     fun getAppContext(): Context = applicationContext
+
+    private fun cleanupOldTempFiles() {
+        try {
+            val now = System.currentTimeMillis()
+            val maxAge = 24 * 60 * 60 * 1000L
+
+            cacheDir.listFiles()?.forEach { file ->
+                if (file.isFile && (now - file.lastModified()) > maxAge) {
+                    if (file.name.startsWith("tts_") ||
+                        file.name.endsWith("_combined.wav") ||
+                        file.name.endsWith("_combined.mp3")) {
+                        file.delete()
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+    }
 }
