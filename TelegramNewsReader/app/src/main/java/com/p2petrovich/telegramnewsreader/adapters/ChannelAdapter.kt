@@ -19,7 +19,14 @@ class ChannelAdapter(
     private val onHideRequest: (Channel) -> Unit
 ) : RecyclerView.Adapter<ChannelAdapter.ChannelViewHolder>() {
 
-    private val channels = mutableListOf<Channel>()
+    // Полный список всех каналов (источник истины)
+    private val allChannels = mutableListOf<Channel>()
+
+    // Отображаемый список (может быть отфильтрован)
+    private val displayedChannels = mutableListOf<Channel>()
+
+    // Активен ли фильтр
+    private var isFiltered = false
 
     fun updateChannels(newChannels: List<Channel>) {
         newChannels.forEach { it.isFavorite = PreferenceManager.isChannelFavorite(context, it.id) }
@@ -28,20 +35,57 @@ class ChannelAdapter(
             compareBy<Channel> { !it.isFavorite }.thenBy { it.title.lowercase() }
         )
 
-        val diffResult = DiffUtil.calculateDiff(ChannelDiffCallback(channels.toList(), sorted))
-        channels.clear()
-        channels.addAll(sorted)
-        diffResult.dispatchUpdatesTo(this)
+        allChannels.clear()
+        allChannels.addAll(sorted)
+
+        // Если был активен фильтр — не сбрасываем его, а переприменяем
+        if (isFiltered) {
+            val filterIds = displayedChannels.map { it.id }.toSet()
+            applyDisplayList(sorted.filter { it.id in filterIds })
+        } else {
+            applyDisplayList(sorted)
+        }
     }
 
-    fun getSelectedChannels(): List<Channel> = channels.filter { it.isSelected }
-    fun getAllChannels(): List<Channel> = channels.toList()
+    /**
+     * Показать только каналы из набора (пресета).
+     * Все каналы остаются в allChannels, но в RecyclerView видны только отфильтрованные.
+     */
+    fun filterByPreset(channelIds: Set<Long>) {
+        isFiltered = true
+        val filtered = allChannels.filter { it.id in channelIds }
+        applyDisplayList(filtered)
+    }
+
+    /**
+     * Сбросить фильтр — показать все каналы.
+     */
+    fun clearFilter() {
+        isFiltered = false
+        applyDisplayList(allChannels.toList())
+    }
+
+    /**
+     * Возвращает true если сейчас отображается отфильтрованный список.
+     */
+    fun isFilterActive(): Boolean = isFiltered
+
+    fun getSelectedChannels(): List<Channel> = allChannels.filter { it.isSelected }
+
+    fun getAllChannels(): List<Channel> = allChannels.toList()
 
     fun updateChannelPhoto(channelId: Long, path: String) {
-        val idx = channels.indexOfFirst { it.id == channelId }
-        if (idx >= 0) {
-            channels[idx].photoPath = path
-            notifyItemChanged(idx)
+        // Обновляем в полном списке
+        val allIdx = allChannels.indexOfFirst { it.id == channelId }
+        if (allIdx >= 0) {
+            allChannels[allIdx].photoPath = path
+        }
+
+        // Обновляем в отображаемом списке
+        val dispIdx = displayedChannels.indexOfFirst { it.id == channelId }
+        if (dispIdx >= 0) {
+            displayedChannels[dispIdx].photoPath = path
+            notifyItemChanged(dispIdx)
         }
     }
 
@@ -51,10 +95,10 @@ class ChannelAdapter(
     }
 
     override fun onBindViewHolder(holder: ChannelViewHolder, position: Int) {
-        holder.bind(channels[position])
+        holder.bind(displayedChannels[position])
     }
 
-    override fun getItemCount(): Int = channels.size
+    override fun getItemCount(): Int = displayedChannels.size
 
     inner class ChannelViewHolder(private val binding: ItemChannelBinding) : RecyclerView.ViewHolder(binding.root) {
 
@@ -112,14 +156,30 @@ class ChannelAdapter(
         }
     }
 
+    private fun applyDisplayList(newDisplayed: List<Channel>) {
+        val diffResult = DiffUtil.calculateDiff(ChannelDiffCallback(displayedChannels.toList(), newDisplayed))
+        displayedChannels.clear()
+        displayedChannels.addAll(newDisplayed)
+        diffResult.dispatchUpdatesTo(this)
+    }
+
     private fun resortAndUpdate() {
-        val sorted = channels.sortedWith(
+        // Пересортировываем полный список
+        val sortedAll = allChannels.sortedWith(
             compareBy<Channel> { !it.isFavorite }.thenBy { it.title.lowercase() }
         )
-        val diffResult = DiffUtil.calculateDiff(ChannelDiffCallback(channels.toList(), sorted))
-        channels.clear()
-        channels.addAll(sorted)
-        diffResult.dispatchUpdatesTo(this)
+        allChannels.clear()
+        allChannels.addAll(sortedAll)
+
+        // Пересортировываем отображаемый список (с учётом фильтра)
+        val newDisplayed = if (isFiltered) {
+            val displayedIds = displayedChannels.map { it.id }.toSet()
+            sortedAll.filter { it.id in displayedIds }
+        } else {
+            sortedAll.toList()
+        }
+
+        applyDisplayList(newDisplayed)
     }
 
     private class ChannelDiffCallback(
@@ -132,8 +192,8 @@ class ChannelAdapter(
         override fun areContentsTheSame(oldPos: Int, newPos: Int): Boolean {
             val old = oldList[oldPos]; val new = newList[newPos]
             return old.title == new.title && old.isSelected == new.isSelected &&
-                   old.isFavorite == new.isFavorite && old.newMessagesCount == new.newMessagesCount &&
-                   old.photoPath == new.photoPath
+                    old.isFavorite == new.isFavorite && old.newMessagesCount == new.newMessagesCount &&
+                    old.photoPath == new.photoPath
         }
     }
 }

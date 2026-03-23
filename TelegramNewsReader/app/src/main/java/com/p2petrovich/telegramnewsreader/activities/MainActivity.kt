@@ -219,14 +219,21 @@ class MainActivity : AppCompatActivity() {
 
     private fun deselectAllChannels() {
         val allChannels = channelAdapter.getAllChannels()
-        if (allChannels.none { it.isSelected }) {
+        val hadSelection = allChannels.any { it.isSelected }
+        val hadFilter = channelAdapter.isFilterActive()
+
+        if (!hadSelection && !hadFilter) {
             Toast.makeText(this, "Каналы не выбраны", Toast.LENGTH_SHORT).show()
             return
         }
 
+        // Снимаем все галочки
         allChannels.forEach { it.isSelected = false }
-        channelAdapter.notifyDataSetChanged()
 
+        // Сбрасываем фильтр — показываем все каналы
+        channelAdapter.clearFilter()
+
+        // Сбрасываем активный пресет
         activePresetId = null
         PresetManager.setActivePresetId(this, null)
 
@@ -244,13 +251,16 @@ class MainActivity : AppCompatActivity() {
         currentTimePeriodIndex = preset.timePeriodIndex
         updateTimePeriodButton()
 
+        // Выставляем галочки в полном списке
         val allChannels = channelAdapter.getAllChannels()
         allChannels.forEach { ch ->
             ch.isSelected = ch.id in preset.channelIds
         }
-        channelAdapter.notifyDataSetChanged()
-        updateNewsCollectionButton()
 
+        // Показываем только каналы из пресета
+        channelAdapter.filterByPreset(preset.channelIds)
+
+        updateNewsCollectionButton()
         PresetManager.saveLastSelection(this, preset.channelIds, preset.timePeriodIndex)
         refreshPresetChips()
         Toast.makeText(this, "Набор «${preset.name}» применён", Toast.LENGTH_SHORT).show()
@@ -545,6 +555,12 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     channelAdapter.updateChannels(filtered)
+
+                    // Если есть активный пресет — сразу фильтруем отображение
+                    if (activePreset != null) {
+                        channelAdapter.filterByPreset(activePreset.channelIds)
+                    }
+
                     telegramClient.redownloadPendingPhotos()
 
                     if (pendingPhotos.isNotEmpty()) {
@@ -965,7 +981,14 @@ class MainActivity : AppCompatActivity() {
     private fun updateChannelStats() {
         val total = channelAdapter.getAllChannels().size
         val selected = channelAdapter.getSelectedChannels().size
-        val msg = if (selected > 0) "Каналов: $total | Выбрано: $selected" else "Каналов: $total"
+        val isFilterActive = channelAdapter.isFilterActive()
+
+        val msg = buildString {
+            append("Каналов: $total")
+            if (selected > 0) append(" | Выбрано: $selected")
+            if (isFilterActive) append(" (фильтр)")
+        }
+
         val statusText = if (isClientReady) "Выберите каналы\n$msg" else "Инициализация...\n$msg"
         binding.tvStatus.text = statusText
     }
