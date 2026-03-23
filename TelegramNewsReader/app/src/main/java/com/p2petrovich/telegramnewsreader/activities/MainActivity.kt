@@ -210,7 +210,31 @@ class MainActivity : AppCompatActivity() {
             showPresetsManagerDialog()
         }
 
+        binding.btnDeselectAll.setOnClickListener {
+            deselectAllChannels()
+        }
+
         refreshPresetChips()
+    }
+
+    private fun deselectAllChannels() {
+        val allChannels = channelAdapter.getAllChannels()
+        if (allChannels.none { it.isSelected }) {
+            Toast.makeText(this, "Каналы не выбраны", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        allChannels.forEach { it.isSelected = false }
+        channelAdapter.notifyDataSetChanged()
+
+        activePresetId = null
+        PresetManager.setActivePresetId(this, null)
+
+        updateNewsCollectionButton()
+        saveCurrentSelection()
+        refreshPresetChips()
+
+        Toast.makeText(this, "Выбор сброшен", Toast.LENGTH_SHORT).show()
     }
 
     private fun applyPreset(preset: ChannelPreset) {
@@ -705,7 +729,6 @@ class MainActivity : AppCompatActivity() {
             currentNewsFileIndices = audio.newsFileIndices
             lastUsedVoice = PreferenceManager.getTtsVoiceName(this)
 
-            // Считаем общую длительность по всем файлам
             var totalDurationMs = 0L
             audio.files.forEach { file ->
                 var player: MediaPlayer? = null
