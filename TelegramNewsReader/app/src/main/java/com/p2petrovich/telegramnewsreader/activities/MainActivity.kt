@@ -12,7 +12,8 @@ import android.os.Bundle
 import android.text.method.ScrollingMovementMethod
 import android.util.Log
 import android.view.View
-import android.widget.Button
+import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -21,19 +22,23 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.chip.Chip
 import com.p2petrovich.telegramnewsreader.R
 import com.p2petrovich.telegramnewsreader.adapter.ChannelAdapter
+import com.p2petrovich.telegramnewsreader.adapter.PresetAdapter
 import com.p2petrovich.telegramnewsreader.databinding.ActivityMainBinding
 import com.p2petrovich.telegramnewsreader.model.Channel
+import com.p2petrovich.telegramnewsreader.models.ChannelPreset
 import com.p2petrovich.telegramnewsreader.service.NewsService
 import com.p2petrovich.telegramnewsreader.service.ProgressCallback
+import com.p2petrovich.telegramnewsreader.services.AudioPlayerService
 import com.p2petrovich.telegramnewsreader.telegram.TelegramClient
 import com.p2petrovich.telegramnewsreader.telegram.TelegramClientManager
 import com.p2petrovich.telegramnewsreader.tts.TTSManager
 import com.p2petrovich.telegramnewsreader.tts.TTSManagerSingleton
-import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
-import com.p2petrovich.telegramnewsreader.services.AudioPlayerService
 import com.p2petrovich.telegramnewsreader.utils.NewsCache
+import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
+import com.p2petrovich.telegramnewsreader.utils.PresetManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.io.File
@@ -64,12 +69,14 @@ class MainActivity : AppCompatActivity() {
     private var currentProgressStep: Int = 0
     private var newsCollectionJob: Job? = null
 
-    // Pipeline counters
     private var lastTotalCollected = 0
     private var lastAfterDedup = 0
     private var lastAfterFilter = 0
     private var lastToSynthesize = 0
     private var lastSynthesized = 0
+
+    // Пресеты
+    private var activePresetId: String? = null
 
     companion object {
         private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 1001
@@ -124,6 +131,7 @@ class MainActivity : AppCompatActivity() {
 
         initComponents()
         setupUI()
+        setupPresets()
         initializeTelegramClient()
 
         lastUsedVoice = PreferenceManager.getTtsVoiceName(this)
@@ -150,13 +158,266 @@ class MainActivity : AppCompatActivity() {
 
         channelAdapter = ChannelAdapter(
             this,
-            onSelectionChanged = { _, _ -> updateNewsCollectionButton() },
+            onSelectionChanged = { _, _ ->
+                updateNewsCollectionButton()
+                saveCurrentSelection()
+            },
             onHideRequest = { channel -> confirmHideChannel(channel) }
         )
 
         binding.recyclerChannels.layoutManager = LinearLayoutManager(this)
         binding.recyclerChannels.adapter = channelAdapter
     }
+
+    // ============ Автосохранение выбора ============
+
+    private fun saveCurrentSelection() {
+        val selectedIds = channelAdapter.getSelectedChannels().map { it.id }.toSet()
+        PresetManager.saveLastSelection(this, selectedIds, currentTimePeriodIndex)
+
+        // Если выбор изменился вручную — сбрасываем активный пресет
+        val activePreset = PresetManager.getActivePreset(this)
+        if (activePreset != null && selectedIds != activePreset.channelIds) {
+            PresetManager.setActivePresetId(this, null)
+            activePresetId = null
+            refreshPresetChips()
+        }
+    }
+
+    private fun restoreLastSelection() {
+        val activePreset = PresetManager.getActivePreset(this)
+        if (activePreset != null) {
+            activePresetId = activePreset.id
+            currentTimePeriodIndex = activePreset.timePeriodIndex
+        } else {
+            currentTimePeriodIndex = PresetManager.getLastTimePeriodIndex(this)
+        }
+        updateTimePeriodButton()
+    }
+
+    // ============ Пресеты ============
+
+    private fun setupPresets() {
+        restoreLastSelection()
+
+        binding.btnSavePreset.setOnClickListener {
+            val selected = channelAdapter.getSelectedChannels()
+            if (selected.isEmpty()) {
+                Toast.makeText(this, "Сначала выберите каналы", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            showCreatePresetDialog(selected)
+        }
+
+        binding.btnManagePresets.setOnClickListener {
+            showPresetsManagerDialog()
+        }
+
+        refreshPresetChips()
+    }
+
+    private fun applyPreset(preset: ChannelPreset) {
+        activePresetId = preset.id
+        PresetManager.setActivePresetId(this, preset.id)
+
+        currentTimePeriodIndex = preset.timePeriodIndex
+        updateTimePeriodButton()
+
+        val allChannels = channelAdapter.getAllChannels()
+        allChannels.forEach { ch ->
+            ch.isSelected = ch.id in preset.channelIds
+        }
+        channelAdapter.notifyDataSetChanged()
+        updateNewsCollectionButton()
+
+        PresetManager.saveLastSelection(this, preset.channelIds, preset.timePeriodIndex)
+        refreshPresetChips()
+        Toast.makeText(this, "Набор «${preset.name}» применён", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun applyPresetAndCollect(preset: ChannelPreset) {
+        applyPreset(preset)
+        binding.root.postDelayed({ collectNews() }, 300)
+    }
+
+    private fun refreshPresetChips() {
+        val chipGroup = binding.chipGroupPresets
+        chipGroup.removeAllViews()
+
+        val presets = PresetManager.getAllPresets(this)
+        if (presets.isEmpty()) {
+            binding.cardQuickLaunch.visibility = View.GONE
+            return
+        }
+
+        binding.cardQuickLaunch.visibility = View.VISIBLE
+        val activeId = PresetManager.getActivePresetId(this)
+
+        presets.forEach { preset ->
+            val chip = Chip(this).apply {
+                text = preset.name
+                isCheckable = true
+                isChecked = preset.id == activeId
+                isCloseIconVisible = false
+
+                setOnClickListener {
+                    applyPreset(preset)
+                }
+                setOnLongClickListener {
+                    applyPresetAndCollect(preset)
+                    true
+                }
+            }
+            chipGroup.addView(chip)
+        }
+    }
+
+    private fun showCreatePresetDialog(selectedChannels: List<Channel>) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_create_preset, null)
+        val etName = dialogView.findViewById<EditText>(R.id.et_preset_name)
+        val cbSaveTime = dialogView.findViewById<CheckBox>(R.id.cb_save_time_period)
+        val tvInfo = dialogView.findViewById<TextView>(R.id.tv_selected_info)
+
+        val channelNames = selectedChannels.take(5).joinToString(", ") { it.title }
+        val suffix = if (selectedChannels.size > 5) " и ещё ${selectedChannels.size - 5}" else ""
+        tvInfo.text = "Каналов: ${selectedChannels.size}\n$channelNames$suffix\nПериод: ${timePeriods[currentTimePeriodIndex]}"
+
+        AlertDialog.Builder(this)
+            .setTitle("Сохранить набор каналов")
+            .setView(dialogView)
+            .setPositiveButton("Сохранить") { _, _ ->
+                val name = etName.text?.toString()?.trim()
+                if (name.isNullOrEmpty()) {
+                    Toast.makeText(this, "Введите название", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+
+                val timePeriod = if (cbSaveTime.isChecked) currentTimePeriodIndex else 2
+                val channelIds = selectedChannels.map { it.id }.toSet()
+
+                val preset = PresetManager.createPreset(this, name, channelIds, timePeriod)
+                PresetManager.setActivePresetId(this, preset.id)
+                activePresetId = preset.id
+
+                refreshPresetChips()
+                Toast.makeText(this, "Набор «$name» сохранён", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    private fun showPresetsManagerDialog() {
+        val presets = PresetManager.getAllPresets(this)
+
+        val dialogView = layoutInflater.inflate(R.layout.dialog_manage_presets, null)
+        val recycler = dialogView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recycler_presets)
+        val tvEmpty = dialogView.findViewById<TextView>(R.id.tv_presets_empty)
+        recycler.layoutManager = LinearLayoutManager(this)
+
+        if (presets.isEmpty()) {
+            tvEmpty.visibility = View.VISIBLE
+            recycler.visibility = View.GONE
+        } else {
+            tvEmpty.visibility = View.GONE
+            recycler.visibility = View.VISIBLE
+        }
+
+        val channelNames = channelAdapter.getAllChannels().associate { it.id to it.title }
+        val activeId = PresetManager.getActivePresetId(this)
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Наборы каналов")
+            .setView(dialogView)
+            .setNegativeButton("Закрыть", null)
+            .create()
+
+        recycler.adapter = PresetAdapter(
+            presets = presets,
+            activePresetId = activeId,
+            channelNames = channelNames,
+            timePeriods = timePeriods,
+            onPresetSelected = { preset ->
+                dialog.dismiss()
+                applyPreset(preset)
+            },
+            onPresetDelete = { preset ->
+                AlertDialog.Builder(this)
+                    .setMessage("Удалить «${preset.name}»?")
+                    .setPositiveButton("Удалить") { _, _ ->
+                        PresetManager.deletePreset(this, preset.id)
+                        dialog.dismiss()
+                        refreshPresetChips()
+                        Toast.makeText(this, "Набор удалён", Toast.LENGTH_SHORT).show()
+                    }
+                    .setNegativeButton("Отмена", null)
+                    .show()
+            },
+            onPresetEdit = { preset ->
+                dialog.dismiss()
+                showEditPresetDialog(preset)
+            }
+        )
+
+        dialog.show()
+    }
+
+    private fun showEditPresetDialog(preset: ChannelPreset) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_create_preset, null)
+        val etName = dialogView.findViewById<EditText>(R.id.et_preset_name)
+        val cbSaveTime = dialogView.findViewById<CheckBox>(R.id.cb_save_time_period)
+        val tvInfo = dialogView.findViewById<TextView>(R.id.tv_selected_info)
+
+        etName.setText(preset.name)
+        cbSaveTime.text = "Обновить период на текущий"
+        cbSaveTime.isChecked = false
+
+        val channelNames = channelAdapter.getAllChannels()
+            .filter { it.id in preset.channelIds }
+            .joinToString(", ") { it.title }
+        tvInfo.text = "Каналов в наборе: ${preset.channelIds.size}\n$channelNames"
+
+        val currentSelected = channelAdapter.getSelectedChannels()
+        val hasNewSelection = currentSelected.isNotEmpty() &&
+                currentSelected.map { it.id }.toSet() != preset.channelIds
+
+        val cbUpdateChannels = CheckBox(this).apply {
+            text = "Обновить каналы на текущий выбор (${currentSelected.size})"
+            isChecked = false
+            visibility = if (hasNewSelection) View.VISIBLE else View.GONE
+        }
+        (dialogView as android.widget.LinearLayout).addView(cbUpdateChannels)
+
+        AlertDialog.Builder(this)
+            .setTitle("Редактировать набор")
+            .setView(dialogView)
+            .setPositiveButton("Сохранить") { _, _ ->
+                val name = etName.text?.toString()?.trim()
+                if (name.isNullOrEmpty()) {
+                    Toast.makeText(this, "Введите название", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+
+                val newChannelIds = if (cbUpdateChannels.isChecked && hasNewSelection)
+                    currentSelected.map { it.id }.toSet()
+                else preset.channelIds
+
+                val newTimePeriod = if (cbSaveTime.isChecked) currentTimePeriodIndex
+                else preset.timePeriodIndex
+
+                val updated = preset.copy(
+                    name = name,
+                    channelIds = newChannelIds,
+                    timePeriodIndex = newTimePeriod
+                )
+                PresetManager.savePreset(this, updated)
+                refreshPresetChips()
+                Toast.makeText(this, "Набор «$name» обновлён", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    // ============ Инициализация Telegram ============
 
     private fun initializeTelegramClient() {
         val readyCallback: () -> Unit = {
@@ -252,6 +513,17 @@ class MainActivity : AppCompatActivity() {
                                 hiddenIds.contains(ch.id.toString())
                     }
 
+                    // Восстанавливаем выбор ПЕРЕД обновлением адаптера
+                    val activePreset = PresetManager.getActivePreset(this)
+                    val savedSelectedIds = activePreset?.channelIds
+                        ?: PresetManager.getLastSelectedIds(this)
+
+                    if (savedSelectedIds.isNotEmpty()) {
+                        filtered.forEach { ch ->
+                            ch.isSelected = ch.id in savedSelectedIds
+                        }
+                    }
+
                     channelAdapter.updateChannels(filtered)
                     telegramClient.redownloadPendingPhotos()
 
@@ -261,7 +533,9 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     updateChannelStats()
+                    updateNewsCollectionButton()
                     loadInitialNewsForChannels(filtered)
+                    refreshPresetChips()
                 } else {
                     updateStatus("Каналы не найдены")
                 }
@@ -345,8 +619,7 @@ class MainActivity : AppCompatActivity() {
                     binding.btnCollectNews.text = getString(R.string.collect_news)
                     binding.btnCollectNews.isEnabled = true
                     updateStatus("Ошибка: ${e.message}")
-                    Toast.makeText(this@MainActivity, "Ошибка: ${e.message}", Toast.LENGTH_LONG)
-                        .show()
+                    Toast.makeText(this@MainActivity, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -447,10 +720,7 @@ class MainActivity : AppCompatActivity() {
             } catch (_: Exception) {
                 null
             } finally {
-                try {
-                    player?.release()
-                } catch (_: Exception) {
-                }
+                try { player?.release() } catch (_: Exception) {}
             }
 
             val baseStatus = "Готово! Найдено новостей: ${audio.realNewsCount}"
@@ -469,10 +739,7 @@ class MainActivity : AppCompatActivity() {
                 putExtra(AudioPlayerService.EXTRA_TITLE, "Новости")
                 putExtra(AudioPlayerService.EXTRA_CHAPTERS, currentChapters.toLongArray())
                 putExtra(AudioPlayerService.EXTRA_REAL_NEWS_COUNT, currentRealNewsCount)
-                putExtra(
-                    AudioPlayerService.EXTRA_NEWS_CHAPTER_INDICES,
-                    currentNewsChapterIndices.toIntArray()
-                )
+                putExtra(AudioPlayerService.EXTRA_NEWS_CHAPTER_INDICES, currentNewsChapterIndices.toIntArray())
             })
 
             channelAdapter.notifyDataSetChanged()
@@ -481,8 +748,7 @@ class MainActivity : AppCompatActivity() {
             binding.btnPlay.isEnabled = true
             binding.btnNext.isEnabled = true
 
-            Toast.makeText(this, "Найдено ${audio.realNewsCount} новых сообщений", Toast.LENGTH_SHORT)
-                .show()
+            Toast.makeText(this, "Найдено ${audio.realNewsCount} новых сообщений", Toast.LENGTH_SHORT).show()
         } else {
             updateStatus("Новых новостей не найдено")
             Toast.makeText(this, "Новые новости не найдены", Toast.LENGTH_LONG).show()
@@ -694,6 +960,7 @@ class MainActivity : AppCompatActivity() {
             .setItems(timePeriods) { _, which ->
                 currentTimePeriodIndex = which
                 updateTimePeriodButton()
+                saveCurrentSelection()
             }.show()
     }
 
@@ -705,13 +972,16 @@ class MainActivity : AppCompatActivity() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_settings, null)
         val dialog = AlertDialog.Builder(this).setView(dialogView).create()
 
-        dialogView.findViewById<Button>(R.id.btn_manage_hidden).setOnClickListener {
+        dialogView.findViewById<android.widget.Button>(R.id.btn_manage_presets_settings)?.setOnClickListener {
+            dialog.dismiss(); showPresetsManagerDialog()
+        }
+        dialogView.findViewById<android.widget.Button>(R.id.btn_manage_hidden).setOnClickListener {
             dialog.dismiss(); showHiddenManager()
         }
-        dialogView.findViewById<Button>(R.id.btn_voice_settings).setOnClickListener {
+        dialogView.findViewById<android.widget.Button>(R.id.btn_voice_settings).setOnClickListener {
             dialog.dismiss(); startActivity(Intent(this, VoiceSelectionActivity::class.java))
         }
-        dialogView.findViewById<Button>(R.id.btn_clear_cache).setOnClickListener {
+        dialogView.findViewById<android.widget.Button>(R.id.btn_clear_cache).setOnClickListener {
             dialog.dismiss()
             val (count, bytes) = NewsCache.getStats(this)
             val sizeMb = bytes / (1024 * 1024)
@@ -725,10 +995,10 @@ class MainActivity : AppCompatActivity() {
                 .setNegativeButton("Отмена", null)
                 .show()
         }
-        dialogView.findViewById<Button>(R.id.btn_reset_auth).setOnClickListener {
+        dialogView.findViewById<android.widget.Button>(R.id.btn_reset_auth).setOnClickListener {
             dialog.dismiss(); showResetAuthConfirmation()
         }
-        dialogView.findViewById<Button>(R.id.btn_about).setOnClickListener {
+        dialogView.findViewById<android.widget.Button>(R.id.btn_about).setOnClickListener {
             dialog.dismiss(); showAboutDialog()
         }
         dialog.show()
@@ -736,14 +1006,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun showAboutDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_about, null)
-
         val versionName = try {
             packageManager.getPackageInfo(packageName, 0).versionName
-        } catch (_: Exception) {
-            "1.0"
-        }
+        } catch (_: Exception) { "1.0" }
         dialogView.findViewById<TextView>(R.id.tvVersion).text = "Версия: $versionName"
-
         AlertDialog.Builder(this)
             .setView(dialogView)
             .setPositiveButton("Закрыть", null)
@@ -881,10 +1147,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        try {
-            unregisterReceiver(progressReceiver)
-        } catch (_: Exception) {
-        }
+        try { unregisterReceiver(progressReceiver) } catch (_: Exception) {}
         stopTimer()
     }
 }

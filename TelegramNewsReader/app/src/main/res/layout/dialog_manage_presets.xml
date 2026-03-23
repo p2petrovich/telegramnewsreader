@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="8dp"
+    android:minHeight="200dp">
+
+    <TextView
+        android:id="@+id/tv_presets_empty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Нет сохранённых наборов.\nВыберите каналы и нажмите «Сохранить набор»."
+        android:textSize="14sp"
+        android:textColor="?android:textColorSecondary"
+        android:gravity="center"
+        android:padding="24dp"
+        android:visibility="gone" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recycler_presets"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+</LinearLayout>

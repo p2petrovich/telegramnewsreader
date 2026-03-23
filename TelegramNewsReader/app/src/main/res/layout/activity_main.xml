@@ -40,6 +40,101 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
+            <!-- ===== ПАНЕЛЬ БЫСТРОГО ЗАПУСКА (ПРЕСЕТЫ) ===== -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/card_quick_launch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:visibility="gone"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="10dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Быстрый запуск"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:paddingStart="4dp" />
+
+                        <TextView
+                            android:id="@+id/tv_preset_hint"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="долгий тап = старт"
+                            android:textSize="11sp"
+                            android:textColor="?android:textColorTertiary"
+                            android:paddingEnd="4dp" />
+
+                    </LinearLayout>
+
+                    <HorizontalScrollView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:scrollbars="none"
+                        android:layout_marginTop="6dp">
+
+                        <com.google.android.material.chip.ChipGroup
+                            android:id="@+id/chip_group_presets"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            app:singleLine="true"
+                            app:singleSelection="true"
+                            app:chipSpacingHorizontal="6dp" />
+
+                    </HorizontalScrollView>
+
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- ===== КНОПКИ УПРАВЛЕНИЯ ПРЕСЕТАМИ ===== -->
+            <LinearLayout
+                android:id="@+id/ll_preset_buttons"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="8dp">
+
+                <Button
+                    android:id="@+id/btn_save_preset"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="4dp"
+                    android:text="Сохранить набор"
+                    android:textSize="11sp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    style="@style/Widget.Material3.Button.OutlinedButton" />
+
+                <Button
+                    android:id="@+id/btn_manage_presets"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="4dp"
+                    android:text="Все наборы"
+                    android:textSize="11sp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    style="@style/Widget.Material3.Button.OutlinedButton" />
+
+            </LinearLayout>
+
             <TextView
                 android:id="@+id/tv_select_channels"
                 android:layout_width="wrap_content"
@@ -88,7 +183,6 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
-                    <!-- Основной прогресс-бар -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -112,7 +206,6 @@
 
                     </LinearLayout>
 
-                    <!-- Прогресс-бар с процентами -->
                     <ProgressBar
                         android:id="@+id/progress_bar_detailed"
                         style="?android:attr/progressBarStyleHorizontal"
@@ -132,7 +225,6 @@
                         android:text="0%"
                         android:textSize="12sp" />
 
-                    <!-- ETA -->
                     <TextView
                         android:id="@+id/tv_eta"
                         android:layout_width="wrap_content"
@@ -142,14 +234,12 @@
                         android:textSize="12sp"
                         android:textColor="@android:color/darker_gray" />
 
-                    <!-- Счётчики обработки (pipeline) -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
                         android:orientation="vertical">
 
-                        <!-- Строка 1: pipeline сбора и фильтрации -->
                         <TextView
                             android:id="@+id/tv_pipeline_status"
                             android:layout_width="match_parent"
@@ -160,7 +250,6 @@
                             android:singleLine="false"
                             android:maxLines="2" />
 
-                        <!-- Строка 2: прогресс синтеза -->
                         <TextView
                             android:id="@+id/tv_synthesis_status"
                             android:layout_width="match_parent"

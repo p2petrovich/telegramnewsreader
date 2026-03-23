@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Название набора"
+        android:textSize="14sp"
+        android:textColor="?android:textColorSecondary" />
+
+    <EditText
+        android:id="@+id/et_preset_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Например: Утренние новости"
+        android:inputType="text"
+        android:maxLength="40"
+        android:layout_marginTop="4dp" />
+
+    <CheckBox
+        android:id="@+id/cb_save_time_period"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Сохранить текущий период"
+        android:checked="true"
+        android:layout_marginTop="12dp" />
+
+    <TextView
+        android:id="@+id/tv_selected_info"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:textSize="13sp"
+        android:textColor="?android:textColorSecondary" />
+
+</LinearLayout>
