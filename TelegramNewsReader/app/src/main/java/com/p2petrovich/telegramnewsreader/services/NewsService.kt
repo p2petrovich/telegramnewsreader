@@ -31,13 +31,8 @@ class NewsService(
 
         private const val HEADER_MARKER = "\u200B\u200C\u200B"
 
-        fun isChannelHeader(text: String): Boolean {
-            return text.contains(HEADER_MARKER)
-        }
-
-        fun makeChannelHeader(title: String): String {
-            return "${HEADER_MARKER}Новости из канала ${title}:"
-        }
+        fun isChannelHeader(text: String): Boolean = text.contains(HEADER_MARKER)
+        fun makeChannelHeader(title: String): String = "${HEADER_MARKER}Новости из канала ${title}:"
     }
 
     data class Prepared(
@@ -47,11 +42,14 @@ class NewsService(
         val realNewsCount: Int = 0
     )
 
-    data class AudioWithChapters(
-        val file: java.io.File,
-        val chaptersMs: List<Long>,
+    /**
+     * Результат: плейлист WAV-файлов.
+     * Каждый файл — одна глава (заголовок канала или новость).
+     */
+    data class AudioPlaylist(
+        val files: List<java.io.File>,
         val realNewsCount: Int = 0,
-        val newsChapterIndices: Set<Int> = emptySet()
+        val newsFileIndices: Set<Int> = emptySet()
     )
 
     suspend fun getAllChannelsNewsCount(
@@ -61,7 +59,6 @@ class NewsService(
         val result = mutableMapOf<Long, Int>()
         val currentTimeSeconds = System.currentTimeMillis() / 1000
         val fromDate = currentTimeSeconds - (timeHours * 3600).toLong()
-
         channels.forEach { channel ->
             try {
                 val messages = telegramClient.getChannelMessagesPaginated(channel.id, fromDate)
@@ -74,11 +71,11 @@ class NewsService(
         result
     }
 
-    suspend fun collectAndSynthesizeWithChapters(
+    suspend fun collectAndSynthesizePlaylist(
         channels: List<Channel>,
         timeHours: Double,
         progressCallback: ProgressCallback = object : ProgressCallback {}
-    ): AudioWithChapters? = withContext(Dispatchers.IO) {
+    ): AudioPlaylist? = withContext(Dispatchers.IO) {
 
         val list = collectAndPrepareMessages(channels, timeHours, progressCallback)
             ?: return@withContext null
@@ -86,29 +83,22 @@ class NewsService(
 
         var actualTtsNewsCount = list.totalToSynthesize
 
-        val audio = ttsManager.convertToAudioWithChaptersWithCallback(
+        val playlist = ttsManager.synthesizePlaylist(
             list.preparedMessages,
             pauseMs = 1000,
             progressCallback = object : TTSManager.SynthesisProgressCallback {
                 override fun onActualCounts(newsCount: Int, partsCount: Int) {
                     actualTtsNewsCount = newsCount
-                    Log.d(TAG, "TTS actual counts: news=$newsCount, parts=$partsCount, was totalToSynthesize=${list.totalToSynthesize}")
                     progressCallback.onUpdateCounters(list.totalCollected, newsCount, 0)
                 }
-
                 override fun onProgress(current: Int, total: Int) {
                     progressCallback.onSynthesisProgress(current, total)
                     val synthesizedNews = if (total > 0) {
-                        (current.toLong() * actualTtsNewsCount / total).toInt()
-                            .coerceIn(0, actualTtsNewsCount)
+                        (current.toLong() * actualTtsNewsCount / total).toInt().coerceIn(0, actualTtsNewsCount)
                     } else 0
                     progressCallback.onUpdateCounters(list.totalCollected, actualTtsNewsCount, synthesizedNews)
                 }
-
-                override fun onStarted(messageCount: Int) {
-                    progressCallback.onSynthesisStarted(messageCount)
-                }
-
+                override fun onStarted(messageCount: Int) { progressCallback.onSynthesisStarted(messageCount) }
                 override fun onCompleted() {
                     progressCallback.onUpdateCounters(list.totalCollected, actualTtsNewsCount, actualTtsNewsCount)
                     progressCallback.onSynthesisCompleted()
@@ -116,7 +106,7 @@ class NewsService(
             }
         ) ?: return@withContext null
 
-        AudioWithChapters(audio.file, audio.chaptersMs, actualTtsNewsCount, audio.newsChapterIndices)
+        AudioPlaylist(playlist.files, actualTtsNewsCount, playlist.newsFileIndices)
     }
 
     private suspend fun collectAndPrepareMessages(
@@ -160,7 +150,6 @@ class NewsService(
                 }
 
                 val totalCollected = realNewsCount
-
                 progressCallback.onUpdateNewsPreview(newsPreview)
 
                 if (allMessages.isEmpty()) {
@@ -170,31 +159,22 @@ class NewsService(
 
                 ensureActive()
 
-                // Дедупликация
                 progressCallback.onUpdateProgress("Дедупликация...", 0, 100)
                 val deduplicated = TextProcessor.deduplicateAcrossChannels(allMessages)
                 val dedupNewsCount = deduplicated.count { !isChannelHeader(it) }
-                val removedByDedup = totalCollected - dedupNewsCount
-                Log.d(TAG, "Dedup: $totalCollected -> $dedupNewsCount news (removed $removedByDedup)")
-
                 progressCallback.onDeduplicationComplete(totalCollected, dedupNewsCount)
 
                 ensureActive()
 
-                // Фильтрация
                 progressCallback.onUpdateProgress("Фильтрация...", 0, 100)
                 val preparedMessages = TextProcessor.filterMessages(deduplicated) { _, _ -> }
-
                 val filteredNewsCount = preparedMessages.count { !isChannelHeader(it) }
                 progressCallback.onMessageFiltered(dedupNewsCount, filteredNewsCount)
 
                 ensureActive()
 
-                // Предварительная оценка dropTrivial
                 val afterDropTrivial = TextProcessor.dropTrivial(preparedMessages)
                 val totalToSynthesize = afterDropTrivial.count { !isChannelHeader(it) }
-
-                Log.d(TAG, "Counts: collected=$totalCollected, afterDedup=$dedupNewsCount, afterFilter=$filteredNewsCount, afterDropTrivial=$totalToSynthesize")
 
                 ensureActive()
 
@@ -204,23 +184,16 @@ class NewsService(
                 Prepared(preparedMessages, totalCollected, totalToSynthesize, realNewsCount)
             }
         } catch (e: TimeoutCancellationException) {
-            Log.e(TAG, "Timeout", e)
             progressCallback.onUpdateProgress("Превышено время ожидания", 0, 100)
             null
-        } catch (e: CancellationException) {
-            Log.d(TAG, "Collection cancelled by user")
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "Error", e)
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
             progressCallback.onUpdateProgress("Ошибка: ${e.message}", 0, 100)
             null
         }
     }
 
-    private suspend fun processChannelWithTimeout(
-        channel: Channel,
-        fromDate: Long
-    ): Pair<Channel, List<String>> {
+    private suspend fun processChannelWithTimeout(channel: Channel, fromDate: Long): Pair<Channel, List<String>> {
         return try {
             withTimeout(CHANNEL_TIMEOUT_MS) {
                 val messages = telegramClient.getChannelMessagesPaginated(channel.id, fromDate)

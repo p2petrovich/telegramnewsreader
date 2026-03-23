@@ -57,9 +57,8 @@ class MainActivity : AppCompatActivity() {
     private var lastUsedVoice: String? = null
     private var isClientReady = false
     private var currentPlaylist: List<File> = emptyList()
-    private var currentChapters: List<Long> = emptyList()
     private var currentRealNewsCount: Int = 0
-    private var currentNewsChapterIndices: Set<Int> = emptySet()
+    private var currentNewsFileIndices: Set<Int> = emptySet()
     private var savedDurationInfo: String? = null
     private val pendingPhotos = mutableMapOf<Long, String>()
 
@@ -75,7 +74,6 @@ class MainActivity : AppCompatActivity() {
     private var lastToSynthesize = 0
     private var lastSynthesized = 0
 
-    // Пресеты
     private var activePresetId: String? = null
 
     companion object {
@@ -175,7 +173,6 @@ class MainActivity : AppCompatActivity() {
         val selectedIds = channelAdapter.getSelectedChannels().map { it.id }.toSet()
         PresetManager.saveLastSelection(this, selectedIds, currentTimePeriodIndex)
 
-        // Если выбор изменился вручную — сбрасываем активный пресет
         val activePreset = PresetManager.getActivePreset(this)
         if (activePreset != null && selectedIds != activePreset.channelIds) {
             PresetManager.setActivePresetId(this, null)
@@ -513,7 +510,6 @@ class MainActivity : AppCompatActivity() {
                                 hiddenIds.contains(ch.id.toString())
                     }
 
-                    // Восстанавливаем выбор ПЕРЕД обновлением адаптера
                     val activePreset = PresetManager.getActivePreset(this)
                     val savedSelectedIds = activePreset?.channelIds
                         ?: PresetManager.getLastSelectedIds(this)
@@ -594,7 +590,7 @@ class MainActivity : AppCompatActivity() {
                 updateStatus("Собираем новости из ${selectedChannels.size} каналов...")
                 updateDetailedProgress("Начинаем сбор новостей...", 0, 100)
 
-                val audio = newsService.collectAndSynthesizeWithChapters(
+                val audio = newsService.collectAndSynthesizePlaylist(
                     channels = selectedChannels,
                     timeHours = timeHours,
                     progressCallback = createProgressCallback(selectedChannels)
@@ -697,49 +693,48 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun handleCollectionResult(audio: NewsService.AudioWithChapters?) {
+    private fun handleCollectionResult(audio: NewsService.AudioPlaylist?) {
         binding.progressBar.visibility = View.GONE
         binding.btnCollectNews.text = getString(R.string.collect_news)
         binding.btnCollectNews.isEnabled = true
         updateDetailedProgress("Сбор завершен", 100, 100)
 
-        if (audio != null) {
-            currentPlaylist = listOf(audio.file)
-            currentChapters = audio.chaptersMs
+        if (audio != null && audio.files.isNotEmpty()) {
+            currentPlaylist = audio.files
             currentRealNewsCount = audio.realNewsCount
-            currentNewsChapterIndices = audio.newsChapterIndices
+            currentNewsFileIndices = audio.newsFileIndices
             lastUsedVoice = PreferenceManager.getTtsVoiceName(this)
 
-            var player: MediaPlayer? = null
-            val durationMin = try {
-                player = MediaPlayer().apply {
-                    setDataSource(audio.file.absolutePath)
-                    prepare()
+            // Считаем общую длительность по всем файлам
+            var totalDurationMs = 0L
+            audio.files.forEach { file ->
+                var player: MediaPlayer? = null
+                try {
+                    player = MediaPlayer().apply { setDataSource(file.absolutePath); prepare() }
+                    totalDurationMs += player.duration
+                } catch (_: Exception) {
+                } finally {
+                    try { player?.release() } catch (_: Exception) {}
                 }
-                player.duration / 1000 / 60
-            } catch (_: Exception) {
-                null
-            } finally {
-                try { player?.release() } catch (_: Exception) {}
             }
+            val durationMin = (totalDurationMs / 1000 / 60).toInt()
 
             val baseStatus = "Готово! Найдено новостей: ${audio.realNewsCount}"
-            if (durationMin != null) {
+            if (durationMin > 0) {
                 savedDurationInfo = "Примерная длительность: ~${durationMin} минут"
                 updateStatus("$baseStatus\n$savedDurationInfo")
             } else {
                 updateStatus(baseStatus)
             }
 
-            val paths = arrayListOf(audio.file.absolutePath)
+            val paths = ArrayList(audio.files.map { it.absolutePath })
             startService(Intent(this, AudioPlayerService::class.java).apply {
                 action = AudioPlayerService.ACTION_SET_PLAYLIST
                 putStringArrayListExtra(AudioPlayerService.EXTRA_FILE_PATHS, paths)
                 putExtra(AudioPlayerService.EXTRA_START_INDEX, 0)
                 putExtra(AudioPlayerService.EXTRA_TITLE, "Новости")
-                putExtra(AudioPlayerService.EXTRA_CHAPTERS, currentChapters.toLongArray())
                 putExtra(AudioPlayerService.EXTRA_REAL_NEWS_COUNT, currentRealNewsCount)
-                putExtra(AudioPlayerService.EXTRA_NEWS_CHAPTER_INDICES, currentNewsChapterIndices.toIntArray())
+                putExtra(AudioPlayerService.EXTRA_NEWS_FILE_INDICES, currentNewsFileIndices.toIntArray())
             })
 
             channelAdapter.notifyDataSetChanged()
@@ -887,8 +882,8 @@ class MainActivity : AppCompatActivity() {
             Intent(this, AudioPlayerService::class.java).setAction(AudioPlayerService.ACTION_STOP)
         )
         currentPlaylist = emptyList()
-        currentChapters = emptyList()
         currentRealNewsCount = 0
+        currentNewsFileIndices = emptySet()
         savedDurationInfo = null
         binding.llPlayer.visibility = View.GONE
         binding.btnPlay.isEnabled = false

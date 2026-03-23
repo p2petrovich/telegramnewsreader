@@ -5,6 +5,8 @@ import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
+import com.arthenica.ffmpegkit.FFmpegKit
+import com.arthenica.ffmpegkit.ReturnCode
 import com.p2petrovich.telegramnewsreader.models.VoiceEntry
 import com.p2petrovich.telegramnewsreader.models.VoiceMappings
 import com.p2petrovich.telegramnewsreader.service.NewsService
@@ -94,7 +96,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     private fun applyVoiceParametersOnce() {
         if (voiceParametersApplied) return
-
         val savedVoiceName = PreferenceManager.getTtsVoiceName(context)
         if (savedVoiceName != null) {
             applyVoiceSettings(savedVoiceName)
@@ -127,9 +128,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         return VoiceMappings.mapVoices(systemVoices)
     }
 
-    fun setVoiceByEntry(voiceEntry: VoiceEntry) {
-        setVoiceByName(voiceEntry.systemName)
-    }
+    fun setVoiceByEntry(voiceEntry: VoiceEntry) { setVoiceByName(voiceEntry.systemName) }
 
     fun setVoiceByName(voiceName: String) {
         val voice = tts?.voices?.firstOrNull { it.name == voiceName }
@@ -167,19 +166,10 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
-    fun updatePitchForVoice(voiceName: String, pitch: Float) {
-        PreferenceManager.saveTtsPitchForVoice(context, voiceName, pitch)
-    }
-
-    fun updateRateForVoice(voiceName: String, rate: Float) {
-        PreferenceManager.saveTtsRateForVoice(context, voiceName, rate)
-    }
-
-    fun getPitchForVoice(voiceName: String): Float =
-        PreferenceManager.getTtsPitchForVoice(context, voiceName)
-
-    fun getRateForVoice(voiceName: String): Float =
-        PreferenceManager.getTtsRateForVoice(context, voiceName)
+    fun updatePitchForVoice(voiceName: String, pitch: Float) { PreferenceManager.saveTtsPitchForVoice(context, voiceName, pitch) }
+    fun updateRateForVoice(voiceName: String, rate: Float) { PreferenceManager.saveTtsRateForVoice(context, voiceName, rate) }
+    fun getPitchForVoice(voiceName: String): Float = PreferenceManager.getTtsPitchForVoice(context, voiceName)
+    fun getRateForVoice(voiceName: String): Float = PreferenceManager.getTtsRateForVoice(context, voiceName)
 
     // ============ Audio synthesis ============
 
@@ -190,25 +180,26 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         fun onActualCounts(newsCount: Int, partsCount: Int) {}
     }
 
-    data class AudioWithChapters(
-        val file: File,
-        val chaptersMs: List<Long>,
+    /**
+     * Результат: список WAV-файлов, по одному на каждую главу (заголовок или новость).
+     * Внутри каждого файла все части этой главы склеены + тишина в конце.
+     * Кнопка «Далее» в плеере просто переключает файл — никакого seek.
+     */
+    data class AudioPlaylist(
+        val files: List<File>,
         val actualNewsCount: Int = 0,
-        val newsChapterIndices: Set<Int> = emptySet()
+        val newsFileIndices: Set<Int> = emptySet()
     )
 
     private fun stripHeaderMarker(text: String): String {
-        return text
-            .replace("\u200B", "")
-            .replace("\u200C", "")
-            .trim()
+        return text.replace("\u200B", "").replace("\u200C", "").trim()
     }
 
-    suspend fun convertToAudioWithChaptersWithCallback(
+    suspend fun synthesizePlaylist(
         texts: List<String>,
         pauseMs: Int = 1000,
         progressCallback: SynthesisProgressCallback?
-    ): AudioWithChapters? {
+    ): AudioPlaylist? {
         if (!ensureTtsInitialized() || tts == null) return null
 
         progressCallback?.onStarted(texts.size)
@@ -233,7 +224,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         filteredNews.forEachIndexed { newsIndex, raw ->
             val isHeader = NewsService.isChannelHeader(raw)
-
             if (isHeader) {
                 val cleanTitle = stripHeaderMarker(raw)
                 if (cleanTitle.isNotBlank()) {
@@ -245,7 +235,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 val normalized = TextProcessor.normalizeNumbers(deduped)
                 val formatted = TextProcessor.formatForIntonation(normalized)
                 val finalText = TextProcessor.formatForSpeech(formatted)
-
                 if (finalText.isNotBlank()) {
                     prepared += PreparedNews(newsIndex, finalText, false)
                 }
@@ -261,30 +250,27 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         val totalParts = prepared.sumOf { TextProcessor.splitByParagraphs(it.textForSplitting, 2800).size }
 
         progressCallback?.onActualCounts(actualNewsCount, totalParts)
-        Log.d(TAG, "TTS actual: news=$actualNewsCount, parts=$totalParts, prepared=${prepared.size}, headers=${prepared.count { it.isHeader }}")
+        Log.d(TAG, "Playlist: news=$actualNewsCount, parts=$totalParts, chapters=${prepared.size}")
 
         var processedParts = 0
-
         val baseUtteranceId = "tts_${System.currentTimeMillis()}"
-        val wavFiles = mutableListOf<File>()
         val cachedWavPaths = mutableSetOf<String>()
         var silenceFile: File? = null
         var baselineFormat: WavMeta? = null
 
-        val allChaptersMs = mutableListOf<Long>()
-        val newsChapterIndices = mutableSetOf<Int>()
-        var offsetMs = 0L
-
-        var cachedPartsCount = 0
-        var synthesizedPartsCount = 0
+        // Результат: один WAV-файл на каждую главу
+        val chapterFiles = mutableListOf<File>()
+        val newsFileIndices = mutableSetOf<Int>()
 
         prepared.forEachIndexed { idx, item ->
+            val chapterIndex = chapterFiles.size
+
             if (!item.isHeader) {
-                newsChapterIndices.add(allChaptersMs.size)
+                newsFileIndices.add(chapterIndex)
             }
-            allChaptersMs.add(offsetMs)
 
             val parts = TextProcessor.splitByParagraphs(item.textForSplitting, 2800)
+            val partWavs = mutableListOf<File>()
 
             for (i in parts.indices) {
                 val partText = parts[i]
@@ -298,24 +284,20 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 if (cachedFile != null) {
                     wav = cachedFile
                     cachedWavPaths.add(cachedFile.absolutePath)
-                    cachedPartsCount++
                 } else {
                     wav = synthesizePartToWav(partText, partIndex, baseUtteranceId)
-
                     if (wav == null || !wav.exists() || wav.length() == 0L) {
-                        Log.e(TAG, "Failed to synthesize part $i of news ${idx + 1}")
-                        cleanupFiles(wavFiles, silenceFile, cachedWavPaths)
+                        Log.e(TAG, "Failed to synthesize part $i of chapter ${idx + 1}")
+                        cleanupChapterFiles(chapterFiles, cachedWavPaths)
                         progressCallback?.onCompleted()
                         return null
                     }
-
                     NewsCache.saveWavToCache(context, hash, wav)
-                    synthesizedPartsCount++
                 }
 
                 val meta = readWavMeta(wav)
                 if (meta == null) {
-                    cleanupFiles(wavFiles, silenceFile, cachedWavPaths)
+                    cleanupChapterFiles(chapterFiles, cachedWavPaths)
                     progressCallback?.onCompleted()
                     return null
                 }
@@ -329,7 +311,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
                 val usedWav = ensureMatchingFormat(wav, meta, baselineFormat!!)
                 if (usedWav == null) {
-                    cleanupFiles(wavFiles, silenceFile, cachedWavPaths)
+                    cleanupChapterFiles(chapterFiles, cachedWavPaths)
                     progressCallback?.onCompleted()
                     return null
                 }
@@ -338,8 +320,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                     cachedWavPaths.add(usedWav.absolutePath)
                 }
 
-                wavFiles.add(usedWav)
-                offsetMs += readWavDurationMs(usedWav) ?: meta.durationMs ?: 0L
+                partWavs.add(usedWav)
 
                 processedParts++
                 if (totalParts > 0) {
@@ -347,76 +328,63 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 }
             }
 
-            // Пауза между новостями (не после последней)
+            // Добавляем тишину в конец главы (кроме последней)
             if (idx != prepared.lastIndex && pauseMs > 0 && silenceFile != null) {
-                wavFiles.add(silenceFile!!)
-                offsetMs += pauseMs
+                partWavs.add(silenceFile!!)
             }
-        }
 
-        Log.d(TAG, "Synthesis complete: $cachedPartsCount from cache, $synthesizedPartsCount synthesized")
-        Log.d(TAG, "WAV chapters (${allChaptersMs.size}): ${allChaptersMs.joinToString(", ")}")
-
-        progressCallback?.onProgress(processedParts, totalParts)
-
-        if (wavFiles.isEmpty()) {
-            progressCallback?.onCompleted()
-            return null
-        }
-
-        // Склеиваем WAV-файлы в один — это и есть финальный файл (без MP3!)
-        val combinedWav = File(context.cacheDir, "${baseUtteranceId}_combined.wav")
-        val concatOk = if (wavFiles.size == 1) {
-            wavFiles.first().copyTo(combinedWav, overwrite = true)
-            true
-        } else {
-            AudioUtils.concatWavFiles(wavFiles, combinedWav)
-        }
-
-        // Удаляем временные WAV (кроме кэшированных и тишины)
-        val silencePath = silenceFile?.absolutePath
-        wavFiles.forEach { f ->
-            if (f.exists()
-                && f != combinedWav
-                && f.absolutePath != silencePath
-                && !cachedWavPaths.contains(f.absolutePath)
-            ) {
-                try { f.delete() } catch (_: Exception) {}
+            // Склеиваем все части этой главы в один файл
+            val chapterWav = File(context.cacheDir, "${baseUtteranceId}_ch${chapterIndex}.wav")
+            val ok = if (partWavs.size == 1) {
+                partWavs.first().copyTo(chapterWav, overwrite = true)
+                true
+            } else {
+                AudioUtils.concatWavFiles(partWavs, chapterWav)
             }
+
+            // Удаляем временные части (кроме кэшированных и тишины)
+            val silPath = silenceFile?.absolutePath
+            partWavs.forEach { f ->
+                if (f.exists() && f != chapterWav && f.absolutePath != silPath
+                    && !cachedWavPaths.contains(f.absolutePath)
+                ) {
+                    try { f.delete() } catch (_: Exception) {}
+                }
+            }
+
+            if (!ok || !chapterWav.exists() || chapterWav.length() == 0L) {
+                Log.e(TAG, "Failed to concat chapter $chapterIndex")
+                try { chapterWav.delete() } catch (_: Exception) {}
+                cleanupChapterFiles(chapterFiles, cachedWavPaths)
+                progressCallback?.onCompleted()
+                return null
+            }
+
+            chapterFiles.add(chapterWav)
         }
+
         silenceFile?.delete()
 
-        if (!concatOk || !combinedWav.exists() || combinedWav.length() == 0L) {
-            try { combinedWav.delete() } catch (_: Exception) {}
-            progressCallback?.onCompleted()
-            return null
-        }
-
-        // НЕ конвертируем в MP3 — отдаём WAV напрямую.
-        // WAV поддерживает точный seek до сэмпла, поэтому timestamps глав точны.
-        Log.d(TAG, "Final WAV: ${combinedWav.name}, size=${combinedWav.length() / 1024}KB")
-        Log.d(TAG, "Chapters (${allChaptersMs.size}): ${allChaptersMs.joinToString(", ")}")
+        Log.d(TAG, "Playlist ready: ${chapterFiles.size} files, news=$actualNewsCount")
 
         NewsCache.cleanup(context)
         progressCallback?.onCompleted()
 
-        return AudioWithChapters(combinedWav, allChaptersMs, actualNewsCount, newsChapterIndices)
+        return AudioPlaylist(chapterFiles, actualNewsCount, newsFileIndices)
     }
 
-    private fun cleanupFiles(wavFiles: List<File>, silenceFile: File?, cachedPaths: Set<String> = emptySet()) {
-        wavFiles.forEach {
+    private fun cleanupChapterFiles(files: List<File>, cachedPaths: Set<String>) {
+        files.forEach {
             if (it.exists() && !cachedPaths.contains(it.absolutePath)) {
                 try { it.delete() } catch (_: Exception) {}
             }
         }
-        silenceFile?.delete()
     }
 
     private fun ensureMatchingFormat(wav: File, meta: WavMeta, baseline: WavMeta): File? {
         val matches = meta.sampleRate == baseline.sampleRate &&
                 meta.channels == baseline.channels &&
                 meta.bitsPerSample == baseline.bitsPerSample
-
         if (matches) return wav
 
         val fmt = when (baseline.bitsPerSample) {
@@ -430,9 +398,8 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             "-sample_fmt", fmt,
             out.absolutePath
         )
-        val session = com.arthenica.ffmpegkit.FFmpegKit.executeWithArguments(cmd)
-
-        return if (com.arthenica.ffmpegkit.ReturnCode.isSuccess(session.returnCode) && out.exists() && out.length() > 0) out
+        val session = FFmpegKit.executeWithArguments(cmd)
+        return if (ReturnCode.isSuccess(session.returnCode) && out.exists() && out.length() > 0) out
         else { if (out.exists()) out.delete(); null }
     }
 
@@ -443,7 +410,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             val params = Bundle().apply {
                 putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
             }
-
             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(id: String?) {}
                 override fun onDone(id: String?) {
@@ -468,14 +434,12 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                     }
                 }
             })
-
             val result = tts?.synthesizeToFile(text, params, tempWavFile, utteranceId)
             if (result == TextToSpeech.ERROR) {
                 tts?.setOnUtteranceProgressListener(null)
                 if (continuation.isActive) continuation.resume(null)
                 tempWavFile.delete()
             }
-
             continuation.invokeOnCancellation {
                 tts?.stop()
                 tts?.setOnUtteranceProgressListener(null)
@@ -506,19 +470,14 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         } catch (e: Exception) { null }
     }
 
-    private fun readWavDurationMs(file: File): Long? = readWavMeta(file)?.durationMs
-
     private fun createSilenceWav(durationMs: Int, sampleRate: Int = 22050, channels: Int = 1, bitsPerSample: Int = 16): File {
         val numSamples = (durationMs.toLong() * sampleRate / 1000L).toInt()
         val blockAlign = channels * bitsPerSample / 8
         val dataSize = numSamples * blockAlign
         val totalSize = 36 + dataSize
-
         val file = File(context.cacheDir, "silence_${durationMs}ms.wav")
         file.outputStream().use { os ->
-            fun writeLE(value: Int, bytes: Int) {
-                repeat(bytes) { i -> os.write((value shr (8 * i)) and 0xFF) }
-            }
+            fun writeLE(value: Int, bytes: Int) { repeat(bytes) { i -> os.write((value shr (8 * i)) and 0xFF) } }
             os.write("RIFF".toByteArray()); writeLE(totalSize, 4)
             os.write("WAVE".toByteArray())
             os.write("fmt ".toByteArray()); writeLE(16, 4)
@@ -527,19 +486,12 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             writeLE(sampleRate * channels * bitsPerSample / 8, 4)
             writeLE(blockAlign, 2); writeLE(bitsPerSample, 2)
             os.write("data".toByteArray()); writeLE(dataSize, 4)
-
             val buf = ByteArray(4096)
             var remaining = dataSize
-            while (remaining > 0) {
-                val writeNow = minOf(remaining, buf.size)
-                os.write(buf, 0, writeNow)
-                remaining -= writeNow
-            }
+            while (remaining > 0) { val w = minOf(remaining, buf.size); os.write(buf, 0, w); remaining -= w }
         }
         return file
     }
-
-    // convertToMp3 удалён — больше не нужен
 
     fun shutdown() {
         ttsInitialized.set(false)
