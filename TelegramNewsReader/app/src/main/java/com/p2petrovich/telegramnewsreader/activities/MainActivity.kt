@@ -64,8 +64,12 @@ class MainActivity : AppCompatActivity() {
     private var currentProgressStep: Int = 0
     private var newsCollectionJob: Job? = null
 
+    // Pipeline counters
     private var lastTotalCollected = 0
-    private var lastTotalToSynthesize = 0
+    private var lastAfterDedup = 0
+    private var lastAfterFilter = 0
+    private var lastToSynthesize = 0
+    private var lastSynthesized = 0
 
     companion object {
         private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 1001
@@ -128,9 +132,13 @@ class MainActivity : AppCompatActivity() {
     private fun requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this,
-                    arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIFICATION_PERMISSION_REQUEST_CODE)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    NOTIFICATION_PERMISSION_REQUEST_CODE
+                )
             }
         }
     }
@@ -191,17 +199,23 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "Сначала соберите новости", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            startService(Intent(this, AudioPlayerService::class.java).setAction(AudioPlayerService.ACTION_PLAY))
+            startService(
+                Intent(this, AudioPlayerService::class.java).setAction(AudioPlayerService.ACTION_PLAY)
+            )
             updatePlayerButtons(true)
         }
 
         binding.btnPause.setOnClickListener {
-            startService(Intent(this, AudioPlayerService::class.java).setAction(AudioPlayerService.ACTION_PAUSE))
+            startService(
+                Intent(this, AudioPlayerService::class.java).setAction(AudioPlayerService.ACTION_PAUSE)
+            )
             updatePlayerButtons(false)
         }
 
         binding.btnStop.setOnClickListener {
-            startService(Intent(this, AudioPlayerService::class.java).setAction(AudioPlayerService.ACTION_STOP))
+            startService(
+                Intent(this, AudioPlayerService::class.java).setAction(AudioPlayerService.ACTION_STOP)
+            )
             resetPlayerButtons()
             binding.llPlayer.visibility = View.GONE
             binding.tvStatus.text = ""
@@ -209,7 +223,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnNext.setOnClickListener {
-            startService(Intent(this, AudioPlayerService::class.java).setAction(AudioPlayerService.ACTION_NEXT))
+            startService(
+                Intent(this, AudioPlayerService::class.java).setAction(AudioPlayerService.ACTION_NEXT)
+            )
         }
 
         binding.btnCollectNews.isEnabled = false
@@ -329,7 +345,8 @@ class MainActivity : AppCompatActivity() {
                     binding.btnCollectNews.text = getString(R.string.collect_news)
                     binding.btnCollectNews.isEnabled = true
                     updateStatus("Ошибка: ${e.message}")
-                    Toast.makeText(this@MainActivity, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "Ошибка: ${e.message}", Toast.LENGTH_LONG)
+                        .show()
                 }
             }
         }
@@ -340,30 +357,45 @@ class MainActivity : AppCompatActivity() {
             override fun onUpdateProgress(status: String, progress: Int, total: Int) {
                 runOnUiThread { updateDetailedProgress(status, progress, total) }
             }
+
             override fun onUpdateCounters(collected: Int, filtered: Int, synthesized: Int) {
                 runOnUiThread {
                     lastTotalCollected = collected
-                    lastTotalToSynthesize = filtered
-                    updateCounters(collected, filtered, synthesized)
+                    lastToSynthesize = filtered
+                    lastSynthesized = synthesized
+                    updatePipelineStatus()
                 }
             }
+
             override fun onUpdateNewsPreview(newsList: List<String>) {
                 runOnUiThread { updateNewsPreview(newsList) }
             }
+
             override fun onUpdateChannelProgress(channels: List<Channel>) {
                 runOnUiThread { updateChannelProgress(channels) }
             }
+
             override fun onChannelProcessed(channel: Channel, messagesCount: Int) {
                 runOnUiThread {
                     channel.newMessagesCount = messagesCount
                     updateChannelProgress(selectedChannels)
                 }
             }
-            override fun onMessageFiltered(originalCount: Int, filteredCount: Int) {
+
+            override fun onDeduplicationComplete(beforeCount: Int, afterCount: Int) {
                 runOnUiThread {
-                    Log.d("MainActivity", "Filter: $originalCount -> $filteredCount")
+                    lastAfterDedup = afterCount
+                    updatePipelineStatus()
                 }
             }
+
+            override fun onMessageFiltered(originalCount: Int, filteredCount: Int) {
+                runOnUiThread {
+                    lastAfterFilter = filteredCount
+                    updatePipelineStatus()
+                }
+            }
+
             override fun onSynthesisStarted(messageCount: Int) {
                 runOnUiThread {
                     updateDetailedProgress("Начинаем синтез речи...", 0, 100)
@@ -372,6 +404,7 @@ class MainActivity : AppCompatActivity() {
                     startTime = System.currentTimeMillis()
                 }
             }
+
             override fun onSynthesisProgress(current: Int, total: Int) {
                 runOnUiThread {
                     updateDetailedProgress("Синтез речи: $current из $total", current, total)
@@ -380,6 +413,7 @@ class MainActivity : AppCompatActivity() {
                     updateETA()
                 }
             }
+
             override fun onSynthesisCompleted() {
                 runOnUiThread {
                     updateDetailedProgress("Синтез завершен", 100, 100)
@@ -410,9 +444,13 @@ class MainActivity : AppCompatActivity() {
                     prepare()
                 }
                 player.duration / 1000 / 60
-            } catch (_: Exception) { null }
-            finally {
-                try { player?.release() } catch (_: Exception) {}
+            } catch (_: Exception) {
+                null
+            } finally {
+                try {
+                    player?.release()
+                } catch (_: Exception) {
+                }
             }
 
             val baseStatus = "Готово! Найдено новостей: ${audio.realNewsCount}"
@@ -431,8 +469,10 @@ class MainActivity : AppCompatActivity() {
                 putExtra(AudioPlayerService.EXTRA_TITLE, "Новости")
                 putExtra(AudioPlayerService.EXTRA_CHAPTERS, currentChapters.toLongArray())
                 putExtra(AudioPlayerService.EXTRA_REAL_NEWS_COUNT, currentRealNewsCount)
-                putExtra(AudioPlayerService.EXTRA_NEWS_CHAPTER_INDICES,
-                    currentNewsChapterIndices.toIntArray())
+                putExtra(
+                    AudioPlayerService.EXTRA_NEWS_CHAPTER_INDICES,
+                    currentNewsChapterIndices.toIntArray()
+                )
             })
 
             channelAdapter.notifyDataSetChanged()
@@ -441,7 +481,8 @@ class MainActivity : AppCompatActivity() {
             binding.btnPlay.isEnabled = true
             binding.btnNext.isEnabled = true
 
-            Toast.makeText(this, "Найдено ${audio.realNewsCount} новых сообщений", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Найдено ${audio.realNewsCount} новых сообщений", Toast.LENGTH_SHORT)
+                .show()
         } else {
             updateStatus("Новых новостей не найдено")
             Toast.makeText(this, "Новые новости не найдены", Toast.LENGTH_LONG).show()
@@ -457,10 +498,42 @@ class MainActivity : AppCompatActivity() {
         binding.tvProgressPercentage.text = "$percentage%"
     }
 
-    private fun updateCounters(collected: Int, toSynthesize: Int, synthesized: Int) {
-        binding.tvCollectedCount.text = "Собрано: $collected"
-        binding.tvFilteredCount.text = "К озвучке: $toSynthesize"
-        binding.tvSynthesizedCount.text = "Озвучено: $synthesized"
+    private fun updatePipelineStatus() {
+        val parts = mutableListOf<String>()
+        parts.add("Собрано: $lastTotalCollected")
+
+        if (lastAfterDedup > 0 && lastAfterDedup < lastTotalCollected) {
+            val removed = lastTotalCollected - lastAfterDedup
+            parts.add("дубли: -$removed")
+        }
+        if (lastAfterFilter > 0) {
+            val base = if (lastAfterDedup > 0) lastAfterDedup else lastTotalCollected
+            if (lastAfterFilter < base) {
+                val removed = base - lastAfterFilter
+                parts.add("спам: -$removed")
+            }
+        }
+        if (lastToSynthesize > 0) {
+            val base = when {
+                lastAfterFilter > 0 -> lastAfterFilter
+                lastAfterDedup > 0 -> lastAfterDedup
+                else -> lastTotalCollected
+            }
+            if (lastToSynthesize < base) {
+                val removed = base - lastToSynthesize
+                parts.add("мусор: -$removed")
+            }
+            parts.add("к озвучке: $lastToSynthesize")
+        }
+
+        binding.tvPipelineStatus.text = parts.joinToString(" \u2192 ")
+
+        if (lastToSynthesize > 0) {
+            binding.tvSynthesisStatus.visibility = View.VISIBLE
+            binding.tvSynthesisStatus.text = "Озвучено: $lastSynthesized из $lastToSynthesize"
+        } else {
+            binding.tvSynthesisStatus.visibility = View.GONE
+        }
     }
 
     private fun updateNewsPreview(newsList: List<String>) {
@@ -468,16 +541,17 @@ class MainActivity : AppCompatActivity() {
             binding.tvNewsPreview.text = "Новости еще не собраны..."
             return
         }
-        val previewText = newsList.take(3).joinToString("\n• ") {
+        val previewText = newsList.take(3).joinToString("\n\u2022 ") {
             it.replace(Regex("^\\d{2}:\\d{2}\\s*—\\s*"), "").take(60) + "..."
         }
-        binding.tvNewsPreview.text = "• $previewText"
+        binding.tvNewsPreview.text = "\u2022 $previewText"
     }
 
     private fun updateChannelProgress(channels: List<Channel>) {
         binding.llChannelProgressList.removeAllViews()
         channels.forEach { channel ->
-            val text = if (channel.newMessagesCount > 0) "Новостей: ${channel.newMessagesCount}" else "Обработка..."
+            val text = if (channel.newMessagesCount > 0)
+                "Новостей: ${channel.newMessagesCount}" else "Обработка..."
             binding.llChannelProgressList.addView(
                 android.widget.TextView(this).apply {
                     this.text = "${channel.title}: $text"
@@ -532,13 +606,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun resetProgressCounters() {
-        updateCounters(0, 0, 0)
+        lastTotalCollected = 0
+        lastAfterDedup = 0
+        lastAfterFilter = 0
+        lastToSynthesize = 0
+        lastSynthesized = 0
+        updatePipelineStatus()
         updateNewsPreview(emptyList())
         binding.tvEta.text = "Осталось: расчёт..."
     }
 
     private fun resetCollectionState() {
-        startService(Intent(this, AudioPlayerService::class.java).setAction(AudioPlayerService.ACTION_STOP))
+        startService(
+            Intent(this, AudioPlayerService::class.java).setAction(AudioPlayerService.ACTION_STOP)
+        )
         currentPlaylist = emptyList()
         currentChapters = emptyList()
         currentRealNewsCount = 0
@@ -578,7 +659,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateNewsCollectionButton() {
-        binding.btnCollectNews.isEnabled = channelAdapter.getSelectedChannels().isNotEmpty() && isClientReady
+        binding.btnCollectNews.isEnabled =
+            channelAdapter.getSelectedChannels().isNotEmpty() && isClientReady
         updateChannelStats()
     }
 
@@ -713,7 +795,9 @@ class MainActivity : AppCompatActivity() {
             PreferenceManager.saveHiddenTitleForId(this, channel.id, channel.title)
         }
 
-        channelAdapter.updateChannels(channelAdapter.getAllChannels().filterNot { it.id == channel.id })
+        channelAdapter.updateChannels(
+            channelAdapter.getAllChannels().filterNot { it.id == channel.id }
+        )
         updateChannelStats()
         Toast.makeText(this, "Канал скрыт", Toast.LENGTH_SHORT).show()
     }
@@ -727,7 +811,8 @@ class MainActivity : AppCompatActivity() {
 
         hiddenUsernames.forEach { u -> items.add("@$u"); meta.add("u" to u) }
         hiddenIds.forEach { idStr ->
-            val title = idStr.toLongOrNull()?.let { PreferenceManager.getHiddenTitleForId(this, it) } ?: "Канал"
+            val title = idStr.toLongOrNull()
+                ?.let { PreferenceManager.getHiddenTitleForId(this, it) } ?: "Канал"
             items.add(title); meta.add("i" to idStr)
         }
 
@@ -739,12 +824,16 @@ class MainActivity : AppCompatActivity() {
         val checked = BooleanArray(items.size)
         AlertDialog.Builder(this)
             .setTitle("Скрытые каналы")
-            .setMultiChoiceItems(items.toTypedArray(), checked) { _, which, isChecked -> checked[which] = isChecked }
+            .setMultiChoiceItems(items.toTypedArray(), checked) { _, which, isChecked ->
+                checked[which] = isChecked
+            }
             .setPositiveButton("Вернуть выбранные") { _, _ ->
                 val toRestoreU = mutableSetOf<String>()
                 val toRestoreI = mutableSetOf<String>()
                 meta.forEachIndexed { i, (type, key) ->
-                    if (checked[i]) { if (type == "u") toRestoreU.add(key) else toRestoreI.add(key) }
+                    if (checked[i]) {
+                        if (type == "u") toRestoreU.add(key) else toRestoreI.add(key)
+                    }
                 }
                 if (toRestoreU.isEmpty() && toRestoreI.isEmpty()) return@setPositiveButton
                 hiddenUsernames.removeAll(toRestoreU)
@@ -792,7 +881,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        try { unregisterReceiver(progressReceiver) } catch (_: Exception) {}
+        try {
+            unregisterReceiver(progressReceiver)
+        } catch (_: Exception) {
+        }
         stopTimer()
     }
 }

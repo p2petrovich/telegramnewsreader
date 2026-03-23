@@ -13,6 +13,7 @@ interface ProgressCallback {
     fun onUpdateNewsPreview(newsList: List<String>) {}
     fun onUpdateChannelProgress(channels: List<Channel>) {}
     fun onChannelProcessed(channel: Channel, messagesCount: Int) {}
+    fun onDeduplicationComplete(beforeCount: Int, afterCount: Int) {}
     fun onMessageFiltered(originalCount: Int, filteredCount: Int) {}
     fun onSynthesisStarted(messageCount: Int) {}
     fun onSynthesisProgress(current: Int, total: Int) {}
@@ -28,9 +29,7 @@ class NewsService(
         private const val CHANNEL_TIMEOUT_MS = 15000L
         private const val TOTAL_TIMEOUT_MS = 120000L
 
-        // Единый маркер заголовка: невидимые Unicode-символы, которые не удаляются trim()
-        // и не совпадают ни с одним regex-фильтром
-        private const val HEADER_MARKER = "\u200B\u200C\u200B" // ZWS + ZWNJ + ZWS
+        private const val HEADER_MARKER = "\u200B\u200C\u200B"
 
         fun isChannelHeader(text: String): Boolean {
             return text.contains(HEADER_MARKER)
@@ -174,23 +173,28 @@ class NewsService(
                 // Дедупликация
                 progressCallback.onUpdateProgress("Дедупликация...", 0, 100)
                 val deduplicated = TextProcessor.deduplicateAcrossChannels(allMessages)
-                val removedByDedup = allMessages.size - deduplicated.size
-                Log.d(TAG, "Dedup: ${allMessages.size} -> ${deduplicated.size} (removed $removedByDedup)")
+                val dedupNewsCount = deduplicated.count { !isChannelHeader(it) }
+                val removedByDedup = totalCollected - dedupNewsCount
+                Log.d(TAG, "Dedup: $totalCollected -> $dedupNewsCount news (removed $removedByDedup)")
+
+                progressCallback.onDeduplicationComplete(totalCollected, dedupNewsCount)
 
                 ensureActive()
 
                 // Фильтрация
                 progressCallback.onUpdateProgress("Фильтрация...", 0, 100)
-                val preparedMessages = TextProcessor.filterMessages(deduplicated) { originalCount, filteredCount ->
-                    progressCallback.onMessageFiltered(originalCount, filteredCount)
-                }
+                val preparedMessages = TextProcessor.filterMessages(deduplicated) { _, _ -> }
 
-                // Предварительная оценка: применяем dropTrivial как TTSManager
+                val filteredNewsCount = preparedMessages.count { !isChannelHeader(it) }
+                progressCallback.onMessageFiltered(dedupNewsCount, filteredNewsCount)
+
+                ensureActive()
+
+                // Предварительная оценка dropTrivial
                 val afterDropTrivial = TextProcessor.dropTrivial(preparedMessages)
                 val totalToSynthesize = afterDropTrivial.count { !isChannelHeader(it) }
 
-                val rawNewsInPrepared = preparedMessages.count { !isChannelHeader(it) }
-                Log.d(TAG, "Counts: collected=$totalCollected, rawInPrepared=$rawNewsInPrepared, afterDropTrivial=${afterDropTrivial.size}, toSynthesize=$totalToSynthesize")
+                Log.d(TAG, "Counts: collected=$totalCollected, afterDedup=$dedupNewsCount, afterFilter=$filteredNewsCount, afterDropTrivial=$totalToSynthesize")
 
                 ensureActive()
 

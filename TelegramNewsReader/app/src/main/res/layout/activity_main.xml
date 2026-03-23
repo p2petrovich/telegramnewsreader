@@ -73,7 +73,6 @@
                 android:textSize="15sp" />
 
             <!-- ДЕТАЛЬНЫЙ ПРОГРЕСС СБОРА НОВОСТЕЙ -->
-            <!-- Обернем в CardView для лучшего визуального отделения -->
             <androidx.cardview.widget.CardView
                 android:id="@+id/card_collection_progress"
                 android:layout_width="match_parent"
@@ -133,8 +132,7 @@
                         android:text="0%"
                         android:textSize="12sp" />
 
-
-                    <!-- ETA (время до завершения) -->
+                    <!-- ETA -->
                     <TextView
                         android:id="@+id/tv_eta"
                         android:layout_width="wrap_content"
@@ -144,36 +142,34 @@
                         android:textSize="12sp"
                         android:textColor="@android:color/darker_gray" />
 
-                    <!-- Счетчики этапов -->
+                    <!-- Счётчики обработки (pipeline) -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        android:orientation="horizontal">
+                        android:orientation="vertical">
 
+                        <!-- Строка 1: pipeline сбора и фильтрации -->
                         <TextView
-                            android:id="@+id/tv_collected_count"
-                            android:layout_width="0dp"
+                            android:id="@+id/tv_pipeline_status"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_weight="1"
                             android:text="Собрано: 0"
-                            android:textSize="12sp" />
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:singleLine="false"
+                            android:maxLines="2" />
 
+                        <!-- Строка 2: прогресс синтеза -->
                         <TextView
-                            android:id="@+id/tv_filtered_count"
-                            android:layout_width="0dp"
+                            android:id="@+id/tv_synthesis_status"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Отфильтр.: 0"
-                            android:textSize="12sp" />
-
-                        <TextView
-                            android:id="@+id/tv_synthesized_count"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Озвучено: 0"
-                            android:textSize="12sp" />
+                            android:layout_marginTop="4dp"
+                            android:text=""
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:visibility="gone" />
 
                     </LinearLayout>
 
