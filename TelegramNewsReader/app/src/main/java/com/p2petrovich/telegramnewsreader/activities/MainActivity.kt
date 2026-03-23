@@ -54,6 +54,7 @@ class MainActivity : AppCompatActivity() {
     private var currentPlaylist: List<File> = emptyList()
     private var currentChapters: List<Long> = emptyList()
     private var currentRealNewsCount: Int = 0
+    private var currentNewsChapterIndices: Set<Int> = emptySet()
     private var savedDurationInfo: String? = null
     private val pendingPhotos = mutableMapOf<Long, String>()
 
@@ -399,6 +400,7 @@ class MainActivity : AppCompatActivity() {
             currentPlaylist = listOf(audio.file)
             currentChapters = audio.chaptersMs
             currentRealNewsCount = audio.realNewsCount
+            currentNewsChapterIndices = audio.newsChapterIndices
             lastUsedVoice = PreferenceManager.getTtsVoiceName(this)
 
             var player: MediaPlayer? = null
@@ -429,6 +431,8 @@ class MainActivity : AppCompatActivity() {
                 putExtra(AudioPlayerService.EXTRA_TITLE, "Новости")
                 putExtra(AudioPlayerService.EXTRA_CHAPTERS, currentChapters.toLongArray())
                 putExtra(AudioPlayerService.EXTRA_REAL_NEWS_COUNT, currentRealNewsCount)
+                putExtra(AudioPlayerService.EXTRA_NEWS_CHAPTER_INDICES,
+                    currentNewsChapterIndices.toIntArray())
             })
 
             channelAdapter.notifyDataSetChanged()

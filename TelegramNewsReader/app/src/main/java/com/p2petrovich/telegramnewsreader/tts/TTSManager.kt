@@ -196,7 +196,10 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     data class AudioWithChapters(
         val file: File,
         val chaptersMs: List<Long>,
-        val actualNewsCount: Int = 0
+        val actualNewsCount: Int = 0,
+        // Индексы в chaptersMs, которые соответствуют новостям (не заголовкам).
+        // Используется для показа счётчика "новость X из Y" вместо "элемент X из Y".
+        val newsChapterIndices: Set<Int> = emptySet()
     )
 
     /**
@@ -279,7 +282,11 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         var silenceFile: File? = null
         var baselineFormat: WavMeta? = null
 
-        val newsOnlyChaptersMs = mutableListOf<Long>()
+        // Главы добавляем для ВСЕХ элементов — и заголовков каналов, и новостей.
+        // Это позволяет кнопке "Далее" переходить: заголовок → новость1 → новость2 → заголовок2 → ...
+        val allChaptersMs = mutableListOf<Long>()
+        // Индексы в allChaptersMs, которые являются новостями (не заголовками) — для счётчика
+        val newsChapterIndices = mutableSetOf<Int>()
         var offsetMs = 0L
 
         var cachedPartsCount = 0
@@ -287,8 +294,9 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         prepared.forEachIndexed { idx, item ->
             if (!item.isHeader) {
-                newsOnlyChaptersMs.add(offsetMs)
+                newsChapterIndices.add(allChaptersMs.size)
             }
+            allChaptersMs.add(offsetMs)
 
             val parts = TextProcessor.splitByParagraphs(item.textForSplitting, 2800)
 
@@ -362,7 +370,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
 
         Log.d(TAG, "Synthesis complete: $cachedPartsCount from cache, $synthesizedPartsCount synthesized, $totalParts total parts")
-        Log.d(TAG, "NewsOnly chapters: ${newsOnlyChaptersMs.size}, actualNewsCount=$actualNewsCount")
+        Log.d(TAG, "All chapters: ${allChaptersMs.size} (headers+news), actualNewsCount=$actualNewsCount")
 
         progressCallback?.onProgress(processedParts, totalParts)
 
@@ -404,7 +412,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         progressCallback?.onCompleted()
 
-        return if (mp3File != null) AudioWithChapters(mp3File, newsOnlyChaptersMs, actualNewsCount) else null
+        return if (mp3File != null) AudioWithChapters(mp3File, allChaptersMs, actualNewsCount, newsChapterIndices) else null
     }
 
     private fun cleanupFiles(wavFiles: List<File>, silenceFile: File?, cachedPaths: Set<String> = emptySet()) {

@@ -38,6 +38,7 @@ class AudioPlayerService : Service() {
         const val EXTRA_TITLE = "extra.TITLE"
         const val EXTRA_CHAPTERS = "extra.CHAPTERS"
         const val EXTRA_REAL_NEWS_COUNT = "extra.REAL_NEWS_COUNT"
+        const val EXTRA_NEWS_CHAPTER_INDICES = "extra.NEWS_CHAPTER_INDICES"
 
         const val ACTION_PROGRESS = "com.p2petrovich.telegramnewsreader.PLAYER_PROGRESS"
         const val EXTRA_CURRENT_ITEM = "extra_current_item"
@@ -58,6 +59,8 @@ class AudioPlayerService : Service() {
     private var preparedButNotPlaying = false
     private var pendingSeekStart = false
     private var totalNewsCount = 0
+    // Индексы в chapterStartsMs, соответствующие новостям (не заголовкам) — для счётчика
+    private var newsChapterIndices: Set<Int> = emptySet()
 
     private val progressHandler = Handler(Looper.getMainLooper())
     private val progressRunnable = object : Runnable {
@@ -84,7 +87,9 @@ class AudioPlayerService : Service() {
                     title = intent.getStringExtra(EXTRA_TITLE) ?: "Новости"
                     val chapters = intent.getLongArrayExtra(EXTRA_CHAPTERS)?.toList() ?: emptyList()
                     val realNews = intent.getIntExtra(EXTRA_REAL_NEWS_COUNT, 0)
-                    setPlaylist(paths, start, chapters, realNews)
+                    val newsIndices = intent.getIntArrayExtra(EXTRA_NEWS_CHAPTER_INDICES)
+                        ?.toSet() ?: emptySet()
+                    setPlaylist(paths, start, chapters, realNews, newsIndices)
                 }
                 ACTION_PLAY -> play()
                 ACTION_PAUSE -> pause()
@@ -110,18 +115,20 @@ class AudioPlayerService : Service() {
         } catch (_: Exception) {}
     }
 
-    private fun setPlaylist(paths: List<String>, startIndex: Int, chapters: List<Long>, realNewsCount: Int = 0) {
+    private fun setPlaylist(paths: List<String>, startIndex: Int, chapters: List<Long>,
+                            realNewsCount: Int = 0, newsIndices: Set<Int> = emptySet()) {
         playlist = paths
         currentIndex = startIndex.coerceIn(0, (playlist.size - 1).coerceAtLeast(0))
         chapterStartsMs = if (paths.size == 1) chapters.sorted().distinct() else emptyList()
+        newsChapterIndices = newsIndices
 
-        // Используем реальное число новостей, если передано; иначе fallback на число глав
-        totalNewsCount = if (realNewsCount > 0) realNewsCount else chapterStartsMs.size
+        // totalNewsCount = только новости (для счётчика "новость X из Y")
+        totalNewsCount = if (realNewsCount > 0) realNewsCount else newsIndices.size.coerceAtLeast(chapterStartsMs.size)
         currentChapter = 0
         preparedButNotPlaying = true
         pendingSeekStart = false
 
-        Log.d(TAG, "setPlaylist: chapters=${chapterStartsMs.size}, realNewsCount=$realNewsCount, totalNewsCount=$totalNewsCount")
+        Log.d(TAG, "setPlaylist: chapters=${chapterStartsMs.size}, newsIndices=${newsIndices.size}, totalNewsCount=$totalNewsCount")
 
         sendProgress(computeProgress().first, computeProgress().second, false)
         if (playlist.isNotEmpty()) prepareCurrentSilently()
@@ -328,9 +335,19 @@ class AudioPlayerService : Service() {
     private fun computeProgress(): Pair<Int, Int> {
         return if (hasChapters()) {
             val pos = try { mediaPlayer?.currentPosition?.toLong() ?: 0L } catch (_: Exception) { 0L }
-            var i = 0
-            while (i + 1 < chapterStartsMs.size && chapterStartsMs[i + 1] <= pos) i++
-            (i + 1).coerceIn(1, totalNewsCount.coerceAtLeast(1)) to totalNewsCount.coerceAtLeast(1)
+            // Находим текущую главу по позиции
+            var chapterIdx = 0
+            while (chapterIdx + 1 < chapterStartsMs.size && chapterStartsMs[chapterIdx + 1] <= pos) chapterIdx++
+
+            if (newsChapterIndices.isEmpty()) {
+                // Нет данных об индексах — показываем всё как есть
+                (chapterIdx + 1).coerceIn(1, totalNewsCount.coerceAtLeast(1)) to totalNewsCount.coerceAtLeast(1)
+            } else {
+                // Считаем сколько новостей (не заголовков) уже прошло или играет сейчас
+                val newsPlayed = newsChapterIndices.count { it <= chapterIdx }
+                val cur = newsPlayed.coerceAtLeast(1)
+                cur.coerceIn(1, totalNewsCount.coerceAtLeast(1)) to totalNewsCount.coerceAtLeast(1)
+            }
         } else {
             (currentIndex + 1) to playlist.size
         }
@@ -371,7 +388,13 @@ class AudioPlayerService : Service() {
         val isPlaying = mediaPlayer?.isPlaying == true
         val total = playlist.size
         val posText = if (total > 0) "${currentIndex + 1}/$total" else "0/0"
-        val chapterText = if (hasChapters()) " • ${currentChapter + 1}/$totalNewsCount" else ""
+        val chapterText = if (hasChapters() && newsChapterIndices.isNotEmpty()) {
+            val newsPlayed = newsChapterIndices.count { it <= currentChapter }.coerceAtLeast(
+                if (currentChapter in newsChapterIndices) 1 else 0)
+            " • новость $newsPlayed/$totalNewsCount"
+        } else if (hasChapters()) {
+            " • ${currentChapter + 1}/${chapterStartsMs.size}"
+        } else ""
 
         val openIntent = PendingIntent.getActivity(this, 0,
             Intent(this, MainActivity::class.java),

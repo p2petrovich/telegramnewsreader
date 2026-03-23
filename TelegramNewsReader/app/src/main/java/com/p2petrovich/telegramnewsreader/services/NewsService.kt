@@ -51,7 +51,8 @@ class NewsService(
     data class AudioWithChapters(
         val file: java.io.File,
         val chaptersMs: List<Long>,
-        val realNewsCount: Int = 0
+        val realNewsCount: Int = 0,
+        val newsChapterIndices: Set<Int> = emptySet()
     )
 
     suspend fun getAllChannelsNewsCount(
@@ -116,7 +117,7 @@ class NewsService(
             }
         ) ?: return@withContext null
 
-        AudioWithChapters(audio.file, audio.chaptersMs, actualTtsNewsCount)
+        AudioWithChapters(audio.file, audio.chaptersMs, actualTtsNewsCount, audio.newsChapterIndices)
     }
 
     private suspend fun collectAndPrepareMessages(
