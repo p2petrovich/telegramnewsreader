@@ -13,9 +13,9 @@ data class VoiceEntry(
     }
 
     fun getGenderIcon(): String = when (gender) {
-        Gender.MALE -> "M"
-        Gender.FEMALE -> "F"
-        Gender.NEUTRAL -> "N"
+        Gender.MALE -> "👨"
+        Gender.FEMALE -> "👩"
+        Gender.NEUTRAL -> "🎙️"
     }
 
     fun getGenderDescription(): String = when (gender) {
