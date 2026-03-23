@@ -29,8 +29,7 @@ class TelegramNewsApplication : Application() {
             cacheDir.listFiles()?.forEach { file ->
                 if (file.isFile && (now - file.lastModified()) > maxAge) {
                     if (file.name.startsWith("tts_") ||
-                        file.name.endsWith("_combined.wav") ||
-                        file.name.endsWith("_combined.mp3")) {
+                        file.name.endsWith("_combined.wav")) {
                         file.delete()
                     }
                 }
