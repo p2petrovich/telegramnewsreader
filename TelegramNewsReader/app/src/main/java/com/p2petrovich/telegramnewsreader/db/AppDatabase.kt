@@ -16,7 +16,6 @@ import com.p2petrovich.telegramnewsreader.models.UserSettings
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun channelDao(): ChannelDao
-    // Добавьте DAO для других сущностей
 
     companion object {
         @Volatile
@@ -28,9 +27,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "telegram_news_db"
-                )
-                    .allowMainThreadQueries()
-                    .build().also { INSTANCE = it }
+                ).build().also { INSTANCE = it }
             }
         }
     }

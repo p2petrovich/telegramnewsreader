@@ -5,13 +5,13 @@ import android.util.Log
 import org.drinkless.tdlib.Client
 import org.drinkless.tdlib.TdApi
 import com.p2petrovich.telegramnewsreader.ApiConfig
-import com.p2petrovich.telegramnewsreader.model.Channel
+import com.p2petrovich.telegramnewsreader.models.Channel
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.CompletableDeferred
 import kotlin.coroutines.resume
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 import org.threeten.bp.Instant
@@ -32,9 +32,8 @@ class TelegramClient(private val context: Context) {
     private var authorizationState: TdApi.AuthorizationState? = null
 
     private val TAG = "TelegramClient"
-    private val authLatch = CountDownLatch(1)
+    private var authDeferred: CompletableDeferred<Boolean>? = null
 
-    // Для загрузки аватаров
     private val fileIdToChatId = ConcurrentHashMap<Int, Long>()
     private val chatIdToChannel = ConcurrentHashMap<Long, Channel>()
     private val chatIdToSmallId = ConcurrentHashMap<Long, Int>()
@@ -42,7 +41,6 @@ class TelegramClient(private val context: Context) {
     var onChannelPhotoUpdated: ((channelId: Long, photoPath: String) -> Unit)? = null
     var onClientReady: (() -> Unit)? = null
     var onPasswordRequired: (() -> Unit)? = null
-
     private var onLoggedOut: (() -> Unit)? = null
 
     init {
@@ -50,119 +48,112 @@ class TelegramClient(private val context: Context) {
         initializeClient()
     }
 
+    private fun resetAuthDeferred() {
+        authDeferred = CompletableDeferred()
+    }
+
     private fun initializeClient() {
-        try {
-            client = Client.create({ update ->
-                handleUpdate(update as TdApi.Update)
-            }, null, null)
-
-            if (client == null) {
-                Log.e(TAG, "CRITICAL: Client.create() returned null")
-                return
-            }
-
-            client?.send(
-                TdApi.SetTdlibParameters(
-                    false,
-                    context.filesDir.absolutePath + "/" + ApiConfig.DATABASE_DIRECTORY,
-                    context.filesDir.absolutePath + "/" + ApiConfig.FILES_DIRECTORY,
-                    byteArrayOf(),
-                    true, true, true, true,
-                    ApiConfig.API_ID,
-                    ApiConfig.API_HASH,
-                    "ru",
-                    "Android Device",
-                    android.os.Build.VERSION.RELEASE,
-                    "1.0"
-                )
-            ) { result ->
-                when (result) {
-                    is TdApi.Ok -> {
-                        isInitialized = true
-                        Log.d(TAG, "TDLib parameters set OK")
-                    }
-                    is TdApi.Error -> Log.e(TAG, "SetTdlibParameters error: ${result.message}")
-                    else -> Log.e(TAG, "SetTdlibParameters unknown: $result")
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error initializing TelegramClient", e)
-        }
-    }
-
-    private fun handleUpdate(update: TdApi.Update) {
-        when (update) {
-            is TdApi.UpdateAuthorizationState -> handleAuthUpdate(update.authorizationState)
-            is TdApi.UpdateFile -> {
-                val f = update.file
-                if (f.local.isDownloadingCompleted) {
-                    val chatId = fileIdToChatId.remove(f.id)
-                    if (chatId != null) {
-                        chatIdToChannel[chatId]?.let { ch ->
-                            ch.photoPath = f.local.path
-                            onChannelPhotoUpdated?.invoke(chatId, f.local.path)
+        resetAuthDeferred()
+        client = Client.create({ update ->
+            when (update) {
+                is TdApi.UpdateAuthorizationState -> {
+                    authorizationState = update.authorizationState
+                    when (update.authorizationState) {
+                        is TdApi.AuthorizationStateReady -> {
+                            isReady = true
+                            isInitialized = true
+                            isAuthorized = true
+                            authDeferred?.complete(true)
+                            onClientReady?.invoke()
                         }
+                        is TdApi.AuthorizationStateWaitTdlibParameters -> {
+                            setTdlibParameters()
+                        }
+                        is TdApi.AuthorizationStateWaitPhoneNumber -> {
+                            isAuthorized = false
+                        }
+                        is TdApi.AuthorizationStateWaitCode -> {
+                            Log.d(TAG, "Waiting for auth code")
+                        }
+                        is TdApi.AuthorizationStateWaitPassword -> {
+                            Log.d(TAG, "Waiting for 2FA password")
+                            onPasswordRequired?.invoke()
+                        }
+                        is TdApi.AuthorizationStateClosed -> {
+                            isInitialized = false
+                            isAuthorized = false
+                            isReady = false
+                            resetAuthDeferred()
+                            onLoggedOut?.invoke()
+                        }
+                        else -> {}
                     }
                 }
+                is TdApi.UpdateFile -> {
+                    val file = update.file
+                    val fileId = file.id
+                    val chatId = fileIdToChatId[fileId]
+                    if (chatId != null && file.local?.isDownloadingCompleted == true && !file.local.path.isNullOrBlank()) {
+                        chatIdToChannel[chatId]?.photoPath = file.local.path
+                        onChannelPhotoUpdated?.invoke(chatId, file.local.path)
+                    }
+                }
+                else -> {}
             }
-            else -> { /* ignore */ }
-        }
+        }, { error ->
+            Log.e(TAG, "TDLib fatal error: ${error.message}")
+        }, { logMessage ->
+            Log.v(TAG, "TDLib log: ${logMessage.message}")
+        })
     }
 
-    private fun handleAuthUpdate(state: TdApi.AuthorizationState) {
-        authorizationState = state
-        when (state) {
-            is TdApi.AuthorizationStateWaitPhoneNumber -> {
-                isAuthorized = false; isReady = false
-                PreferenceManager.setAuthorized(context, false)
-            }
-            is TdApi.AuthorizationStateWaitCode -> {
-                isAuthorized = false; isReady = false
-            }
-            is TdApi.AuthorizationStateWaitPassword -> {
-                isAuthorized = false; isReady = false
-                onPasswordRequired?.invoke()
-            }
-            is TdApi.AuthorizationStateReady -> {
-                isAuthorized = true; isReady = true
-                PreferenceManager.setAuthorized(context, true)
-                client?.send(TdApi.SetNetworkType(TdApi.NetworkTypeOther())) {}
-                authLatch.countDown()
-                onClientReady?.invoke()
-            }
-            is TdApi.AuthorizationStateLoggingOut,
-            is TdApi.AuthorizationStateClosing -> {
-                isAuthorized = false; isReady = false
-                PreferenceManager.setAuthorized(context, false)
-            }
-            is TdApi.AuthorizationStateClosed -> {
-                isInitialized = false; isAuthorized = false; isReady = false
-                PreferenceManager.setAuthorized(context, false)
-                onLoggedOut?.invoke()
-                onLoggedOut = null
-            }
-            else -> Log.w(TAG, "Unhandled auth state: $state")
+    private fun setTdlibParameters() {
+        val params = TdApi.TdlibParameters().apply {
+            useTestDc = false
+            databaseDirectory = context.getDir("tdlib", Context.MODE_PRIVATE).absolutePath
+            filesDirectory = context.getDir("tdlib_files", Context.MODE_PRIVATE).absolutePath
+            useFileDatabase = true
+            useChatInfoDatabase = true
+            useMessageDatabase = true
+            useSecretChats = false
+            apiId = ApiConfig.TELEGRAM_API_ID
+            apiHash = ApiConfig.TELEGRAM_API_HASH
+            systemLanguageCode = "ru"
+            deviceModel = android.os.Build.MODEL
+            applicationVersion = "2.0"
+            enableStorageOptimizer = true
+            ignoreFileNames = false
         }
+        client?.send(TdApi.SetTdlibParameters(params)) {}
     }
 
-    fun sendCode(phone: String, callback: (Boolean) -> Unit) {
-        if (!isInitialized) { callback(false); return }
-        client?.send(TdApi.SetAuthenticationPhoneNumber(phone, null)) { result ->
+    fun checkAuthState(): Boolean = isReady && isAuthorized
+
+    fun setOnLoggedOutListener(listener: () -> Unit) { onLoggedOut = listener }
+
+    fun setPhoneNumber(phoneNumber: String, callback: (Boolean) -> Unit) {
+        client?.send(TdApi.SetAuthenticationPhoneNumber(phoneNumber, null)) { result ->
             callback(result is TdApi.Ok)
         }
     }
 
-    fun verifyCode(code: String, callback: (Boolean) -> Unit) {
-        if (!isInitialized) { callback(false); return }
+    fun checkAuthenticationCode(code: String, callback: (Boolean, String) -> Unit) {
         client?.send(TdApi.CheckAuthenticationCode(code)) { result ->
-            callback(result is TdApi.Ok)
+            when (result) {
+                is TdApi.Ok -> callback(true, "OK")
+                is TdApi.Error -> callback(false, result.message)
+                else -> callback(false, "Unknown response")
+            }
         }
     }
 
-    fun verifyPassword(password: String, callback: (Boolean) -> Unit) {
-        if (!isInitialized) { callback(false); return }
+    fun checkAuthenticationPassword(password: String, callback: (Boolean, String) -> Unit) {
         client?.send(TdApi.CheckAuthenticationPassword(password)) { result ->
-            callback(result is TdApi.Ok)
+            when (result) {
+                is TdApi.Ok -> callback(true, "OK")
+                is TdApi.Error -> callback(false, result.message)
+                else -> callback(false, "Unknown response")
+            }
         }
     }
 
@@ -181,11 +172,11 @@ class TelegramClient(private val context: Context) {
                             return@send
                         }
 
-                        val channels = mutableListOf<Channel>()
+                        val channels: Array<Channel?> = arrayOfNulls(result.chatIds.size)
                         var processed = 0
                         val total = result.chatIds.size
 
-                        for (chatId in result.chatIds) {
+                        for ((index, chatId) in result.chatIds.withIndex()) {
                             client?.send(TdApi.GetChat(chatId)) { chatResult ->
                                 if (chatResult is TdApi.Chat) {
                                     val type = chatResult.type
@@ -212,14 +203,18 @@ class TelegramClient(private val context: Context) {
                                             isSelected = false, newMessagesCount = 0, photoPath = null
                                         )
                                         chatIdToChannel[chatId] = channel
-                                        synchronized(channels) { channels.add(channel) }
+                                        synchronized(channels) {
+                                            if (index < channels.size) {
+                                                channels[index] = channel
+                                            }
+                                        }
                                     }
                                 }
 
                                 synchronized(channels) {
                                     processed++
                                     if (processed == total) {
-                                        callback(channels.toList())
+                                        callback(channels.filterNotNull())
                                     }
                                 }
                             }
@@ -249,102 +244,104 @@ class TelegramClient(private val context: Context) {
         }
     }
 
-    suspend fun getChannelMessagesPaginated(
-        channelId: Long,
-        fromDate: Long,
-        maxMessages: Int = 3000
-    ): List<String> = suspendCancellableCoroutine { cont ->
+    suspend fun getChannelMessagesPaginated(channelId: Long, fromDate: Long): List<String> {
+        return try {
+            suspendCancellableCoroutine { continuation ->
+                val messages = mutableListOf<String>()
+                val isCancelled = AtomicBoolean(false)
 
-        if (!isInitialized || !isAuthorized || client == null) {
-            cont.resume(emptyList())
-            return@suspendCancellableCoroutine
-        }
+                continuation.invokeOnCancellation {
+                    Log.d(TAG, "History canceled for channel $channelId")
+                    isCancelled.set(true)
+                }
 
-        val collectedMessages = mutableListOf<String>()
-        var lastMessageId = 0L
-        var loadedTotal = 0
-        val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+                fun request(offset: Long) {
+                    if (isCancelled.get()) {
+                        return
+                    }
 
-        fun loadNextPage() {
-            client?.send(TdApi.GetChatHistory(channelId, lastMessageId, 0, 100, false)) { response ->
-                when (response) {
-                    is TdApi.Messages -> {
-                        val messages = response.messages
-                        if (messages.isEmpty()) {
-                            if (cont.isActive) cont.resume(collectedMessages)
+                    client?.send(TdApi.GetChatHistory(channelId, offset, 0, 100, false)) { response ->
+                        if (isCancelled.get()) {
                             return@send
                         }
 
-                        var isDone = false
-                        for (msg in messages) {
-                            if (msg.date < fromDate) { isDone = true; break }
-
-                            val time = try {
-                                Instant.ofEpochSecond(msg.date.toLong())
-                                    .atZone(ZoneId.systemDefault())
-                                    .format(timeFormatter)
-                            } catch (_: Exception) { "??:??" }
-
-                            val text = when (val content = msg.content) {
-                                is TdApi.MessageText -> content.text.text.trim()
-                                is TdApi.MessagePhoto -> content.caption?.text?.trim()
-                                is TdApi.MessageVideo -> content.caption?.text?.trim()
-                                is TdApi.MessageDocument -> content.caption?.text?.trim()
-                                else -> null
+                        when (response) {
+                            is TdApi.Messages -> {
+                                for (msg in response.messages) {
+                                    if (msg is TdApi.Message) {
+                                        val date = msg.date.toLong()
+                                        if (date < fromDate) {
+                                            if (!isCancelled.getAndSet(true)) {
+                                                continuation.resume(messages)
+                                            }
+                                            return@send
+                                        }
+                                        val content = msg.content
+                                        if (content is TdApi.MessageText) {
+                                            messages.add(content.text.text)
+                                        }
+                                    }
+                                }
+                                if (response.messages.size < 100) {
+                                    if (!isCancelled.getAndSet(true)) {
+                                        continuation.resume(messages)
+                                    }
+                                }
                             }
-
-                            if (!text.isNullOrBlank()) {
-                                collectedMessages.add("$time — $text")
+                            else -> {
+                                if (!isCancelled.getAndSet(true)) {
+                                    continuation.resume(messages)
+                                }
                             }
                         }
-
-                        loadedTotal += messages.size
-                        lastMessageId = messages.last().id
-
-                        if (isDone || loadedTotal >= maxMessages) {
-                            if (cont.isActive) cont.resume(collectedMessages)
-                        } else {
-                            loadNextPage()
-                        }
-                    }
-                    is TdApi.Error -> {
-                        Log.e(TAG, "Paginated error: ${response.message}")
-                        if (cont.isActive) cont.resume(collectedMessages)
-                    }
-                    else -> {
-                        if (cont.isActive) cont.resume(collectedMessages)
                     }
                 }
+                request(0)
             }
-        }
-
-        loadNextPage()
-
-        cont.invokeOnCancellation {
-            Log.d(TAG, "History canceled $channelId")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting channel messages", e)
+            emptyList()
         }
     }
 
-    private fun waitForReady(timeoutSeconds: Long = 10): Boolean {
-        return try {
-            if (isReady) true else authLatch.await(timeoutSeconds, TimeUnit.SECONDS)
-        } catch (_: InterruptedException) { false }
-    }
-
-    fun checkAuthState(): Boolean = isReady && isAuthorized
-
-    fun logOut(onDone: (() -> Unit)? = null) {
-        val c = client
-        if (c == null) { onDone?.invoke(); return }
-        onLoggedOut = onDone
-        c.send(TdApi.LogOut()) {}
+    fun logoutAndReset(callback: () -> Unit) {
+        client?.send(TdApi.LogOut()) {
+            isInitialized = false
+            isAuthorized = false
+            isReady = false
+            resetAuthDeferred()
+            callback()
+        }
     }
 
     fun close() {
-        client?.send(TdApi.Close(), null)
+        client?.close()
         client = null
-        isInitialized = false
-        isAuthorized = false
-        isReady = false
+    }
+
+    private fun waitForReady(timeoutSec: Int): Boolean {
+        return try {
+            // Используем отдельный поток для ожидания с timeout
+            val startTime = System.currentTimeMillis()
+            val timeoutMs = timeoutSec * 1000L
+            
+            while (System.currentTimeMillis() - startTime < timeoutMs) {
+                // Проверяем, готов ли клиент
+                if (isReady && authDeferred?.isCompleted == true) {
+                    return true
+                }
+                
+                // Ждём небольшое время перед следующей проверкой
+                Thread.sleep(100)
+            }
+            
+            false
+        } catch (e: InterruptedException) {
+            Log.e(TAG, "Interrupted while waiting for ready", e)
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "Error waiting for ready", e)
+            false
+        }
     }
 }

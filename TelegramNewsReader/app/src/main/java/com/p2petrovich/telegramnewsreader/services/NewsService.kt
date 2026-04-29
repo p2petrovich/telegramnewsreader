@@ -1,7 +1,7 @@
-package com.p2petrovich.telegramnewsreader.service
+package com.p2petrovich.telegramnewsreader.services
 
 import android.util.Log
-import com.p2petrovich.telegramnewsreader.model.Channel
+import com.p2petrovich.telegramnewsreader.models.Channel
 import com.p2petrovich.telegramnewsreader.telegram.TelegramClient
 import com.p2petrovich.telegramnewsreader.tts.TTSManager
 import com.p2petrovich.telegramnewsreader.utils.TextProcessor
@@ -42,10 +42,6 @@ class NewsService(
         val realNewsCount: Int = 0
     )
 
-    /**
-     * Результат: плейлист WAV-файлов.
-     * Каждый файл — одна глава (заголовок канала или новость).
-     */
     data class AudioPlaylist(
         val files: List<java.io.File>,
         val realNewsCount: Int = 0,
@@ -173,6 +169,7 @@ class NewsService(
 
                 ensureActive()
 
+                // ИСПРАВЛЕНИЕ #1: Использовать afterDropTrivial вместо preparedMessages
                 val afterDropTrivial = TextProcessor.dropTrivial(preparedMessages)
                 val totalToSynthesize = afterDropTrivial.count { !isChannelHeader(it) }
 
@@ -181,7 +178,8 @@ class NewsService(
                 progressCallback.onUpdateCounters(totalCollected, totalToSynthesize, 0)
                 progressCallback.onUpdateProgress("Подготовлено к озвучке", 100, 100)
 
-                Prepared(preparedMessages, totalCollected, totalToSynthesize, realNewsCount)
+                // ИСПРАВЛЕНИЕ #1: Передавать afterDropTrivial, а не preparedMessages
+                Prepared(afterDropTrivial, totalCollected, totalToSynthesize, realNewsCount)
             }
         } catch (e: TimeoutCancellationException) {
             progressCallback.onUpdateProgress("Превышено время ожидания", 0, 100)

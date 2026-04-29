@@ -1,4 +1,4 @@
-package com.p2petrovich.telegramnewsreader.adapter
+package com.p2petrovich.telegramnewsreader.adapters
 
 import android.content.Context
 import android.view.LayoutInflater
@@ -6,7 +6,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.p2petrovich.telegramnewsreader.databinding.ItemChannelBinding
-import com.p2petrovich.telegramnewsreader.model.Channel
+import com.p2petrovich.telegramnewsreader.models.Channel
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import coil.load
 import coil.transform.CircleCropTransformation
@@ -19,26 +19,17 @@ class ChannelAdapter(
     private val onHideRequest: (Channel) -> Unit
 ) : RecyclerView.Adapter<ChannelAdapter.ChannelViewHolder>() {
 
-    // Полный список всех каналов (источник истины)
     private val allChannels = mutableListOf<Channel>()
-
-    // Отображаемый список (может быть отфильтрован)
     private val displayedChannels = mutableListOf<Channel>()
-
-    // Активен ли фильтр
     private var isFiltered = false
 
     fun updateChannels(newChannels: List<Channel>) {
         newChannels.forEach { it.isFavorite = PreferenceManager.isChannelFavorite(context, it.id) }
-
         val sorted = newChannels.sortedWith(
             compareBy<Channel> { !it.isFavorite }.thenBy { it.title.lowercase() }
         )
-
         allChannels.clear()
         allChannels.addAll(sorted)
-
-        // Если был активен фильтр — не сбрасываем его, а переприменяем
         if (isFiltered) {
             val filterIds = displayedChannels.map { it.id }.toSet()
             applyDisplayList(sorted.filter { it.id in filterIds })
@@ -47,41 +38,24 @@ class ChannelAdapter(
         }
     }
 
-    /**
-     * Показать только каналы из набора (пресета).
-     * Все каналы остаются в allChannels, но в RecyclerView видны только отфильтрованные.
-     */
     fun filterByPreset(channelIds: Set<Long>) {
         isFiltered = true
         val filtered = allChannels.filter { it.id in channelIds }
         applyDisplayList(filtered)
     }
 
-    /**
-     * Сбросить фильтр — показать все каналы.
-     */
     fun clearFilter() {
         isFiltered = false
         applyDisplayList(allChannels.toList())
     }
 
-    /**
-     * Возвращает true если сейчас отображается отфильтрованный список.
-     */
     fun isFilterActive(): Boolean = isFiltered
-
     fun getSelectedChannels(): List<Channel> = allChannels.filter { it.isSelected }
-
     fun getAllChannels(): List<Channel> = allChannels.toList()
 
     fun updateChannelPhoto(channelId: Long, path: String) {
-        // Обновляем в полном списке
         val allIdx = allChannels.indexOfFirst { it.id == channelId }
-        if (allIdx >= 0) {
-            allChannels[allIdx].photoPath = path
-        }
-
-        // Обновляем в отображаемом списке
+        if (allIdx >= 0) allChannels[allIdx].photoPath = path
         val dispIdx = displayedChannels.indexOfFirst { it.id == channelId }
         if (dispIdx >= 0) {
             displayedChannels[dispIdx].photoPath = path
@@ -101,13 +75,10 @@ class ChannelAdapter(
     override fun getItemCount(): Int = displayedChannels.size
 
     inner class ChannelViewHolder(private val binding: ItemChannelBinding) : RecyclerView.ViewHolder(binding.root) {
-
         fun bind(channel: Channel) {
             binding.textChannelName.text = channel.title
             binding.textNewMessages.text = if (channel.newMessagesCount > 0)
                 "${channel.newMessagesCount} новых" else "Нет новостей"
-
-            // Favorite icon
             channel.isFavorite = PreferenceManager.isChannelFavorite(context, channel.id)
             if (channel.isFavorite) {
                 binding.imageFavorite.setImageResource(R.drawable.ic_star)
@@ -115,8 +86,6 @@ class ChannelAdapter(
             } else {
                 binding.imageFavorite.visibility = android.view.View.GONE
             }
-
-            // Avatar
             val path = channel.photoPath
             if (!path.isNullOrBlank()) {
                 val f = File(path)
@@ -129,26 +98,20 @@ class ChannelAdapter(
             } else {
                 binding.ivAvatar.setImageResource(R.drawable.ic_channel_placeholder)
             }
-
-            // Checkbox
             binding.checkboxChannel.setOnCheckedChangeListener(null)
             binding.checkboxChannel.isChecked = channel.isSelected
             binding.checkboxChannel.setOnCheckedChangeListener { _, isChecked ->
                 channel.isSelected = isChecked
                 onSelectionChanged(channel, isChecked)
             }
-
-            // Favorite toggle on click
             binding.root.setOnClickListener {
                 channel.isFavorite = !channel.isFavorite
-                if (channel.isFavorite) {
+                if (channel.isFavorite)
                     PreferenceManager.addFavoriteChannel(context, channel.id)
-                } else {
+                else
                     PreferenceManager.removeFavoriteChannel(context, channel.id)
-                }
                 resortAndUpdate()
             }
-
             binding.root.setOnLongClickListener {
                 onHideRequest(channel)
                 true
@@ -164,21 +127,15 @@ class ChannelAdapter(
     }
 
     private fun resortAndUpdate() {
-        // Пересортировываем полный список
         val sortedAll = allChannels.sortedWith(
             compareBy<Channel> { !it.isFavorite }.thenBy { it.title.lowercase() }
         )
         allChannels.clear()
         allChannels.addAll(sortedAll)
-
-        // Пересортировываем отображаемый список (с учётом фильтра)
         val newDisplayed = if (isFiltered) {
             val displayedIds = displayedChannels.map { it.id }.toSet()
             sortedAll.filter { it.id in displayedIds }
-        } else {
-            sortedAll.toList()
-        }
-
+        } else sortedAll.toList()
         applyDisplayList(newDisplayed)
     }
 

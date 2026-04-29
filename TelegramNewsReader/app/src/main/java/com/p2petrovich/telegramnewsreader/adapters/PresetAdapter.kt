@@ -1,6 +1,4 @@
-// adapter/PresetAdapter.kt
-
-package com.p2petrovich.telegramnewsreader.adapter
+package com.p2petrovich.telegramnewsreader.adapters
 
 import android.view.LayoutInflater
 import android.view.View

@@ -1,4 +1,4 @@
-package com.p2petrovich.telegramnewsreader.model
+package com.p2petrovich.telegramnewsreader.models
 
 data class Channel(
     val id: Long,

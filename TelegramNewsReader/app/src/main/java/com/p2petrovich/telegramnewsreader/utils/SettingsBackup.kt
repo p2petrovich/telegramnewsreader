@@ -27,6 +27,30 @@ object SettingsBackup {
         return File(downloadsDir, BACKUP_FILE_NAME)
     }
 
+    @SuppressLint("ObsoleteSdkInt")
+    fun backupFileExists(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            backupFileExistsInMediaStore(context)
+        } else {
+            getBackupFile().exists()
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun backupFileExistsInMediaStore(context: Context): Boolean {
+        val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+        val projection = arrayOf(MediaStore.Downloads._ID)
+        val selection = "${MediaStore.Downloads.DISPLAY_NAME} = ?"
+        val selectionArgs = arrayOf(BACKUP_FILE_NAME)
+
+        context.contentResolver.query(
+            collection, projection, selection, selectionArgs, null
+        )?.use { cursor ->
+            return cursor.count > 0
+        }
+        return false
+    }
+
     fun exportToJson(context: Context): String {
         val json = JSONObject()
 

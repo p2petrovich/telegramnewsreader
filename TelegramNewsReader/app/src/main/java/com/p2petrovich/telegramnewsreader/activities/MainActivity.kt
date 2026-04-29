@@ -24,13 +24,13 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.chip.Chip
 import com.p2petrovich.telegramnewsreader.R
-import com.p2petrovich.telegramnewsreader.adapter.ChannelAdapter
-import com.p2petrovich.telegramnewsreader.adapter.PresetAdapter
+import com.p2petrovich.telegramnewsreader.adapters.ChannelAdapter
+import com.p2petrovich.telegramnewsreader.adapters.PresetAdapter
 import com.p2petrovich.telegramnewsreader.databinding.ActivityMainBinding
-import com.p2petrovich.telegramnewsreader.model.Channel
+import com.p2petrovich.telegramnewsreader.models.Channel
 import com.p2petrovich.telegramnewsreader.models.ChannelPreset
-import com.p2petrovich.telegramnewsreader.service.NewsService
-import com.p2petrovich.telegramnewsreader.service.ProgressCallback
+import com.p2petrovich.telegramnewsreader.services.NewsService
+import com.p2petrovich.telegramnewsreader.services.ProgressCallback
 import com.p2petrovich.telegramnewsreader.services.AudioPlayerService
 import com.p2petrovich.telegramnewsreader.telegram.TelegramClient
 import com.p2petrovich.telegramnewsreader.telegram.TelegramClientManager
@@ -41,8 +41,10 @@ import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.PresetManager
 import com.p2petrovich.telegramnewsreader.utils.SettingsBackup
 import com.p2petrovich.telegramnewsreader.TelegramNewsApplication
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
@@ -58,6 +60,7 @@ class MainActivity : AppCompatActivity() {
 
     private var lastUsedVoice: String? = null
     private var isClientReady = false
+    private var isClientReadyCallbackProcessed = false
     private var currentPlaylist: List<File> = emptyList()
     private var currentRealNewsCount: Int = 0
     private var currentNewsFileIndices: Set<Int> = emptySet()
@@ -111,7 +114,8 @@ class MainActivity : AppCompatActivity() {
                 if (total > 0) {
                     binding.llPlayer.visibility = View.VISIBLE
                     updatePlayerButtons(isPlaying)
-                    PreferenceManager.savePlayerIndex(context, cur)
+                    // ИСПРАВЛЕНИЕ #4: Сохранять 0-based индекс (cur - 1)
+                    PreferenceManager.savePlayerIndex(context, cur - 1)
                     PreferenceManager.savePlayerIsPlaying(context, isPlaying)
                 }
             }
@@ -454,6 +458,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun initializeTelegramClient() {
         val readyCallback: () -> Unit = {
+            // ИСПРАВЛЕНИЕ #11: Защита от двойного вызова
+            if (isClientReadyCallbackProcessed) return@readyCallback
+
+            isClientReadyCallbackProcessed = true
             isClientReady = true
             runOnUiThread {
                 telegramClient.onChannelPhotoUpdated = { channelId, path ->
@@ -479,7 +487,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateUIForReadyClient() {
         binding.btnCollectNews.isEnabled = channelAdapter.getSelectedChannels().isNotEmpty()
-        updateStatus("Клиент готов. Выберите каналы.")
+        // ИСПРАВЛЕНИЕ #8: Не перезаписывать статус, если он уже установлен
+        if (binding.tvStatus.text.isEmpty()) {
+            updateStatus("Клиент готов. Выберите каналы.")
+        }
     }
 
     private fun setupUI() {
@@ -638,7 +649,9 @@ class MainActivity : AppCompatActivity() {
                 )
 
                 stopTimer()
-                runOnUiThread { handleCollectionResult(audio) }
+                // Вычисляем длительность на фоновом потоке
+                val durationMin = audio?.let { calcDurationMinutes(it.files) } ?: 0
+                runOnUiThread { handleCollectionResult(audio, durationMin) }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 Log.d("MainActivity", "News collection cancelled")
                 stopTimer()
@@ -660,6 +673,22 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /** Вычисление длительности на фоновом потоке — без MediaPlayer на главном потоке */
+    private fun calcDurationMinutes(files: List<File>): Int {
+        var totalMs = 0L
+        files.forEach { file ->
+            var player: MediaPlayer? = null
+            try {
+                player = MediaPlayer().apply { setDataSource(file.absolutePath); prepare() }
+                totalMs += player.duration
+            } catch (_: Exception) {
+            } finally {
+                try { player?.release() } catch (_: Exception) {}
+            }
+        }
+        return (totalMs / 1000 / 60).toInt()
     }
 
     private fun createProgressCallback(selectedChannels: List<Channel>): ProgressCallback {
@@ -734,7 +763,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun handleCollectionResult(audio: NewsService.AudioPlaylist?) {
+    private fun handleCollectionResult(audio: NewsService.AudioPlaylist?, durationMin: Int) {
         binding.progressBar.visibility = View.GONE
         binding.btnCollectNews.text = getString(R.string.collect_news)
         binding.btnCollectNews.isEnabled = true
@@ -748,19 +777,6 @@ class MainActivity : AppCompatActivity() {
 
             val paths = audio.files.map { it.absolutePath }
             PreferenceManager.savePlaylistPaths(this, paths)
-
-            var totalDurationMs = 0L
-            audio.files.forEach { file ->
-                var player: MediaPlayer? = null
-                try {
-                    player = MediaPlayer().apply { setDataSource(file.absolutePath); prepare() }
-                    totalDurationMs += player.duration
-                } catch (_: Exception) {
-                } finally {
-                    try { player?.release() } catch (_: Exception) {}
-                }
-            }
-            val durationMin = (totalDurationMs / 1000 / 60).toInt()
 
             val baseStatus = "Готово! Найдено новостей: ${audio.realNewsCount}"
             if (durationMin > 0) {
@@ -1044,23 +1060,33 @@ class MainActivity : AppCompatActivity() {
         }
         val fileName = SettingsBackup.BACKUP_FILE_NAME
         dialogView.findViewById<android.widget.Button>(R.id.btn_export_settings)?.setOnClickListener {
-            val success = SettingsBackup.saveBackupToFile(this)
-            Toast.makeText(this,
-                if (success) "Файл $fileName сохранён в папку Downloads"
-                else "Ошибка при сохранении",
-                Toast.LENGTH_LONG
-            ).show()
+            // Экспорт в фоновом потоке — без заморозки UI
+            lifecycleScope.launch {
+                val success = withContext(Dispatchers.IO) {
+                    SettingsBackup.saveBackupToFile(this@MainActivity)
+                }
+                Toast.makeText(this@MainActivity,
+                    if (success) "Файл $fileName сохранён в папку Downloads"
+                    else "Ошибка при сохранении",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
         dialogView.findViewById<android.widget.Button>(R.id.btn_import_settings)?.setOnClickListener {
-            val success = SettingsBackup.loadBackupFromFile(this)
-            Toast.makeText(this,
-                if (success) "Настройки восстановлены из $fileName"
-                else "Файл $fileName не найден в Downloads",
-                Toast.LENGTH_LONG
-            ).show()
-            if (success) {
-                dialog.dismiss()
-                recreate()
+            // Импорт в фоновом потоке — без заморозки UI
+            lifecycleScope.launch {
+                val success = withContext(Dispatchers.IO) {
+                    SettingsBackup.loadBackupFromFile(this@MainActivity)
+                }
+                Toast.makeText(this@MainActivity,
+                    if (success) "Настройки восстановлены из $fileName"
+                    else "Файл $fileName не найден в Downloads",
+                    Toast.LENGTH_LONG
+                ).show()
+                if (success) {
+                    dialog.dismiss()
+                    recreate()
+                }
             }
         }
         dialog.show()
@@ -1203,6 +1229,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setDefaultVoiceOnFirstLaunch() {
+        // ИСПРАВЛЕНИЕ #10: Использовать единообразное имя SharedPreferences
         val prefs = getSharedPreferences("telegram_news_prefs", Context.MODE_PRIVATE)
         if (prefs.getBoolean("is_first_app_launch", true)) {
             if (PreferenceManager.getTtsVoiceName(this) == null) {
@@ -1213,8 +1240,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun tryAutoImportOnFirstLaunch() {
-        val backupFile = java.io.File(SettingsBackup.getBackupFilePath())
-        if (backupFile.exists()) {
+        if (SettingsBackup.backupFileExists(this)) {
             val isEmpty = PresetManager.getAllPresets(this).isEmpty() &&
                     PreferenceManager.getFavoriteChannelIds(this).isEmpty()
 
@@ -1223,9 +1249,16 @@ class MainActivity : AppCompatActivity() {
                     .setTitle("Найден файл настроек")
                     .setMessage("Обнаружен файл резервной копии в папке Downloads. Восстановить настройки?")
                     .setPositiveButton("Восстановить") { _, _ ->
-                        val success = SettingsBackup.loadBackupFromFile(this)
-                        Toast.makeText(this, if (success) "Настройки успешно восстановлены" else "Ошибка при восстановлении", Toast.LENGTH_LONG).show()
-                        if (success) recreate()
+                        lifecycleScope.launch {
+                            val success = withContext(Dispatchers.IO) {
+                                SettingsBackup.loadBackupFromFile(this@MainActivity)
+                            }
+                            Toast.makeText(this@MainActivity,
+                                if (success) "Настройки успешно восстановлены" else "Ошибка при восстановлении",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            if (success) recreate()
+                        }
                     }
                     .setNegativeButton("Пропустить", null)
                     .show()
@@ -1246,20 +1279,27 @@ class MainActivity : AppCompatActivity() {
         if (currentPlaylist.isEmpty()) {
             val savedPaths = PreferenceManager.getPlaylistPaths(this)
             if (savedPaths.isNotEmpty()) {
-                currentPlaylist = savedPaths.map { java.io.File(it) }
-                binding.llPlayer.visibility = View.VISIBLE
-                binding.btnPlay.isEnabled = true
-                binding.btnNext.isEnabled = true
+                // Проверяем существование файлов — если нет, не показываем плеер
+                val existingFiles = savedPaths.filter { File(it).exists() }
+                if (existingFiles.isNotEmpty()) {
+                    currentPlaylist = existingFiles.map { File(it) }
+                    binding.llPlayer.visibility = View.VISIBLE
+                    binding.btnPlay.isEnabled = true
+                    binding.btnNext.isEnabled = true
 
-                val savedIndex = PreferenceManager.getPlayerIndex(this)
-                val savedIsPlaying = PreferenceManager.getPlayerIsPlaying(this)
+                    val savedIndex = PreferenceManager.getPlayerIndex(this)
+                    val savedIsPlaying = PreferenceManager.getPlayerIsPlaying(this)
 
-                if (savedIsPlaying) {
-                    updatePlayerButtons(true)
-                    updateStatus("Воспроизведение: ${savedIndex + 1} из ${currentPlaylist.size}")
+                    if (savedIsPlaying) {
+                        updatePlayerButtons(true)
+                        updateStatus("Воспроизведение: ${savedIndex + 1} из ${currentPlaylist.size}")
+                    } else {
+                        updatePlayerButtons(false)
+                        updateStatus("Готово: ${savedIndex + 1} из ${currentPlaylist.size}")
+                    }
                 } else {
-                    updatePlayerButtons(false)
-                    updateStatus("Готово: ${savedIndex + 1} из ${currentPlaylist.size}")
+                    // Все файлы удалены — чистим сохранённый плейлист
+                    PreferenceManager.clearPlayerState(this)
                 }
             }
         }
