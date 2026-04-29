@@ -1,7 +1,13 @@
 package com.p2petrovich.telegramnewsreader.utils
 
+import android.annotation.SuppressLint
+import android.content.ContentValues
 import android.content.Context
+import android.net.Uri
+import android.os.Build
 import android.os.Environment
+import android.provider.MediaStore
+import androidx.annotation.RequiresApi
 import com.p2petrovich.telegramnewsreader.db.AppDatabase
 import com.p2petrovich.telegramnewsreader.models.ChannelPreset
 import com.p2petrovich.telegramnewsreader.models.TelegramChannel
@@ -11,7 +17,7 @@ import org.json.JSONObject
 import java.io.File
 
 object SettingsBackup {
-    private const val BACKUP_FILE_NAME = "telegram_news_backup.json"
+    const val BACKUP_FILE_NAME = "telegram_news_backup.json"
 
     private fun getBackupFile(): File {
         val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
@@ -101,8 +107,56 @@ object SettingsBackup {
     fun saveBackupToFile(context: Context): Boolean {
         return try {
             val jsonString = exportToJson(context)
+            val bytes = jsonString.toByteArray(Charsets.UTF_8)
+            saveFileToDownloads(context, bytes)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    @SuppressLint("ObsoleteSdkInt")
+    private fun saveFileToDownloads(context: Context, data: ByteArray): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            saveToMediaStore(context, data)
+        } else {
+            legacySaveToFile(data)
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun saveToMediaStore(context: Context, data: ByteArray): Boolean {
+        return try {
+            val contentValues = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, BACKUP_FILE_NAME)
+                put(MediaStore.Downloads.MIME_TYPE, "application/json")
+                put(MediaStore.Downloads.IS_PENDING, 1)
+            }
+
+            val uri = context.contentResolver.insert(
+                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                contentValues
+            ) ?: return legacySaveToFile(data)
+
+            context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                outputStream.write(data)
+            } ?: return legacySaveToFile(data)
+
+            contentValues.clear()
+            contentValues.put(MediaStore.Downloads.IS_PENDING, 0)
+            context.contentResolver.update(uri, contentValues, null, null)
+
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    private fun legacySaveToFile(data: ByteArray): Boolean {
+        return try {
             val backupFile = getBackupFile()
-            backupFile.writeText(jsonString)
+            backupFile.writeBytes(data)
             true
         } catch (e: Exception) {
             e.printStackTrace()
@@ -256,16 +310,53 @@ object SettingsBackup {
         }
     }
 
+    @SuppressLint("ObsoleteSdkInt")
     fun loadBackupFromFile(context: Context): Boolean {
         return try {
-            val backupFile = getBackupFile()
-            if (!backupFile.exists()) return false
-            val jsonString = backupFile.readText()
-            importFromJson(context, jsonString)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                loadFromMediaStore(context)
+            } else {
+                legacyLoadFromFile(context)
+            }
         } catch (e: Exception) {
             e.printStackTrace()
             false
         }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun loadFromMediaStore(context: Context): Boolean {
+        val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+        val projection = arrayOf(
+            MediaStore.Downloads._ID,
+            MediaStore.Downloads.DISPLAY_NAME
+        )
+        val selection = "${MediaStore.Downloads.DISPLAY_NAME} = ?"
+        val selectionArgs = arrayOf(BACKUP_FILE_NAME)
+
+        context.contentResolver.query(
+            collection, projection, selection, selectionArgs, null
+        )?.use { cursor ->
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(
+                    cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
+                )
+                val uri = Uri.withAppendedPath(collection, id.toString())
+
+                context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    val jsonString = inputStream.bufferedReader().use { it.readText() }
+                    return importFromJson(context, jsonString)
+                }
+            }
+        }
+        return false
+    }
+
+    private fun legacyLoadFromFile(context: Context): Boolean {
+        val backupFile = getBackupFile()
+        if (!backupFile.exists()) return false
+        val jsonString = backupFile.readText()
+        return importFromJson(context, jsonString)
     }
 
     fun getBackupFilePath(): String {

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Цветовая тема"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="16dp"
+        android:textColor="?attr/colorOnSurface" />
+
+    <RadioGroup
+        android:id="@+id/rg_color_theme"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginBottom="16dp">
+
+        <RadioButton
+            android:id="@+id/rb_theme_purple"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Фиолетовая (темная)" />
+
+        <RadioButton
+            android:id="@+id/rb_theme_teal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Бирюзовая (темная)" />
+
+        <RadioButton
+            android:id="@+id/rb_theme_light"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Светлая" />
+
+    </RadioGroup>
+
+</LinearLayout>

@@ -110,7 +110,7 @@ object PreferenceManager {
     fun getHiddenTitleForId(context: Context, id: Long): String? =
         getHiddenIdTitleMap(context)[id]
 
-    private fun getHiddenIdTitleMap(context: Context): Map<Long, String> {
+    internal fun getHiddenIdTitleMap(context: Context): Map<Long, String> {
         val raw = getPreferences(context).getString(KEY_HIDDEN_TITLES, null) ?: return emptyMap()
         return try {
             raw.split("|||").mapNotNull { pair ->
@@ -124,7 +124,7 @@ object PreferenceManager {
         } catch (_: Exception) { emptyMap() }
     }
 
-    private fun saveHiddenIdTitleMap(context: Context, map: Map<Long, String>) {
+    internal fun saveHiddenIdTitleMap(context: Context, map: Map<Long, String>) {
         val raw = map.entries.joinToString("|||") { "${it.key}:${it.value}" }
         getPreferences(context).edit().putString(KEY_HIDDEN_TITLES, raw).apply()
     }

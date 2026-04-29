@@ -28,7 +28,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "telegram_news_db"
-                ).build().also { INSTANCE = it }
+                )
+                    .allowMainThreadQueries()
+                    .build().also { INSTANCE = it }
             }
         }
     }

@@ -24,10 +24,10 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.chip.Chip
 import com.p2petrovich.telegramnewsreader.R
-import com.p2petrovich.telegramnewsreader.adapters.ChannelAdapter
-import com.p2petrovich.telegramnewsreader.adapters.PresetAdapter
+import com.p2petrovich.telegramnewsreader.adapter.ChannelAdapter
+import com.p2petrovich.telegramnewsreader.adapter.PresetAdapter
 import com.p2petrovich.telegramnewsreader.databinding.ActivityMainBinding
-import com.p2petrovich.telegramnewsreader.models.Channel
+import com.p2petrovich.telegramnewsreader.model.Channel
 import com.p2petrovich.telegramnewsreader.models.ChannelPreset
 import com.p2petrovich.telegramnewsreader.service.NewsService
 import com.p2petrovich.telegramnewsreader.service.ProgressCallback
@@ -40,6 +40,7 @@ import com.p2petrovich.telegramnewsreader.utils.NewsCache
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.PresetManager
 import com.p2petrovich.telegramnewsreader.utils.SettingsBackup
+import com.p2petrovich.telegramnewsreader.TelegramNewsApplication
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.io.File
@@ -1008,29 +1009,10 @@ class MainActivity : AppCompatActivity() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_settings, null)
         val dialog = AlertDialog.Builder(this).setView(dialogView).create()
 
-        val rgColorTheme = dialogView.findViewById<android.widget.RadioGroup>(R.id.rg_color_theme)
-        val rbThemePurple = dialogView.findViewById<android.widget.RadioButton>(R.id.rb_theme_purple)
-        val rbThemeTeal = dialogView.findViewById<android.widget.RadioButton>(R.id.rb_theme_teal)
-        val rbThemeLight = dialogView.findViewById<android.widget.RadioButton>(R.id.rb_theme_light)
-
-        val currentTheme = PreferenceManager.getColorTheme(this)
-        when (currentTheme) {
-            "teal" -> rgColorTheme?.check(R.id.rb_theme_teal)
-            "light" -> rgColorTheme?.check(R.id.rb_theme_light)
-            else -> rgColorTheme?.check(R.id.rb_theme_purple)
-        }
-
-        rgColorTheme?.setOnCheckedChangeListener { _, checkedId ->
-            val selectedTheme = when (checkedId) {
-                R.id.rb_theme_teal -> "teal"
-                R.id.rb_theme_light -> "light"
-                else -> "purple"
-            }
-            PreferenceManager.saveColorTheme(this, selectedTheme)
+        dialogView.findViewById<android.widget.Button>(R.id.btn_color_theme).setOnClickListener {
             dialog.dismiss()
-            recreate()
+            showColorThemeDialog()
         }
-
         dialogView.findViewById<android.widget.Button>(R.id.btn_manage_presets_settings)?.setOnClickListener {
             dialog.dismiss(); showPresetsManagerDialog()
         }
@@ -1060,18 +1042,54 @@ class MainActivity : AppCompatActivity() {
         dialogView.findViewById<android.widget.Button>(R.id.btn_about).setOnClickListener {
             dialog.dismiss(); showAboutDialog()
         }
+        val fileName = SettingsBackup.BACKUP_FILE_NAME
         dialogView.findViewById<android.widget.Button>(R.id.btn_export_settings)?.setOnClickListener {
             val success = SettingsBackup.saveBackupToFile(this)
-            Toast.makeText(this, if (success) "Настройки сохранены в папку Downloads" else "Ошибка при сохранении", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this,
+                if (success) "Файл $fileName сохранён в папку Downloads"
+                else "Ошибка при сохранении",
+                Toast.LENGTH_LONG
+            ).show()
         }
         dialogView.findViewById<android.widget.Button>(R.id.btn_import_settings)?.setOnClickListener {
             val success = SettingsBackup.loadBackupFromFile(this)
-            Toast.makeText(this, if (success) "Настройки восстановлены" else "Ошибка или файл не найден", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this,
+                if (success) "Настройки восстановлены из $fileName"
+                else "Файл $fileName не найден в Downloads",
+                Toast.LENGTH_LONG
+            ).show()
             if (success) {
                 dialog.dismiss()
                 recreate()
             }
         }
+        dialog.show()
+    }
+
+    private fun showColorThemeDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_color_theme, null)
+        val dialog = AlertDialog.Builder(this).setView(dialogView).create()
+
+        val rgColorTheme = dialogView.findViewById<android.widget.RadioGroup>(R.id.rg_color_theme)
+
+        val currentTheme = PreferenceManager.getColorTheme(this)
+        when (currentTheme) {
+            "teal" -> rgColorTheme?.check(R.id.rb_theme_teal)
+            "light" -> rgColorTheme?.check(R.id.rb_theme_light)
+            else -> rgColorTheme?.check(R.id.rb_theme_purple)
+        }
+
+        rgColorTheme?.setOnCheckedChangeListener { _, checkedId ->
+            val selectedTheme = when (checkedId) {
+                R.id.rb_theme_teal -> "teal"
+                R.id.rb_theme_light -> "light"
+                else -> "purple"
+            }
+            PreferenceManager.saveColorTheme(this, selectedTheme)
+            dialog.dismiss()
+            recreate()
+        }
+
         dialog.show()
     }
 
