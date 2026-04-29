@@ -29,9 +29,11 @@
 
     </androidx.appcompat.widget.Toolbar>
 
+    <!-- Скроллящийся контент -->
     <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:fillViewport="true"
         android:padding="16dp">
 
@@ -283,7 +285,6 @@
                     </LinearLayout>
 
                 </LinearLayout>
-
             </androidx.cardview.widget.CardView>
 
             <!-- Предварительный просмотр новостей -->
@@ -319,7 +320,6 @@
                         android:textSize="12sp" />
 
                 </LinearLayout>
-
             </androidx.cardview.widget.CardView>
 
             <!-- Прогресс по каналам -->
@@ -353,86 +353,7 @@
                         android:orientation="vertical" />
 
                 </LinearLayout>
-
             </androidx.cardview.widget.CardView>
-
-            <LinearLayout
-                android:id="@+id/ll_player"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="15dp"
-                android:orientation="horizontal"
-                android:visibility="gone"
-                android:weightSum="4">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_play"
-                    android:layout_width="0dp"
-                    android:layout_height="48dp"
-                    android:layout_weight="1"
-                    android:contentDescription="@string/play"
-                    android:minWidth="0dp"
-                    android:text=""
-                    app:backgroundTint="@color/purple_500"
-                    app:cornerRadius="24dp"
-                    app:icon="@drawable/ic_play"
-                    app:iconGravity="textStart"
-                    app:iconPadding="0dp"
-                    app:iconSize="24dp"
-                    app:iconTint="@color/white" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_pause"
-                    android:layout_width="0dp"
-                    android:layout_height="48dp"
-                    android:layout_marginStart="8dp"
-                    android:layout_weight="1"
-                    android:contentDescription="@string/pause"
-                    android:minWidth="0dp"
-                    android:text=""
-                    app:backgroundTint="@color/purple_500"
-                    app:cornerRadius="24dp"
-                    app:icon="@drawable/ic_pause"
-                    app:iconGravity="textStart"
-                    app:iconPadding="0dp"
-                    app:iconSize="24dp"
-                    app:iconTint="@color/white" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_stop"
-                    android:layout_width="0dp"
-                    android:layout_height="48dp"
-                    android:layout_marginStart="8dp"
-                    android:layout_weight="1"
-                    android:contentDescription="@string/stop"
-                    android:minWidth="0dp"
-                    android:text=""
-                    app:backgroundTint="@color/purple_500"
-                    app:cornerRadius="24dp"
-                    app:icon="@drawable/ic_stop"
-                    app:iconGravity="textStart"
-                    app:iconPadding="0dp"
-                    app:iconSize="24dp"
-                    app:iconTint="@color/white" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_next"
-                    android:layout_width="0dp"
-                    android:layout_height="48dp"
-                    android:layout_marginStart="8dp"
-                    android:layout_weight="1"
-                    android:contentDescription="@string/next"
-                    android:minWidth="0dp"
-                    android:text=""
-                    app:backgroundTint="@color/purple_500"
-                    app:cornerRadius="24dp"
-                    app:icon="@drawable/ic_next"
-                    app:iconGravity="textStart"
-                    app:iconPadding="0dp"
-                    app:iconSize="24dp"
-                    app:iconTint="@color/white" />
-
-            </LinearLayout>
 
             <TextView
                 android:id="@+id/tv_playing_info"
@@ -450,4 +371,87 @@
 
         </LinearLayout>
     </ScrollView>
+
+    <!-- ПЛЕЕР (ФИКСИРОВАН ВНИЗУ) -->
+    <LinearLayout
+        android:id="@+id/ll_player"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="15dp"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="16dp"
+        android:visibility="gone"
+        android:weightSum="4">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_play"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:contentDescription="@string/play"
+            android:minWidth="0dp"
+            android:text=""
+            app:backgroundTint="@color/purple_500"
+            app:cornerRadius="24dp"
+            app:icon="@drawable/ic_play"
+            app:iconGravity="textStart"
+            app:iconPadding="0dp"
+            app:iconSize="24dp"
+            app:iconTint="@color/white" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_pause"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:contentDescription="@string/pause"
+            android:minWidth="0dp"
+            android:text=""
+            app:backgroundTint="@color/purple_500"
+            app:cornerRadius="24dp"
+            app:icon="@drawable/ic_pause"
+            app:iconGravity="textStart"
+            app:iconPadding="0dp"
+            app:iconSize="24dp"
+            app:iconTint="@color/white" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_stop"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:contentDescription="@string/stop"
+            android:minWidth="0dp"
+            android:text=""
+            app:backgroundTint="@color/purple_500"
+            app:cornerRadius="24dp"
+            app:icon="@drawable/ic_stop"
+            app:iconGravity="textStart"
+            app:iconPadding="0dp"
+            app:iconSize="24dp"
+            app:iconTint="@color/white" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_next"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:contentDescription="@string/next"
+            android:minWidth="0dp"
+            android:text=""
+            app:backgroundTint="@color/purple_500"
+            app:cornerRadius="24dp"
+            app:icon="@drawable/ic_next"
+            app:iconGravity="textStart"
+            app:iconPadding="0dp"
+            app:iconSize="24dp"
+            app:iconTint="@color/white" />
+
+    </LinearLayout>
+
 </LinearLayout>

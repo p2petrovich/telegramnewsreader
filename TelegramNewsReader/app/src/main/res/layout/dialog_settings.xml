@@ -14,6 +14,41 @@
         android:layout_marginBottom="16dp"
         android:textColor="?attr/colorOnSurface" />
 
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Цветовая тема"
+        android:textSize="16sp"
+        android:layout_marginBottom="8dp"
+        android:textColor="?attr/colorOnSurface" />
+
+    <RadioGroup
+        android:id="@+id/rg_color_theme"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginBottom="16dp">
+
+        <RadioButton
+            android:id="@+id/rb_theme_purple"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Фиолетовая (темная)" />
+
+        <RadioButton
+            android:id="@+id/rb_theme_teal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Бирюзовая (темная)" />
+
+        <RadioButton
+            android:id="@+id/rb_theme_light"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Светлая" />
+
+    </RadioGroup>
+
     <Button
         android:id="@+id/btn_manage_presets_settings"
         android:layout_width="match_parent"
@@ -59,6 +94,22 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="О программе"
+        android:layout_marginBottom="8dp"
+        style="@style/Widget.Material3.Button" />
+
+    <Button
+        android:id="@+id/btn_export_settings"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Экспорт настроек в файл"
+        android:layout_marginBottom="8dp"
+        style="@style/Widget.Material3.Button" />
+
+    <Button
+        android:id="@+id/btn_import_settings"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Импорт настроек из файла"
         style="@style/Widget.Material3.Button" />
 
 </LinearLayout>

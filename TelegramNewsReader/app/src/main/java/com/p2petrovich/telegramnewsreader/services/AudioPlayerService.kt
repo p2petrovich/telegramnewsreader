@@ -31,6 +31,7 @@ class AudioPlayerService : Service() {
         const val ACTION_PAUSE = "player.PAUSE"
         const val ACTION_STOP = "player.STOP"
         const val ACTION_NEXT = "player.NEXT"
+        const val ACTION_REQUEST_STATUS = "player.REQUEST_STATUS"
 
         const val EXTRA_FILE_PATHS = "extra.FILE_PATHS"
         const val EXTRA_START_INDEX = "extra.START_INDEX"
@@ -84,6 +85,7 @@ class AudioPlayerService : Service() {
                 ACTION_PAUSE -> { if (throttle()) return START_NOT_STICKY; pause() }
                 ACTION_STOP -> { stopServiceSafely(); return START_NOT_STICKY }
                 ACTION_NEXT -> { if (throttle()) return START_NOT_STICKY; playNext() }
+                ACTION_REQUEST_STATUS -> { sendProgress(computeProgress().first, computeProgress().second, isActuallyPlaying()) }
             }
             startForeground(NOTIFICATION_ID, buildNotification())
         } catch (e: Exception) { Log.e(TAG, "onStartCommand exception", e) }
