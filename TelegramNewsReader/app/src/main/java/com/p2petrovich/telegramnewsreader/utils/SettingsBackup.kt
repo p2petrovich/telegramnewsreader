@@ -2,7 +2,10 @@ package com.p2petrovich.telegramnewsreader.utils
 
 import android.content.Context
 import android.os.Environment
+import com.p2petrovich.telegramnewsreader.db.AppDatabase
 import com.p2petrovich.telegramnewsreader.models.ChannelPreset
+import com.p2petrovich.telegramnewsreader.models.TelegramChannel
+import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -10,7 +13,6 @@ import java.io.File
 object SettingsBackup {
     private const val BACKUP_FILE_NAME = "telegram_news_backup.json"
 
-    // Сохраняем в папку Downloads на внешнем хранилище, чтобы файл остался после удаления приложения
     private fun getBackupFile(): File {
         val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         if (!downloadsDir.exists()) {
@@ -22,46 +24,37 @@ object SettingsBackup {
     fun exportToJson(context: Context): String {
         val json = JSONObject()
 
-        // Basic settings
         json.put("is_authorized", PreferenceManager.isAuthorized(context))
         json.put("phone_number", PreferenceManager.getPhoneNumber(context) ?: "")
 
-        // TTS settings
         json.put("tts_voice_name", PreferenceManager.getTtsVoiceName(context) ?: "")
         json.put("tts_pitch", PreferenceManager.getTtsPitch(context))
         json.put("tts_rate", PreferenceManager.getTtsRate(context))
 
-        // Hidden channels (usernames)
         val hiddenUsernamesArray = JSONArray()
         PreferenceManager.getHiddenUsernames(context).forEach { hiddenUsernamesArray.put(it) }
         json.put("hidden_usernames", hiddenUsernamesArray)
 
-        // Hidden channels (ids)
         val hiddenIdsArray = JSONArray()
         PreferenceManager.getHiddenIds(context).forEach { hiddenIdsArray.put(it) }
         json.put("hidden_ids", hiddenIdsArray)
 
-        // Hidden id title map
         val hiddenIdTitleMap = JSONObject()
         PreferenceManager.getHiddenIdTitleMap(context).forEach { (id, title) ->
             hiddenIdTitleMap.put(id.toString(), title)
         }
         json.put("hidden_id_title_map", hiddenIdTitleMap)
 
-        // Favorite channels
         val favoriteChannelsArray = JSONArray()
         PreferenceManager.getFavoriteChannelIds(context).forEach { favoriteChannelsArray.put(it.toString()) }
         json.put("favorite_channels", favoriteChannelsArray)
 
-        // Color theme
         json.put("color_theme", PreferenceManager.getColorTheme(context))
 
-        // Player state
         json.put("player_paths", JSONArray(PreferenceManager.getPlaylistPaths(context)))
         json.put("player_index", PreferenceManager.getPlayerIndex(context))
         json.put("player_is_playing", PreferenceManager.getPlayerIsPlaying(context))
 
-        // Presets
         val presets = PresetManager.getAllPresets(context)
         val presetsArray = JSONArray()
         presets.forEach { preset ->
@@ -77,17 +70,30 @@ object SettingsBackup {
         }
         json.put("presets", presetsArray)
 
-        // Active preset
         PresetManager.getActivePresetId(context)?.let {
             json.put("active_preset_id", it)
         }
 
-        // Last selection
         val lastSelectedIds = PresetManager.getLastSelectedIds(context)
         val lastSelectedArray = JSONArray()
         lastSelectedIds.forEach { lastSelectedArray.put(it.toString()) }
         json.put("last_selected_ids", lastSelectedArray)
         json.put("last_time_period_index", PresetManager.getLastTimePeriodIndex(context))
+
+        val db = AppDatabase.getInstance(context)
+        val channels = runBlocking { db.channelDao().getAll() }
+        val channelsArray = JSONArray()
+        channels.forEach { channel ->
+            val channelObj = JSONObject()
+            channelObj.put("id", channel.id)
+            channelObj.put("name", channel.name)
+            channelObj.put("username", channel.username)
+            channelObj.put("category", channel.category)
+            channelObj.put("selected", channel.selected)
+            channelObj.put("lastSync", channel.lastSync)
+            channelsArray.put(channelObj)
+        }
+        json.put("channels", channelsArray)
 
         return json.toString(4)
     }
@@ -108,7 +114,6 @@ object SettingsBackup {
         return try {
             val json = JSONObject(jsonString)
 
-            // Basic settings
             if (json.has("is_authorized")) {
                 PreferenceManager.setAuthorized(context, json.getBoolean("is_authorized"))
             }
@@ -116,7 +121,6 @@ object SettingsBackup {
                 PreferenceManager.savePhoneNumber(context, json.getString("phone_number"))
             }
 
-            // TTS settings
             if (json.has("tts_voice_name") && json.getString("tts_voice_name").isNotEmpty()) {
                 PreferenceManager.saveTtsVoiceName(context, json.getString("tts_voice_name"))
             }
@@ -127,7 +131,6 @@ object SettingsBackup {
                 PreferenceManager.saveTtsRate(context, json.getDouble("tts_rate").toFloat())
             }
 
-            // Hidden channels (usernames)
             if (json.has("hidden_usernames")) {
                 val arr = json.getJSONArray("hidden_usernames")
                 val set = mutableSetOf<String>()
@@ -137,7 +140,6 @@ object SettingsBackup {
                 PreferenceManager.saveHiddenUsernames(context, set)
             }
 
-            // Hidden channels (ids)
             if (json.has("hidden_ids")) {
                 val arr = json.getJSONArray("hidden_ids")
                 val set = mutableSetOf<String>()
@@ -147,7 +149,6 @@ object SettingsBackup {
                 PreferenceManager.saveHiddenIds(context, set)
             }
 
-            // Hidden id title map
             if (json.has("hidden_id_title_map")) {
                 val obj = json.getJSONObject("hidden_id_title_map")
                 val map = mutableMapOf<Long, String>()
@@ -158,7 +159,6 @@ object SettingsBackup {
                 PreferenceManager.saveHiddenIdTitleMap(context, map)
             }
 
-            // Favorite channels
             if (json.has("favorite_channels")) {
                 val arr = json.getJSONArray("favorite_channels")
                 val set = mutableSetOf<Long>()
@@ -168,12 +168,10 @@ object SettingsBackup {
                 PreferenceManager.saveFavoriteChannelIds(context, set)
             }
 
-            // Color theme
             if (json.has("color_theme")) {
                 PreferenceManager.saveColorTheme(context, json.getString("color_theme"))
             }
 
-            // Player state
             if (json.has("player_paths")) {
                 val arr = json.getJSONArray("player_paths")
                 val list = mutableListOf<String>()
@@ -189,7 +187,6 @@ object SettingsBackup {
                 PreferenceManager.savePlayerIsPlaying(context, json.getBoolean("player_is_playing"))
             }
 
-            // Presets
             if (json.has("presets")) {
                 val presetsArray = json.getJSONArray("presets")
                 val presets = mutableListOf<ChannelPreset>()
@@ -210,16 +207,13 @@ object SettingsBackup {
                         )
                     )
                 }
-                // Сохраняем пресеты
                 presets.forEach { PresetManager.savePreset(context, it) }
             }
 
-            // Active preset
             if (json.has("active_preset_id")) {
                 PresetManager.setActivePresetId(context, json.getString("active_preset_id"))
             }
 
-            // Last selection
             if (json.has("last_selected_ids")) {
                 val arr = json.getJSONArray("last_selected_ids")
                 val ids = mutableSetOf<Long>()
@@ -230,6 +224,29 @@ object SettingsBackup {
                     json.getInt("last_time_period_index")
                 } else 2
                 PresetManager.saveLastSelection(context, ids, timePeriodIndex)
+            }
+
+            if (json.has("channels")) {
+                val channelsArray = json.getJSONArray("channels")
+                val channels = mutableListOf<TelegramChannel>()
+                for (i in 0 until channelsArray.length()) {
+                    val obj = channelsArray.getJSONObject(i)
+                    channels.add(
+                        TelegramChannel(
+                            id = obj.getLong("id"),
+                            name = obj.getString("name"),
+                            username = obj.getString("username"),
+                            category = obj.getString("category"),
+                            selected = obj.optBoolean("selected", false),
+                            lastSync = obj.optLong("lastSync", 0L)
+                        )
+                    )
+                }
+                val db = AppDatabase.getInstance(context)
+                runBlocking {
+                    db.channelDao().deleteAll()
+                    db.channelDao().insertAll(channels)
+                }
             }
 
             true

@@ -10,6 +10,12 @@ interface ChannelDao {
     @Insert
     fun insert(channel: TelegramChannel)
 
+    @Insert
+    fun insertAll(channels: List<TelegramChannel>)
+
     @Query("SELECT * FROM channels")
     fun getAll(): List<TelegramChannel>
+
+    @Query("DELETE FROM channels")
+    fun deleteAll()
 }
