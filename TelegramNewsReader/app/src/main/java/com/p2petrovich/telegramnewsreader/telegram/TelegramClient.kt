@@ -6,12 +6,10 @@ import org.drinkless.tdlib.Client
 import org.drinkless.tdlib.TdApi
 import com.p2petrovich.telegramnewsreader.ApiConfig
 import com.p2petrovich.telegramnewsreader.models.Channel
-import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.CompletableDeferred
 import kotlin.coroutines.resume
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 import org.threeten.bp.Instant
@@ -42,6 +40,12 @@ class TelegramClient(private val context: Context) {
     var onClientReady: (() -> Unit)? = null
     var onPasswordRequired: (() -> Unit)? = null
     private var onLoggedOut: (() -> Unit)? = null
+
+    companion object {
+        // Разделитель между временем и текстом сообщения.
+        // Используется em-dash (U+2014). На него завязаны регексы в TextProcessor.
+        private const val TIME_SEPARATOR = " \u2014 "
+    }
 
     init {
         Log.d(TAG, "Constructor; holder=${System.identityHashCode(this)}")
@@ -244,7 +248,7 @@ class TelegramClient(private val context: Context) {
     }
 
     /**
-     * ПАТЧ 1: Рекурсивная пагинация + caption'ы из медиа + префикс HH:mm.
+     * ПАТЧ 1: рекурсивная пагинация + caption'ы из медиа + префикс HH:mm — текст.
      */
     suspend fun getChannelMessagesPaginated(
         channelId: Long,
@@ -313,7 +317,8 @@ class TelegramClient(private val context: Context) {
                             }
 
                             if (!text.isNullOrBlank()) {
-                                messages.add("$time — $text")
+                                // Формат "HH:mm — текст" — на этот разделитель завязаны фильтры TextProcessor
+                                messages.add(time + TIME_SEPARATOR + text)
                             }
                         }
 
@@ -323,7 +328,7 @@ class TelegramClient(private val context: Context) {
                         if (reachedDateLimit || loadedTotal >= maxMessages || page.size < 100) {
                             resumeOnce(messages)
                         } else {
-                            // КЛЮЧЕВОЕ: рекурсивный запрос следующей страницы
+                            // Рекурсивный запрос следующей страницы
                             loadPage(lastId)
                         }
                     }
