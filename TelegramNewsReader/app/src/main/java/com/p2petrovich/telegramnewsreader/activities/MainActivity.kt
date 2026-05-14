@@ -49,6 +49,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity() {
 
@@ -168,10 +169,13 @@ class MainActivity : AppCompatActivity() {
         stopTimer()
         startTime = System.currentTimeMillis()
         progressExecutor = Executors.newSingleThreadScheduledExecutor()
+        progressExecutor?.scheduleWithFixedDelay({
+            runOnUiThread { updateETA() }
+        }, 0, 1, TimeUnit.SECONDS)
     }
 
     private fun stopTimer() {
-        progressExecutor?.shutdownNow()
+        progressExecutor?.shutdown()
         progressExecutor = null
     }
 
@@ -188,10 +192,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showProgressPanels() {
-        binding.progressBarDetailed.visibility = View.VISIBLE
-        binding.llPipelineStatus.visibility = View.VISIBLE
-        binding.llNewsPreview.visibility = View.VISIBLE
-        binding.llChannelProgress.visibility = View.VISIBLE
+        binding.cardCollectionProgress.visibility = View.VISIBLE
+        binding.cardNewsPreview.visibility = View.VISIBLE
+        binding.cardChannelProgress.visibility = View.VISIBLE
     }
 
     private fun resetProgressCounters() {
@@ -201,46 +204,111 @@ class MainActivity : AppCompatActivity() {
         binding.tvProgressPercentage.text = "0%"
         binding.tvDetailedStatus.text = ""
         binding.tvPipelineStatus.text = ""
+        binding.tvEta.text = "Осталось: расчёт..."
+        binding.tvNewsPreview.text = "Новости еще не собраны..."
+        binding.llChannelProgressList.removeAllViews()
+        binding.tvSynthesisStatus.visibility = View.GONE
     }
 
     private fun updatePipelineStatus() {
         val parts = mutableListOf<String>()
-        if (lastTotalCollected > 0) parts.add("Собрано: $lastTotalCollected")
-        if (lastAfterDedup > 0) parts.add("После дедупликации: $lastAfterDedup")
-        if (lastAfterFilter > 0) parts.add("После фильтрации: $lastAfterFilter")
-        if (lastToSynthesize > 0) parts.add("К синтезу: $lastToSynthesize")
-        if (lastSynthesized > 0) parts.add("Синтезировано: $lastSynthesized")
-        binding.tvPipelineStatus.text = parts.joinToString(" | ")
+        parts.add("Собрано: $lastTotalCollected")
+
+        if (lastAfterDedup > 0 && lastAfterDedup < lastTotalCollected) {
+            val removed = lastTotalCollected - lastAfterDedup
+            parts.add("дубли: -$removed")
+        }
+        if (lastAfterFilter > 0) {
+            val base = if (lastAfterDedup > 0) lastAfterDedup else lastTotalCollected
+            if (lastAfterFilter < base) {
+                val removed = base - lastAfterFilter
+                parts.add("спам: -$removed")
+            }
+        }
+        if (lastToSynthesize > 0) {
+            val base = when {
+                lastAfterFilter > 0 -> lastAfterFilter
+                lastAfterDedup > 0 -> lastAfterDedup
+                else -> lastTotalCollected
+            }
+            if (lastToSynthesize < base) {
+                val removed = base - lastToSynthesize
+                parts.add("мусор: -$removed")
+            }
+            parts.add("к озвучке: $lastToSynthesize")
+        }
+
+        binding.tvPipelineStatus.text = parts.joinToString(" → ")
+
+        if (lastToSynthesize > 0) {
+            binding.tvSynthesisStatus.visibility = View.VISIBLE
+            binding.tvSynthesisStatus.text = "Озвучено: $lastSynthesized из $lastToSynthesize"
+        } else {
+            binding.tvSynthesisStatus.visibility = View.GONE
+        }
     }
 
     private fun updateNewsPreview(newsList: List<String>) {
-        val text = if (newsList.size > 5) {
-            newsList.take(5).joinToString("\n") + "\n...и ещё ${newsList.size - 5}"
-        } else {
-            newsList.joinToString("\n")
+        if (newsList.isEmpty()) {
+            binding.tvNewsPreview.text = "Новости еще не собраны..."
+            return
         }
-        binding.tvNewsPreview.text = text
+        val previewText = newsList.take(3).joinToString("\n• ") {
+            it.replace(Regex("^\\d{2}:\\d{2}\\s*—\\s*"), "").take(60) + "..."
+        }
+        binding.tvNewsPreview.text = "• $previewText"
     }
 
     private fun updateChannelProgress(channels: List<Channel>) {
-        val total = channels.size
-        val processed = channels.count { it.newMessagesCount > 0 }
-        binding.tvChannelProgress.text = getString(R.string.channels_processed, processed, total)
+        binding.llChannelProgressList.removeAllViews()
+        channels.forEach { channel ->
+            val text = if (channel.newMessagesCount > 0)
+                "Новостей: ${channel.newMessagesCount}" else "Обработка..."
+            binding.llChannelProgressList.addView(
+                android.widget.TextView(this).apply {
+                    this.text = "${channel.title}: $text"
+                    textSize = 12f
+                    setPadding(0, 4, 0, 4)
+                }
+            )
+        }
     }
 
     private fun updateETA() {
-        if (currentProgressStep <= 0 || totalProgressSteps <= 0) return
-        val elapsed = System.currentTimeMillis() - startTime
-        val etaMs = if (currentProgressStep > 0) {
-            (elapsed.toDouble() / currentProgressStep * (totalProgressSteps - currentProgressStep)).toLong()
-        } else 0L
+        val elapsedMs = System.currentTimeMillis() - startTime
+        val elapsedSec = elapsedMs / 1000
 
-        if (etaMs > 0) {
-            val etaMin = etaMs / 1000 / 60
-            val etaSec = (etaMs / 1000) % 60
-            val etaText = if (etaMin > 0) "~${etaMin} мин $etaSec сек" else "~${etaSec} сек"
-            binding.tvEta.text = getString(R.string.time_remaining, etaText)
+        if (elapsedSec < 3 || currentProgressStep <= 0 || totalProgressSteps <= 0) {
+            binding.tvEta.text = "Осталось: расчёт..."
+            return
         }
+
+        val remainingSteps = totalProgressSteps - currentProgressStep
+
+        if (remainingSteps <= 0) {
+            binding.tvEta.text = "Осталось: завершение..."
+            return
+        }
+
+        val msPerStep = elapsedMs.toDouble() / currentProgressStep
+        val remainingSec = (msPerStep * remainingSteps / 1000).toLong()
+
+        val etaText = when {
+            remainingSec <= 0 -> "Осталось: завершение..."
+            remainingSec < 60 -> "Осталось: ~$remainingSec сек"
+            remainingSec < 3600 -> {
+                val min = remainingSec / 60
+                val sec = remainingSec % 60
+                "Осталось: ~${min} мин ${sec} сек"
+            }
+            else -> {
+                val hours = remainingSec / 3600
+                val min = (remainingSec % 3600) / 60
+                "Осталось: ~${hours} ч ${min} мин"
+            }
+        }
+
+        binding.tvEta.text = etaText
     }
 
     // ===================== Инициализация =====================
@@ -943,7 +1011,7 @@ class MainActivity : AppCompatActivity() {
         binding.tvDetailedStatus.text = status
         val percentage = if (total > 0) (progress * 100 / total).coerceIn(0, 100) else 0
         binding.progressBarDetailed.progress = percentage
-        binding.tvProgressPercentage.text = getString(R.string.percentage, percentage)
+        binding.tvProgressPercentage.text = "$percentage%"
     }
 
     private fun updateChannelStats() {
@@ -972,7 +1040,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateTimePeriodButton() {
-        binding.btnTimePeriod.text = getString(R.string.time_period, timePeriods[currentTimePeriodIndex])
+        binding.btnTimePeriod.text = "Период: ${timePeriods[currentTimePeriodIndex]}"
     }
 
     private fun showSettingsDialog() {
@@ -1081,7 +1149,7 @@ class MainActivity : AppCompatActivity() {
         val versionName = try {
             packageManager.getPackageInfo(packageName, 0).versionName
         } catch (_: Exception) { "1.0" }
-        dialogView.findViewById<TextView>(R.id.tvVersion).text = getString(R.string.version, versionName)
+        dialogView.findViewById<TextView>(R.id.tvVersion).text = "Версия: $versionName"
         AlertDialog.Builder(this)
             .setView(dialogView)
             .setPositiveButton("Закрыть", null)
