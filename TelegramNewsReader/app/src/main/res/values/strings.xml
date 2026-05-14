@@ -21,4 +21,9 @@
     <string name="preset_saved">Набор сохранён</string>
     <string name="no_presets">Нет сохранённых наборов</string>
     <string name="deselect_all">Сбросить</string>
+    <string name="channels_processed">Каналов обработано: %1$d из %2$d</string>
+    <string name="time_remaining">Осталось: %1$s</string>
+    <string name="percentage">%1$d%%</string>
+    <string name="time_period">Период: %1$s</string>
+    <string name="version">Версия: %1$s</string>
 </resources>

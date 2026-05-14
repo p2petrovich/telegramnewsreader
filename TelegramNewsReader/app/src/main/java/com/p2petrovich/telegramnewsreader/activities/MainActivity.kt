@@ -49,7 +49,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
-import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity() {
 
@@ -109,7 +108,7 @@ class MainActivity : AppCompatActivity() {
                 if (savedDurationInfo != null && text.isNotEmpty()) {
                     finalText = "$text\n$savedDurationInfo"
                 } else if (text.isEmpty() && savedDurationInfo != null) {
-                    finalText = savedDurationInfo!!
+                    finalText = savedDurationInfo ?: ""
                 }
                 binding.tvStatus.text = finalText
 
@@ -226,7 +225,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateChannelProgress(channels: List<Channel>) {
         val total = channels.size
         val processed = channels.count { it.newMessagesCount > 0 }
-        binding.tvChannelProgress.text = "Каналов обработано: $processed из $total"
+        binding.tvChannelProgress.text = getString(R.string.channels_processed, processed, total)
     }
 
     private fun updateETA() {
@@ -240,7 +239,7 @@ class MainActivity : AppCompatActivity() {
             val etaMin = etaMs / 1000 / 60
             val etaSec = (etaMs / 1000) % 60
             val etaText = if (etaMin > 0) "~${etaMin} мин $etaSec сек" else "~${etaSec} сек"
-            binding.tvEta.text = "Осталось: $etaText"
+            binding.tvEta.text = getString(R.string.time_remaining, etaText)
         }
     }
 
@@ -672,7 +671,8 @@ class MainActivity : AppCompatActivity() {
                     val hiddenUsernames = PreferenceManager.getHiddenUsernames(this)
                     val hiddenIds = PreferenceManager.getHiddenIds(this)
                     val filtered = channels.filterNot { ch ->
-                        (!ch.username.isNullOrBlank() && hiddenUsernames.contains(ch.username!!)) ||
+                        val username = ch.username
+                        (!username.isNullOrBlank() && hiddenUsernames.contains(username)) ||
                                 hiddenIds.contains(ch.id.toString())
                     }
 
@@ -774,7 +774,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 runOnUiThread { handleCollectionResult(audio, durationMin) }
-            } catch (e: kotlinx.coroutines.CancellationException) {
+            } catch (_: kotlinx.coroutines.CancellationException) {
                 Log.d("MainActivity", "News collection cancelled")
                 stopTimer()
                 runOnUiThread {
@@ -943,7 +943,7 @@ class MainActivity : AppCompatActivity() {
         binding.tvDetailedStatus.text = status
         val percentage = if (total > 0) (progress * 100 / total).coerceIn(0, 100) else 0
         binding.progressBarDetailed.progress = percentage
-        binding.tvProgressPercentage.text = "$percentage%"
+        binding.tvProgressPercentage.text = getString(R.string.percentage, percentage)
     }
 
     private fun updateChannelStats() {
@@ -972,7 +972,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateTimePeriodButton() {
-        binding.btnTimePeriod.text = "Период: ${timePeriods[currentTimePeriodIndex]}"
+        binding.btnTimePeriod.text = getString(R.string.time_period, timePeriods[currentTimePeriodIndex])
     }
 
     private fun showSettingsDialog() {
@@ -1081,7 +1081,7 @@ class MainActivity : AppCompatActivity() {
         val versionName = try {
             packageManager.getPackageInfo(packageName, 0).versionName
         } catch (_: Exception) { "1.0" }
-        dialogView.findViewById<TextView>(R.id.tvVersion).text = "Версия: $versionName"
+        dialogView.findViewById<TextView>(R.id.tvVersion).text = getString(R.string.version, versionName)
         AlertDialog.Builder(this)
             .setView(dialogView)
             .setPositiveButton("Закрыть", null)
@@ -1122,9 +1122,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun hideChannel(channel: Channel) {
-        if (!channel.username.isNullOrBlank()) {
+        val username = channel.username
+        if (!username.isNullOrBlank()) {
             val set = PreferenceManager.getHiddenUsernames(this)
-            set.add(channel.username!!)
+            set.add(username)
             PreferenceManager.saveHiddenUsernames(this, set)
         } else {
             val set = PreferenceManager.getHiddenIds(this)
@@ -1186,7 +1187,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setDefaultVoiceOnFirstLaunch() {
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
         if (prefs.getBoolean("is_first_app_launch", true)) {
             if (PreferenceManager.getTtsVoiceName(this) == null) {
                 PreferenceManager.saveTtsVoiceName(this, "ru-ru-x-ruf-network")
