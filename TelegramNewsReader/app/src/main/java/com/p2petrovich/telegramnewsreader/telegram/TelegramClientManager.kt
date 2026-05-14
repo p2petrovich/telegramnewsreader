@@ -32,11 +32,6 @@ object TelegramClientManager {
         try { File(context.filesDir, ApiConfig.FILES_DIRECTORY).deleteRecursively() } catch (_: Exception) {}
     }
 
-    fun clearClient() {
-        telegramClient?.close()
-        telegramClient = null
-    }
-
     fun getTelegramClient(context: Context): TelegramClient {
         return telegramClient ?: synchronized(this) {
             telegramClient ?: TelegramClient(context.applicationContext).also {
