@@ -189,11 +189,25 @@ class MainActivity : AppCompatActivity() {
         currentRealNewsCount = 0
         currentNewsFileIndices = emptySet()
         savedDurationInfo = null
+        try {
+            startService(
+                Intent(this, AudioPlayerService::class.java).setAction(AudioPlayerService.ACTION_STOP)
+            )
+        } catch (_: Exception) {}
+        binding.llPlayer.visibility = View.GONE
+        binding.btnPlay.isEnabled = false
+        binding.btnNext.isEnabled = false
+        binding.btnPause.isEnabled = false
+        binding.tvStatus.text = ""
+        channelAdapter.getAllChannels().forEach { it.newMessagesCount = 0 }
+        channelAdapter.notifyDataSetChanged()
     }
 
     private fun showProgressPanels() {
         binding.cardCollectionProgress.visibility = View.VISIBLE
+        binding.llNewsPreview.visibility = View.VISIBLE
         binding.cardNewsPreview.visibility = View.VISIBLE
+        binding.llChannelProgress.visibility = View.VISIBLE
         binding.cardChannelProgress.visibility = View.VISIBLE
     }
 
@@ -204,6 +218,7 @@ class MainActivity : AppCompatActivity() {
         binding.tvProgressPercentage.text = "0%"
         binding.tvDetailedStatus.text = ""
         binding.tvPipelineStatus.text = ""
+        binding.llPipelineStatus.visibility = View.GONE
         binding.tvEta.text = "Осталось: расчёт..."
         binding.tvNewsPreview.text = "Новости еще не собраны..."
         binding.llChannelProgressList.removeAllViews()
@@ -211,6 +226,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updatePipelineStatus() {
+        binding.llPipelineStatus.visibility = View.VISIBLE
         val parts = mutableListOf<String>()
         parts.add("Собрано: $lastTotalCollected")
 
@@ -260,6 +276,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateChannelProgress(channels: List<Channel>) {
+        val done = channels.count { it.newMessagesCount > 0 }
+        binding.tvChannelProgress.text = "Прогресс по каналам: $done из ${channels.size}"
         binding.llChannelProgressList.removeAllViews()
         channels.forEach { channel ->
             val text = if (channel.newMessagesCount > 0)

@@ -9,16 +9,15 @@ object TextProcessor {
 
     private val PROMO_PATTERNS = listOf(
         Regex("^[🔹🔸🐚].*", RegexOption.IGNORE_CASE),
-        Regex("^Фото:\\s*$", RegexOption.IGNORE_CASE),           // только "Фото:" без текста
-        Regex("^Видео:\\s*$", RegexOption.IGNORE_CASE),           // только "Видео:" без текста
+        Regex("^Фото:\\s*$", RegexOption.IGNORE_CASE),
+        Regex("^Видео:\\s*$", RegexOption.IGNORE_CASE),
         Regex("^\\[.*]$"),
         Regex("^\\d{2}:\\d{2}\\s*—\\s*\\[.*]$"),
         Regex("^перейти в канал.*", RegexOption.IGNORE_CASE),
         Regex("^наш tg.*", RegexOption.IGNORE_CASE),
         Regex("^читать[ь]? больше.*", RegexOption.IGNORE_CASE),
-        Regex("^все\\s+наши\\s+каналы\\b.*", RegexOption.IGNORE_CASE),  // только в начале строки
+        Regex("^все\\s+наши\\s+каналы\\b.*", RegexOption.IGNORE_CASE),
     )
-
 
     private val URL_PATTERN = Regex("https?://\\S+")
     private val HASHTAG_MENTION_PATTERN = Regex("(^|\\s)[#@][\\p{L}0-9_]+")
@@ -34,11 +33,9 @@ object TextProcessor {
         Regex("(?i)[\\s\\p{So}\\p{Sk}]*[\\\\/|•·—–-]\\s*все\\s+наши\\s+каналы\\b.*$"),
         Regex("(?i)[\\s\\p{So}\\p{Sk}]*[\\\\/|•·—–-]\\s*зеркал[оа]\\b.*$"),
         Regex("(?im)^.*\\bподпис(аться|ывай(ся|тесь)?|ка)\\b.*(\\||/|•|—|–).*$"),
-        // Новые: зеркало/каналы в конце сообщения (отдельной строкой)
         Regex("(?im)^\\s*[\\p{So}\\p{Sk}]*\\s*зеркал[оа]\\s*(канала|нашего)?\\b.*$"),
         Regex("(?im)^\\s*[\\p{So}\\p{Sk}]*\\s*все\\s+наши\\s+каналы\\b.*$"),
     )
-
 
     private val TTS_URL_PATTERN = Regex("(https?://|www\\.)\\S+")
     private val TTS_HASHTAG_PATTERN = Regex("(^|\\s)[#@][\\p{L}0-9_]+")
@@ -64,8 +61,15 @@ object TextProcessor {
     private val TTS_MULTI_NEWLINE = Regex("\\n{3,}")
 
     private val TRIVIAL_PATTERN = Regex("^(фото|видео|аудио|ссылка|репост)\\b.*$", RegexOption.IGNORE_CASE)
-    private val SUBSCRIBE_CHECK_PATTERN = Regex("(?i)^.*\\b(подписывай(ся|тесь)?|подписка)\\b.*$")
-    private val SPAM_CHECK_PATTERN = Regex("(?i)^.*(лайк|репост|поделись|нажми|кликни|переходи)\\b.*$")
+
+    // ПАТЧ 2: смягчённые проверки — удаляем сообщение целиком только если ОНО САМО является
+    // коротким призывом подписаться/лайкнуть, а не если просто содержит такое слово где-то внутри.
+    private val SUBSCRIBE_CHECK_PATTERN = Regex(
+        "(?i)^\\s*(?:\\d{2}:\\d{2}\\s*—\\s*)?(подписывай(ся|тесь)?|подпишись|подписка на канал)\\b[\\s\\S]{0,80}$"
+    )
+    private val SPAM_CHECK_PATTERN = Regex(
+        "(?i)^\\s*(?:\\d{2}:\\d{2}\\s*—\\s*)?(лайк|репост|поделись|нажми|кликни|переходи по ссылке)\\b[\\s\\S]{0,60}$"
+    )
 
     // ============ Фильтрация ============
 
@@ -354,6 +358,10 @@ object TextProcessor {
         return t.trim()
     }
 
+    /**
+     * ПАТЧ 2: dropTrivial теперь удаляет сообщение целиком только если ОНО САМО
+     * является коротким призывом, а не если просто содержит такое слово.
+     */
     fun dropTrivial(texts: List<String>): List<String> {
         var droppedShort = 0
         var droppedTrivial = 0
@@ -366,25 +374,30 @@ object TextProcessor {
             val trimmed = text.trim()
             val preview = trimmed.take(100).replace("\n", " | ")
 
+            // "Чистая" версия для проверки длины — без префикса HH:mm
+            val withoutTimePrefix = trimmed.replace(Regex("^\\d{2}:\\d{2}\\s*—\\s*"), "").trim()
+
             when {
-                trimmed.length < 8 -> {
+                withoutTimePrefix.length < 8 -> {
                     droppedShort++
                     Log.w(TAG, "DROP [<8chars]: $preview")
                     false
                 }
-                TRIVIAL_PATTERN.containsMatchIn(trimmed) -> {
+                TRIVIAL_PATTERN.containsMatchIn(withoutTimePrefix) -> {
                     droppedTrivial++
                     Log.w(TAG, "DROP [trivial]: $preview")
                     false
                 }
-                SUBSCRIBE_CHECK_PATTERN.containsMatchIn(trimmed) -> {
+                // Удаляем только если ВСЁ сообщение — короткий призыв подписаться
+                SUBSCRIBE_CHECK_PATTERN.matches(trimmed) -> {
                     droppedSubscribe++
-                    Log.w(TAG, "DROP [subscribe]: $preview")
+                    Log.w(TAG, "DROP [subscribe_short]: $preview")
                     false
                 }
-                SPAM_CHECK_PATTERN.containsMatchIn(trimmed) -> {
+                // Удаляем только если ВСЁ сообщение — короткий спам-призыв
+                SPAM_CHECK_PATTERN.matches(trimmed) -> {
                     droppedSpam++
-                    Log.w(TAG, "DROP [spam_word]: $preview")
+                    Log.w(TAG, "DROP [spam_short]: $preview")
                     false
                 }
                 else -> true

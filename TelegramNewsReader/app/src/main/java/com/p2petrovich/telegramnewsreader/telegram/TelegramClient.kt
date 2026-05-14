@@ -108,7 +108,6 @@ class TelegramClient(private val context: Context) {
     }
 
     private fun setTdlibParameters() {
-        // Передаём параметры напрямую в SetTdlibParameters, т.к. TdlibParameters не существует как отдельный класс
         client?.send(TdApi.SetTdlibParameters(
             false, // useTestDc
             context.getDir("tdlib", Context.MODE_PRIVATE).absolutePath, // databaseDirectory
@@ -244,64 +243,100 @@ class TelegramClient(private val context: Context) {
         }
     }
 
-    suspend fun getChannelMessagesPaginated(channelId: Long, fromDate: Long): List<String> {
-        return try {
-            suspendCancellableCoroutine { continuation ->
-                val messages = mutableListOf<String>()
-                val isCancelled = AtomicBoolean(false)
+    /**
+     * ПАТЧ 1: Рекурсивная пагинация + caption'ы из медиа + префикс HH:mm.
+     */
+    suspend fun getChannelMessagesPaginated(
+        channelId: Long,
+        fromDate: Long,
+        maxMessages: Int = 3000
+    ): List<String> = suspendCancellableCoroutine { continuation ->
 
-                continuation.invokeOnCancellation {
-                    Log.d(TAG, "History canceled for channel $channelId")
-                    isCancelled.set(true)
-                }
+        if (!isInitialized || !isAuthorized || client == null) {
+            continuation.resume(emptyList())
+            return@suspendCancellableCoroutine
+        }
 
-                fun request(offset: Long) {
-                    if (isCancelled.get()) {
-                        return
-                    }
+        val messages = mutableListOf<String>()
+        val isCancelled = AtomicBoolean(false)
+        val isResumed = AtomicBoolean(false)
+        var loadedTotal = 0
+        val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
-                    client?.send(TdApi.GetChatHistory(channelId, offset, 0, 100, false)) { response ->
-                        if (isCancelled.get()) {
+        continuation.invokeOnCancellation {
+            Log.d(TAG, "History canceled for channel $channelId")
+            isCancelled.set(true)
+        }
+
+        fun resumeOnce(result: List<String>) {
+            if (isResumed.getAndSet(true)) return
+            if (continuation.isActive) continuation.resume(result)
+        }
+
+        fun loadPage(fromMessageId: Long) {
+            if (isCancelled.get() || isResumed.get()) return
+
+            client?.send(TdApi.GetChatHistory(channelId, fromMessageId, 0, 100, false)) { response ->
+                if (isCancelled.get() || isResumed.get()) return@send
+
+                when (response) {
+                    is TdApi.Messages -> {
+                        val page = response.messages
+                        if (page.isEmpty()) {
+                            resumeOnce(messages)
                             return@send
                         }
 
-                        when (response) {
-                            is TdApi.Messages -> {
-                                for (msg in response.messages) {
-                                    if (msg is TdApi.Message) {
-                                        val date = msg.date.toLong()
-                                        if (date < fromDate) {
-                                            if (!isCancelled.getAndSet(true)) {
-                                                continuation.resume(messages)
-                                            }
-                                            return@send
-                                        }
-                                        val content = msg.content
-                                        if (content is TdApi.MessageText) {
-                                            messages.add(content.text.text)
-                                        }
-                                    }
-                                }
-                                if (response.messages.size < 100) {
-                                    if (!isCancelled.getAndSet(true)) {
-                                        continuation.resume(messages)
-                                    }
-                                }
+                        var reachedDateLimit = false
+                        for (msg in page) {
+                            if (msg.date < fromDate) {
+                                reachedDateLimit = true
+                                break
                             }
-                            else -> {
-                                if (!isCancelled.getAndSet(true)) {
-                                    continuation.resume(messages)
-                                }
+
+                            val time = try {
+                                Instant.ofEpochSecond(msg.date.toLong())
+                                    .atZone(ZoneId.systemDefault())
+                                    .format(timeFormatter)
+                            } catch (_: Exception) {
+                                "??:??"
+                            }
+
+                            val text: String? = when (val content = msg.content) {
+                                is TdApi.MessageText      -> content.text.text.trim()
+                                is TdApi.MessagePhoto     -> content.caption?.text?.trim()
+                                is TdApi.MessageVideo     -> content.caption?.text?.trim()
+                                is TdApi.MessageDocument  -> content.caption?.text?.trim()
+                                is TdApi.MessageAnimation -> content.caption?.text?.trim()
+                                is TdApi.MessageAudio     -> content.caption?.text?.trim()
+                                else -> null
+                            }
+
+                            if (!text.isNullOrBlank()) {
+                                messages.add("$time — $text")
                             }
                         }
+
+                        loadedTotal += page.size
+                        val lastId = page.last().id
+
+                        if (reachedDateLimit || loadedTotal >= maxMessages || page.size < 100) {
+                            resumeOnce(messages)
+                        } else {
+                            // КЛЮЧЕВОЕ: рекурсивный запрос следующей страницы
+                            loadPage(lastId)
+                        }
                     }
+                    is TdApi.Error -> {
+                        Log.e(TAG, "GetChatHistory error: ${response.message}")
+                        resumeOnce(messages)
+                    }
+                    else -> resumeOnce(messages)
                 }
-                request(0)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting channel messages", e)
-            emptyList()
         }
+
+        loadPage(0)
     }
 
     fun logoutAndReset(callback: () -> Unit) {
@@ -323,14 +358,14 @@ class TelegramClient(private val context: Context) {
         return try {
             val startTime = System.currentTimeMillis()
             val timeoutMs = timeoutSec * 1000L
-            
+
             while (System.currentTimeMillis() - startTime < timeoutMs) {
                 if (isReady && authDeferred?.isCompleted == true) {
                     return true
                 }
                 Thread.sleep(100)
             }
-            
+
             false
         } catch (e: InterruptedException) {
             Log.e(TAG, "Interrupted while waiting for ready", e)
