@@ -108,23 +108,23 @@ class TelegramClient(private val context: Context) {
     }
 
     private fun setTdlibParameters() {
-        val params = TdApi.TdlibParameters().apply {
-            useTestDc = false
-            databaseDirectory = context.getDir("tdlib", Context.MODE_PRIVATE).absolutePath
-            filesDirectory = context.getDir("tdlib_files", Context.MODE_PRIVATE).absolutePath
-            useFileDatabase = true
-            useChatInfoDatabase = true
-            useMessageDatabase = true
-            useSecretChats = false
-            apiId = ApiConfig.TELEGRAM_API_ID
-            apiHash = ApiConfig.TELEGRAM_API_HASH
-            systemLanguageCode = "ru"
-            deviceModel = android.os.Build.MODEL
-            applicationVersion = "2.0"
-            enableStorageOptimizer = true
-            ignoreFileNames = false
-        }
-        client?.send(TdApi.SetTdlibParameters(params)) {}
+        // Передаём параметры напрямую в SetTdlibParameters, т.к. TdlibParameters не существует как отдельный класс
+        client?.send(TdApi.SetTdlibParameters(
+            false, // useTestDc
+            context.getDir("tdlib", Context.MODE_PRIVATE).absolutePath, // databaseDirectory
+            context.getDir("tdlib_files", Context.MODE_PRIVATE).absolutePath, // filesDirectory
+            null as ByteArray?, // databaseEncryptionKey
+            true, // useFileDatabase
+            true, // useChatInfoDatabase
+            true, // useMessageDatabase
+            false, // useSecretChats
+            ApiConfig.TELEGRAM_API_ID, // apiId
+            ApiConfig.TELEGRAM_API_HASH, // apiHash
+            "ru", // systemLanguageCode
+            android.os.Build.MODEL, // deviceModel
+            "2.0", // applicationVersion
+            android.os.Build.VERSION.RELEASE // systemVersion
+        )) {}
     }
 
     fun checkAuthState(): Boolean = isReady && isAuthorized
@@ -315,23 +315,19 @@ class TelegramClient(private val context: Context) {
     }
 
     fun close() {
-        client?.close()
+        client?.send(TdApi.Close()) { }
         client = null
     }
 
     private fun waitForReady(timeoutSec: Int): Boolean {
         return try {
-            // Используем отдельный поток для ожидания с timeout
             val startTime = System.currentTimeMillis()
             val timeoutMs = timeoutSec * 1000L
             
             while (System.currentTimeMillis() - startTime < timeoutMs) {
-                // Проверяем, готов ли клиент
                 if (isReady && authDeferred?.isCompleted == true) {
                     return true
                 }
-                
-                // Ждём небольшое время перед следующей проверкой
                 Thread.sleep(100)
             }
             

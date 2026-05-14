@@ -19,7 +19,11 @@ import java.io.File
 object SettingsBackup {
     const val BACKUP_FILE_NAME = "telegram_news_backup.json"
 
-    private fun getBackupFile(): File {
+    private fun getBackupFile(context: Context): File {
+        return File(context.filesDir, BACKUP_FILE_NAME)
+    }
+
+    private fun getDownloadsFile(): File {
         val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         if (!downloadsDir.exists()) {
             downloadsDir.mkdirs()
@@ -27,12 +31,15 @@ object SettingsBackup {
         return File(downloadsDir, BACKUP_FILE_NAME)
     }
 
-    @SuppressLint("ObsoleteSdkInt")
     fun backupFileExists(context: Context): Boolean {
+        // Сначала проверяем внутреннее хранилище
+        if (getBackupFile(context).exists()) return true
+
+        // Затем проверяем Downloads
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             backupFileExistsInMediaStore(context)
         } else {
-            getBackupFile().exists()
+            getDownloadsFile().exists()
         }
     }
 
@@ -132,11 +139,24 @@ object SettingsBackup {
         return try {
             val jsonString = exportToJson(context)
             val bytes = jsonString.toByteArray(Charsets.UTF_8)
+
+            // 1. Всегда сохраняем во внутреннее хранилище (надёжно)
+            saveToInternalStorage(context, bytes)
+
+            // 2. Дополнительно сохраняем в Downloads (для пользователя)
             saveFileToDownloads(context, bytes)
+
+            true
         } catch (e: Exception) {
             e.printStackTrace()
             false
         }
+    }
+
+    private fun saveToInternalStorage(context: Context, data: ByteArray) {
+        val backupFile = getBackupFile(context)
+        backupFile.parentFile?.mkdirs()
+        backupFile.writeBytes(data)
     }
 
     @SuppressLint("ObsoleteSdkInt")
@@ -151,6 +171,9 @@ object SettingsBackup {
     @RequiresApi(Build.VERSION_CODES.Q)
     private fun saveToMediaStore(context: Context, data: ByteArray): Boolean {
         return try {
+            // Удаляем старый файл, если существует, чтобы избежать дублирования
+            deleteFromMediaStore(context)
+
             val contentValues = ContentValues().apply {
                 put(MediaStore.Downloads.DISPLAY_NAME, BACKUP_FILE_NAME)
                 put(MediaStore.Downloads.MIME_TYPE, "application/json")
@@ -160,11 +183,11 @@ object SettingsBackup {
             val uri = context.contentResolver.insert(
                 MediaStore.Downloads.EXTERNAL_CONTENT_URI,
                 contentValues
-            ) ?: return legacySaveToFile(data)
+            ) ?: return false
 
             context.contentResolver.openOutputStream(uri)?.use { outputStream ->
                 outputStream.write(data)
-            } ?: return legacySaveToFile(data)
+            } ?: return false
 
             contentValues.clear()
             contentValues.put(MediaStore.Downloads.IS_PENDING, 0)
@@ -177,9 +200,20 @@ object SettingsBackup {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun deleteFromMediaStore(context: Context) {
+        try {
+            val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+            val selection = "${MediaStore.Downloads.DISPLAY_NAME} = ?"
+            val selectionArgs = arrayOf(BACKUP_FILE_NAME)
+            context.contentResolver.delete(collection, selection, selectionArgs)
+        } catch (_: Exception) {}
+    }
+
     private fun legacySaveToFile(data: ByteArray): Boolean {
         return try {
-            val backupFile = getBackupFile()
+            val backupFile = getDownloadsFile()
+            backupFile.parentFile?.mkdirs()
             backupFile.writeBytes(data)
             true
         } catch (e: Exception) {
@@ -337,6 +371,14 @@ object SettingsBackup {
     @SuppressLint("ObsoleteSdkInt")
     fun loadBackupFromFile(context: Context): Boolean {
         return try {
+            // 1. Сначала пробуем загрузить из внутреннего хранилища
+            val internalFile = getBackupFile(context)
+            if (internalFile.exists()) {
+                val jsonString = internalFile.readText()
+                return importFromJson(context, jsonString)
+            }
+
+            // 2. Затем пробуем из Downloads
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 loadFromMediaStore(context)
             } else {
@@ -373,17 +415,37 @@ object SettingsBackup {
                 }
             }
         }
+
+        // Если не нашли по точному имени, ищем с LIKE (может быть суффикс (1), (2) и т.д.)
+        val likeSelection = "${MediaStore.Downloads.DISPLAY_NAME} LIKE ?"
+        val likeArgs = arrayOf("$BACKUP_FILE_NAME%")
+        context.contentResolver.query(
+            collection, projection, likeSelection, likeArgs, null
+        )?.use { cursor ->
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(
+                    cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
+                )
+                val uri = Uri.withAppendedPath(collection, id.toString())
+
+                context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    val jsonString = inputStream.bufferedReader().use { it.readText() }
+                    return importFromJson(context, jsonString)
+                }
+            }
+        }
+
         return false
     }
 
     private fun legacyLoadFromFile(context: Context): Boolean {
-        val backupFile = getBackupFile()
+        val backupFile = getDownloadsFile()
         if (!backupFile.exists()) return false
         val jsonString = backupFile.readText()
         return importFromJson(context, jsonString)
     }
 
-    fun getBackupFilePath(): String {
-        return getBackupFile().absolutePath
+    fun getBackupFilePath(context: Context): String {
+        return getBackupFile(context).absolutePath
     }
 }

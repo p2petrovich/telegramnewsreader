@@ -19,7 +19,7 @@ object TelegramClientManager {
             Handler(Looper.getMainLooper()).post { onDone?.invoke() }
             return
         }
-        c.logOut {
+        c.logoutAndReset {
             try { c.close() } catch (_: Exception) {}
             telegramClient = null
             deleteTdlibDirs(context)

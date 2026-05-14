@@ -51,7 +51,7 @@ class AuthActivity : AppCompatActivity() {
             }
 
             showLoading(true)
-            telegramClient.sendCode(phone) { success ->
+            telegramClient.setPhoneNumber(phone) { success ->
                 runOnUiThread {
                     showLoading(false)
                     if (success) {
@@ -73,7 +73,7 @@ class AuthActivity : AppCompatActivity() {
             }
 
             showLoading(true)
-            telegramClient.verifyCode(code) { success ->
+            telegramClient.checkAuthenticationCode(code) { success, message ->
                 runOnUiThread {
                     showLoading(false)
                     if (success) {
@@ -93,7 +93,7 @@ class AuthActivity : AppCompatActivity() {
             }
 
             showLoading(true)
-            telegramClient.verifyPassword(password) { success ->
+            telegramClient.checkAuthenticationPassword(password) { success, message ->
                 runOnUiThread {
                     showLoading(false)
                     if (!success) {

@@ -1,7 +1,7 @@
 package com.p2petrovich.telegramnewsreader.utils
 
 import android.util.Log
-import com.p2petrovich.telegramnewsreader.service.NewsService
+import com.p2petrovich.telegramnewsreader.services.NewsService
 
 object TextProcessor {
 
