@@ -70,9 +70,9 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix ".debug"
-            versionNameSuffix "-debug"
-            manifestPlaceholders = [appName: "News Reader (Debug)"]
+            applicationIdSuffix ".ai"
+            versionNameSuffix "-ai"
+            manifestPlaceholders = [appName: "News AI"]
         }
         release {
             minifyEnabled false
