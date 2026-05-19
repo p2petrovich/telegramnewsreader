@@ -1160,6 +1160,16 @@ class MainActivity : AppCompatActivity() {
             dialog.dismiss()
             showColorThemeDialog()
         }
+        
+        val switchAi = dialogView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switch_ai_summary)
+        switchAi?.isChecked = PreferenceManager.isAiSummaryEnabled(this)
+        switchAi?.setOnCheckedChangeListener { _, isChecked ->
+            PreferenceManager.setAiSummaryEnabled(this, isChecked)
+            if (isChecked && BuildConfig.GEMINI_API_KEY.isBlank()) {
+                Toast.makeText(this, "ВНИМАНИЕ: API ключ Gemini не найден в local.properties", Toast.LENGTH_LONG).show()
+            }
+        }
+
         dialogView.findViewById<android.widget.Button>(R.id.btn_manage_presets_settings)?.setOnClickListener {
             dialog.dismiss()
             showPresetsManagerDialog()

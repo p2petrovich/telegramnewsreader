@@ -14,6 +14,14 @@
         android:layout_marginBottom="16dp"
         android:textColor="?attr/colorOnSurface" />
 
+    <com.google.android.material.materialswitch.MaterialSwitch
+        android:id="@+id/switch_ai_summary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Умный пересказ (ИИ Gemini)"
+        android:layout_marginBottom="16dp"
+        android:padding="8dp" />
+
     <Button
         android:id="@+id/btn_color_theme"
         android:layout_width="match_parent"

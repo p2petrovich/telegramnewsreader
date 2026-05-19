@@ -26,11 +26,19 @@ object PreferenceManager {
     private const val KEY_DEDUP_THRESHOLD = "dedup_threshold"
     private const val KEY_DEDUP_HISTORY_SIZE = "dedup_history_size"
     private const val KEY_DEDUP_TIME_WINDOW = "dedup_time_window"
+    private const val KEY_AI_SUMMARY_ENABLED = "ai_summary_enabled"
 
     private const val PATHS_DELIMITER = "|||"
 
     private fun getPreferences(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
+
+    fun isAiSummaryEnabled(context: Context): Boolean =
+        getPreferences(context).getBoolean(KEY_AI_SUMMARY_ENABLED, false)
+
+    fun setAiSummaryEnabled(context: Context, enabled: Boolean) {
+        getPreferences(context).edit().putBoolean(KEY_AI_SUMMARY_ENABLED, enabled).apply()
     }
 
     fun isAuthorized(context: Context): Boolean =

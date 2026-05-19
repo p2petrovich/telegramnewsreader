@@ -6,6 +6,8 @@ import com.p2petrovich.telegramnewsreader.telegram.TelegramClient
 import com.p2petrovich.telegramnewsreader.tts.TTSManager
 import com.p2petrovich.telegramnewsreader.utils.Deduplicator
 import com.p2petrovich.telegramnewsreader.utils.TextProcessor
+import com.p2petrovich.telegramnewsreader.utils.AiProcessor
+import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import kotlinx.coroutines.*
 
 interface ProgressCallback {
@@ -117,6 +119,8 @@ class NewsService(
 
         try {
             withTimeout(TOTAL_TIMEOUT_MS) {
+                val context = ttsManager.getContext()
+                val isAiEnabled = PreferenceManager.isAiSummaryEnabled(context)
                 val allMessages = mutableListOf<String>()
                 val currentTimeSeconds = System.currentTimeMillis() / 1000
                 val fromDate = currentTimeSeconds - (timeHours * 3600).toLong()
@@ -198,11 +202,30 @@ class NewsService(
                 val totalToSynthesize = afterDropTrivial.count { !isChannelHeader(it) }
 
                 ensureActive()
+                
+                // 🔥 НОВОЕ: Обработка через ИИ (если включено)
+                val finalMessages = if (isAiEnabled) {
+                    progressCallback.onUpdateProgress("Сжатие через ИИ...", 0, totalToSynthesize)
+                    var aiProcessed = 0
+                    afterDropTrivial.map { msg ->
+                        if (isChannelHeader(msg)) msg
+                        else {
+                            val summarized = AiProcessor.summarizeNews(msg)
+                            aiProcessed++
+                            progressCallback.onUpdateProgress("ИИ: $aiProcessed из $totalToSynthesize", aiProcessed, totalToSynthesize)
+                            summarized
+                        }
+                    }.filter { it.isNotBlank() }
+                } else {
+                    afterDropTrivial
+                }
+                
+                val finalToSynthesize = finalMessages.count { !isChannelHeader(it) }
 
-                progressCallback.onUpdateCounters(totalCollected, totalToSynthesize, 0)
+                progressCallback.onUpdateCounters(totalCollected, finalToSynthesize, 0)
                 progressCallback.onUpdateProgress("Подготовлено к озвучке", 100, 100)
 
-                Prepared(afterDropTrivial, totalCollected, totalToSynthesize, realNewsCount)
+                Prepared(finalMessages, totalCollected, finalToSynthesize, realNewsCount)
             }
         } catch (e: TimeoutCancellationException) {
             progressCallback.onUpdateProgress("Превышено время ожидания", 0, 100)

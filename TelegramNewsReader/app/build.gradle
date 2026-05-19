@@ -59,9 +59,11 @@ android {
 
         def telegramApiId = System.getenv("TELEGRAM_API_ID") ?: localProperties.getProperty("telegram.api.id", "0")
         def telegramApiHash = System.getenv("TELEGRAM_API_HASH") ?: localProperties.getProperty("telegram.api.hash", "")
+        def geminiApiKey = System.getenv("GEMINI_API_KEY") ?: localProperties.getProperty("gemini.api.key", "")
 
         buildConfigField "Integer", "TELEGRAM_API_ID", telegramApiId
         buildConfigField "String", "TELEGRAM_API_HASH", "\"${telegramApiHash}\""
+        buildConfigField "String", "GEMINI_API_KEY", "\"${geminiApiKey}\""
 
         manifestPlaceholders = [appName: "News Reader"]
     }
@@ -131,6 +133,9 @@ dependencies {
 
     // Image loading
     implementation "io.coil-kt:coil:2.6.0"
+
+    // Gemini AI
+    implementation("com.google.ai.client.generativeai:generativeai:0.7.0")
 
     // Date/Time backport
     implementation 'com.jakewharton.threetenabp:threetenabp:1.4.6'

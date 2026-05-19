@@ -166,6 +166,8 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
+    fun getContext(): Context = context
+
     fun updatePitchForVoice(voiceName: String, pitch: Float) { PreferenceManager.saveTtsPitchForVoice(context, voiceName, pitch) }
     fun updateRateForVoice(voiceName: String, rate: Float) { PreferenceManager.saveTtsRateForVoice(context, voiceName, rate) }
     fun getPitchForVoice(voiceName: String): Float = PreferenceManager.getTtsPitchForVoice(context, voiceName)
