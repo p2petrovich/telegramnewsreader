@@ -32,7 +32,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.telegramnewsreader"
+        applicationId = "com.p2petrovich.telegramnewsreader"
         minSdk 24
         targetSdk 34
         
@@ -70,8 +70,6 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix ".ai"
-            versionNameSuffix "-ai"
             manifestPlaceholders = [appName: "News AI"]
         }
         release {

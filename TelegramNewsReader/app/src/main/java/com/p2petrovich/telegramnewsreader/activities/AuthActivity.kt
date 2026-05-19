@@ -44,10 +44,16 @@ class AuthActivity : AppCompatActivity() {
 
     private fun setupClickListeners() {
         binding.btnSendCode.setOnClickListener {
-            val phone = binding.etPhone.text.toString().trim()
+            var phone = binding.etPhone.text.toString().trim()
             if (phone.isEmpty()) {
                 showError("Введите номер телефона")
                 return@setOnClickListener
+            }
+
+            // Telegram требует номер в международном формате (начиная с +)
+            if (!phone.startsWith("+")) {
+                phone = "+$phone"
+                binding.etPhone.setText(phone)
             }
 
             showLoading(true)
