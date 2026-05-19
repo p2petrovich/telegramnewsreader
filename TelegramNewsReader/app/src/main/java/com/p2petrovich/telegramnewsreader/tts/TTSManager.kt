@@ -227,12 +227,14 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             if (isHeader) {
                 val cleanTitle = stripHeaderMarker(raw)
                 if (cleanTitle.isNotBlank()) {
-                    prepared += PreparedNews(newsIndex, cleanTitle, true)
+                    // Добавляем паузу после заголовка канала
+                    prepared += PreparedNews(newsIndex, "$cleanTitle...", true)
                 }
             } else {
                 val cleaned = TextProcessor.cleanForTts(raw)
                 val deduped = TextProcessor.deduplicateLines(cleaned)
-                val normalized = TextProcessor.normalizeNumbers(deduped)
+                val expanded = TextProcessor.expandAbbreviations(deduped)
+                val normalized = TextProcessor.normalizeNumbers(expanded)
                 val formatted = TextProcessor.formatForIntonation(normalized)
                 val finalText = TextProcessor.formatForSpeech(formatted)
                 if (finalText.isNotBlank()) {

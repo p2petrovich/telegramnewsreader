@@ -278,6 +278,11 @@ object TextProcessor {
         }
 
         t = t.replace(Regex("\\b(\\d+[\\d\\s]*)(?:₽|руб\\.?|р\\.)\\b", RegexOption.IGNORE_CASE), "$1 рублей")
+        
+        // Валюты
+        t = t.replace(Regex("\\$(\\d+)"), "$1 долларов")
+        t = t.replace(Regex("€(\\d+)"), "$1 евро")
+        t = t.replace(Regex("£(\\d+)"), "$1 фунтов")
 
         t = t.replace(Regex("на\\s+(\\d+[,.]?\\d*)\\s?%")) { "на ${it.groupValues[1]} процентов" }
         t = t.replace(Regex("(\\d+[,.]?\\d*)%-й")) { "${it.groupValues[1]}-процентный" }
@@ -295,7 +300,7 @@ object TextProcessor {
         var t = text
 
         t = t.replace(" в нем", " в нём")
-        t = t.replace(Regex("\\s*‼‼‼\\s*"), "Главное")
+        t = t.replace(Regex("\\s*‼‼‼\\s*"), "Главное... ")
 
         t = Regex("\\b(\\d{1,2})\\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\\b")
             .replace(t) { match ->
@@ -326,9 +331,34 @@ object TextProcessor {
         t = t.replace(Regex("\\.\\.\\."), "…")
 
         t = t.replace(Regex(";\\s*(?=\\n{2,})"), ". ")
-        t = t.replace(Regex("(?<=[.!?])\\s+"), "\n\n")
+        
+        // Улучшение пауз между предложениями
+        t = t.replace(Regex("(?<=[.!?…])\\s+"), "... ")
 
         return t.trim()
+    }
+    
+    fun expandAbbreviations(text: String): String {
+        if (NewsService.isChannelHeader(text)) return text
+        
+        var t = text
+        val maps = mapOf(
+            Regex("\\bг\\.\\b") to "город",
+            Regex("\\bобл\\.\\b") to "область",
+            Regex("\\bул\\.\\b") to "улица",
+            Regex("\\bд\\.\\b(?=\\s?\\d)") to "дом",
+            Regex("\\bт\\.д\\.\\b") to "так далее",
+            Regex("\\bт\\.п\\.\\b") to "тому подобное",
+            Regex("\\bсм\\.\\b") to "смотрите",
+            Regex("\\bстр\\.\\b") to "страница",
+            Regex("\\bтыс\\.\\b") to "тысяч",
+            Regex("\\bчел\\.\\b") to "человек"
+        )
+        
+        maps.forEach { (regex, replacement) ->
+            t = t.replace(regex, replacement)
+        }
+        return t
     }
 
     fun formatForSpeech(text: String): String {
@@ -354,7 +384,7 @@ object TextProcessor {
         val importantWords = listOf("важно", "внимание", "срочно", "эксклюзив", "молния")
         importantWords.forEach { word ->
             t = t.replace(Regex("\\b($word)\\b", RegexOption.IGNORE_CASE)) {
-                "ВАЖНО: ${it.groupValues[1].lowercase()}"
+                "ВАЖНО. ${it.groupValues[1].lowercase()}... "
             }
         }
 
