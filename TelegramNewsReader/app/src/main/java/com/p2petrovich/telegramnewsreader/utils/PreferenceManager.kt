@@ -27,6 +27,8 @@ object PreferenceManager {
     private const val KEY_DEDUP_HISTORY_SIZE = "dedup_history_size"
     private const val KEY_DEDUP_TIME_WINDOW = "dedup_time_window"
     private const val KEY_AI_SUMMARY_ENABLED = "ai_summary_enabled"
+    private const val KEY_AI_MODEL = "ai_model"
+    private const val KEY_AI_STYLE = "ai_style"
 
     private const val PATHS_DELIMITER = "|||"
 
@@ -39,6 +41,20 @@ object PreferenceManager {
 
     fun setAiSummaryEnabled(context: Context, enabled: Boolean) {
         getPreferences(context).edit().putBoolean(KEY_AI_SUMMARY_ENABLED, enabled).apply()
+    }
+
+    fun getAiModel(context: Context): String =
+        getPreferences(context).getString(KEY_AI_MODEL, "deepseek/deepseek-v4-flash:free") ?: "deepseek/deepseek-v4-flash:free"
+
+    fun setAiModel(context: Context, model: String) {
+        getPreferences(context).edit().putString(KEY_AI_MODEL, model).apply()
+    }
+
+    fun getAiStyle(context: Context): String =
+        getPreferences(context).getString(KEY_AI_STYLE, "balanced") ?: "balanced"
+
+    fun setAiStyle(context: Context, style: String) {
+        getPreferences(context).edit().putString(KEY_AI_STYLE, style).apply()
     }
 
     fun isAuthorized(context: Context): Boolean =

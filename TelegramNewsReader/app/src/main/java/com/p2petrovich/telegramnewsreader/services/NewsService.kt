@@ -211,7 +211,7 @@ class NewsService(
                         async {
                             if (isChannelHeader(msg)) msg
                             else {
-                                val summarized = AiProcessor.summarizeNews(msg)
+                                val summarized = AiProcessor.summarizeNews(msg, context)
                                 summarized
                             }
                         }

@@ -1166,9 +1166,10 @@ class MainActivity : AppCompatActivity() {
         switchAi?.isChecked = PreferenceManager.isAiSummaryEnabled(this)
         switchAi?.setOnCheckedChangeListener { _, isChecked ->
             PreferenceManager.setAiSummaryEnabled(this, isChecked)
-            if (isChecked && BuildConfig.GEMINI_API_KEY.isBlank()) {
-                Toast.makeText(this, "ВНИМАНИЕ: API ключ Gemini не найден в local.properties", Toast.LENGTH_LONG).show()
-            }
+        }
+
+        dialogView.findViewById<android.widget.Button>(R.id.btn_ai_settings)?.setOnClickListener {
+            showAiSettingsDialog()
         }
 
         dialogView.findViewById<android.widget.Button>(R.id.btn_manage_presets_settings)?.setOnClickListener {
@@ -1239,6 +1240,55 @@ class MainActivity : AppCompatActivity() {
             }
         }
         dialog.show()
+    }
+
+    private fun showAiSettingsDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_ai_settings, null)
+        val spinnerModel = dialogView.findViewById<android.widget.Spinner>(R.id.spinner_ai_model)
+        val spinnerStyle = dialogView.findViewById<android.widget.Spinner>(R.id.spinner_ai_style)
+
+        val models = listOf(
+            "deepseek/deepseek-v4-flash:free" to "DeepSeek V4 Flash (Быстрая)",
+            "google/gemini-flash-1.5-free" to "Gemini 1.5 Flash (Google)",
+            "z-ai/glm-4.5-air:free" to "GLM-4.5 Air (Хороший русский)",
+            "meta-llama/llama-3.3-70b-instruct:free" to "Llama 3.3 70B (Умная)"
+        )
+
+        val styles = listOf(
+            "minimal" to "Только чистка от мусора",
+            "balanced" to "Сбалансированное сжатие (в 2 раза)",
+            "extreme" to "Радио-молния (1 предложение)"
+        )
+
+        val modelAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, models.map { it.second })
+        modelAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinnerModel.adapter = modelAdapter
+
+        val styleAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, styles.map { it.second })
+        styleAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinnerStyle.adapter = styleAdapter
+
+        // Устанавливаем текущие значения
+        val currentModel = PreferenceManager.getAiModel(this)
+        val currentStyle = PreferenceManager.getAiStyle(this)
+
+        val modelIdx = models.indexOfFirst { it.first == currentModel }.coerceAtLeast(0)
+        spinnerModel.setSelection(modelIdx)
+
+        val styleIdx = styles.indexOfFirst { it.first == currentStyle }.coerceAtLeast(0)
+        spinnerStyle.setSelection(styleIdx)
+
+        AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setPositiveButton("Сохранить") { _, _ ->
+                val selectedModel = models[spinnerModel.selectedItemPosition].first
+                val selectedStyle = styles[spinnerStyle.selectedItemPosition].first
+                PreferenceManager.setAiModel(this, selectedModel)
+                PreferenceManager.setAiStyle(this, selectedStyle)
+                Toast.makeText(this, "Настройки ИИ сохранены", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
     }
 
     private fun showColorThemeDialog() {

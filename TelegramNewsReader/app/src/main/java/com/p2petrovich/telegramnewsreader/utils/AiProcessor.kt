@@ -1,5 +1,6 @@
 package com.p2petrovich.telegramnewsreader.utils
 
+import android.content.Context
 import android.util.Log
 import com.p2petrovich.telegramnewsreader.BuildConfig
 import okhttp3.MediaType.Companion.toMediaType
@@ -12,9 +13,6 @@ import java.util.concurrent.TimeUnit
 
 object AiProcessor {
     private const val TAG = "AiProcessor"
-    
-    // Используем DeepSeek Flash (самая быстрая бесплатная модель)
-    private const val MODEL_NAME = "deepseek/deepseek-v4-flash:free"
     private const val API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
     private val client = OkHttpClient.Builder()
@@ -23,31 +21,41 @@ object AiProcessor {
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    suspend fun summarizeNews(newsText: String): String {
-        val apiKey = BuildConfig.GEMINI_API_KEY // Ключ OpenRouter берем из той же переменной
+    suspend fun summarizeNews(newsText: String, context: Context): String {
+        val apiKey = BuildConfig.GEMINI_API_KEY
         
         if (apiKey.isBlank()) {
             Log.e(TAG, "OpenRouter API Key is missing!")
             return newsText
         }
 
-        val prompt = """
-            Ты — корректор новостей. Твоя задача — очистить текст от мусора, СОХРАНЯЯ основной смысл и объем новости.
-            
-            ЧТО НУЖНО СДЕЛАТЬ:
-            1. Удали только рекламу, ссылки (http/https), призывы подписаться ("подпишись", "наш канал") и контакты.
-            2. Удали приветствия и авторские отступления.
-            3. Удали спецсимволы и лишние эмодзи, которые мешают озвучке.
-            4. Оставь основной текст новости почти без изменений, лишь немного подправив его для плавного чтения.
-            5. Если в сообщении ТОЛЬКО реклама — верни пустую строку.
-            
-            Текст новости:
-            $newsText
-        """.trimIndent()
+        val modelName = PreferenceManager.getAiModel(context)
+        val style = PreferenceManager.getAiStyle(context)
 
-        // Формируем JSON для OpenRouter (формат Chat Completion)
+        val prompt = when (style) {
+            "minimal" -> """
+                Ты — корректор новостей. Очисти текст от мусора, сохраняя основной объем.
+                1. Удали только рекламу, ссылки, призывы подписаться.
+                2. Оставь основной текст новости почти без изменений.
+                3. Текст для обработки: $newsText
+            """.trimIndent()
+            
+            "extreme" -> """
+                Ты — редактор "радио-молния". Преврати новость в ОДНО емкое предложение (до 20 слов).
+                1. Удали всё лишнее. Только суть.
+                2. Текст для обработки: $newsText
+            """.trimIndent()
+            
+            else -> """
+                Ты — редактор новостного дайджеста. Сделай текст ЧИСТЫМ и СЖАТЫМ.
+                1. Удали рекламу, ссылки и "воду".
+                2. Сократи текст примерно в 2 раза, сохраняя факты и цифры.
+                3. Текст для обработки: $newsText
+            """.trimIndent()
+        }
+
         val json = JSONObject().apply {
-            put("model", MODEL_NAME)
+            put("model", modelName)
             val messages = JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "user")
@@ -55,7 +63,7 @@ object AiProcessor {
                 })
             }
             put("messages", messages)
-            put("temperature", 0.5)
+            put("temperature", if (style == "extreme") 0.3 else 0.4)
         }
 
         val mediaType = "application/json; charset=utf-8".toMediaType()
@@ -64,13 +72,12 @@ object AiProcessor {
         val request = Request.Builder()
             .url(API_URL)
             .addHeader("Authorization", "Bearer $apiKey")
-            .addHeader("HTTP-Referer", "https://github.com/p2petrovich/TelegramNewsReader") // Обязательно для OpenRouter
+            .addHeader("HTTP-Referer", "https://github.com/p2petrovich/TelegramNewsReader")
             .addHeader("X-Title", "TelegramNewsReader")
             .post(body)
             .build()
 
         return try {
-            // Выполняем запрос в IO потоке (хотя suspend функция уже должна вызываться из IO)
             val response = client.newCall(request).execute()
             val responseBody = response.body?.string()
 
@@ -83,23 +90,14 @@ object AiProcessor {
                         .getString("content")
                         .trim()
                     
-                    if (summarized.isBlank()) {
-                        Log.w(TAG, "OpenRouter returned empty text")
-                        newsText
-                    } else {
-                        Log.d(TAG, "Summary success via OpenRouter!")
-                        summarized
-                    }
-                } else {
-                    newsText
-                }
+                    if (summarized.isBlank()) newsText else summarized
+                } else newsText
             } else {
-                Log.e(TAG, "OpenRouter error: ${response.code} - ${response.message}")
-                Log.e(TAG, "Response body: $responseBody")
+                Log.e(TAG, "OpenRouter error: ${response.code}")
                 newsText
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Network error via OpenRouter: ${e.message}")
+            Log.e(TAG, "Network error: ${e.message}")
             newsText
         }
     }
