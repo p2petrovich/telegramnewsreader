@@ -26,4 +26,19 @@
     <string name="percentage">%1$d%%</string>
     <string name="time_period">Период: %1$s</string>
     <string name="version">Версия: %1$s</string>
+
+    <!-- Deduplication settings -->
+    <string name="dedup_title">Фильтрация дублей</string>
+    <string name="dedup_description">Не озвучивать повторяющиеся сообщения из разных каналов</string>
+    <string name="dedup_enable">Включить фильтрацию дублей</string>
+    <string name="dedup_threshold_label">Степень совпадения</string>
+    <string name="dedup_threshold_hint">100%% = точное совпадение, 90%% = допускаются небольшие отличия</string>
+    <string name="dedup_history_label">Размер истории</string>
+    <string name="dedup_history_hint">Сколько последних сообщений помнить для сравнения</string>
+    <string name="dedup_time_label">Временное окно</string>
+    <string name="dedup_time_hint">Как далеко назад искать дубли</string>
+    <string name="dedup_skipped">Пропущено дублей: %1$d</string>
+    <string name="dedup_settings_title">Настройки дедупликации</string>
+    <string name="dedup_channel_exceptions">Исключения по каналам</string>
+    <string name="dedup_channel_exceptions_hint">Каналы, для которых дедупликация не применяется</string>
 </resources>

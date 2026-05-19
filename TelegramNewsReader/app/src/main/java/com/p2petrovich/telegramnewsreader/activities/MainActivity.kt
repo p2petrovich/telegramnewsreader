@@ -13,8 +13,10 @@ import android.text.method.ScrollingMovementMethod
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -37,6 +39,7 @@ import com.p2petrovich.telegramnewsreader.telegram.TelegramClient
 import com.p2petrovich.telegramnewsreader.telegram.TelegramClientManager
 import com.p2petrovich.telegramnewsreader.tts.TTSManager
 import com.p2petrovich.telegramnewsreader.tts.TTSManagerSingleton
+import com.p2petrovich.telegramnewsreader.utils.Deduplicator
 import com.p2petrovich.telegramnewsreader.utils.NewsCache
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.PresetManager
@@ -79,8 +82,12 @@ class MainActivity : AppCompatActivity() {
     private var lastAfterFilter = 0
     private var lastToSynthesize = 0
     private var lastSynthesized = 0
+    private var lastSkippedDuplicates = 0
 
     private var activePresetId: String? = null
+
+    // Deduplicator для фильтрации дублей
+    private var deduplicator: Deduplicator? = null
 
     companion object {
         private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 1001
@@ -154,6 +161,92 @@ class MainActivity : AppCompatActivity() {
         lastUsedVoice = PreferenceManager.getTtsVoiceName(this)
     }
 
+    // ===================== Deduplication =====================
+    private fun getDeduplicator(): Deduplicator {
+        if (deduplicator == null) {
+            deduplicator = Deduplicator(
+                isEnabled = PreferenceManager.isDedupEnabled(this),
+                matchThreshold = PreferenceManager.getDedupThreshold(this),
+                historySize = PreferenceManager.getDedupHistorySize(this),
+                timeWindowMinutes = PreferenceManager.getDedupTimeWindow(this)
+            )
+        }
+        return deduplicator!!
+    }
+
+    private fun resetDeduplicator() {
+        deduplicator?.reset()
+        deduplicator = null
+    }
+
+    private fun showDedupSettingsDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_dedup_settings, null)
+        val cbEnabled = dialogView.findViewById<CheckBox>(R.id.cb_dedup_enabled)
+        val sbThreshold = dialogView.findViewById<SeekBar>(R.id.sb_dedup_threshold)
+        val tvThresholdValue = dialogView.findViewById<TextView>(R.id.tv_dedup_threshold_value)
+        val sbHistorySize = dialogView.findViewById<SeekBar>(R.id.sb_dedup_history_size)
+        val tvHistoryValue = dialogView.findViewById<TextView>(R.id.tv_dedup_history_value)
+        val sbTimeWindow = dialogView.findViewById<SeekBar>(R.id.sb_dedup_time_window)
+        val tvTimeValue = dialogView.findViewById<TextView>(R.id.tv_dedup_time_value)
+
+        // Загружаем текущие настройки
+        val currentEnabled = PreferenceManager.isDedupEnabled(this)
+        val currentThreshold = PreferenceManager.getDedupThreshold(this)
+        val currentHistorySize = PreferenceManager.getDedupHistorySize(this)
+        val currentTimeWindow = PreferenceManager.getDedupTimeWindow(this)
+
+        cbEnabled.isChecked = currentEnabled
+        sbThreshold.progress = (currentThreshold * 100).toInt()
+        tvThresholdValue.text = "${(currentThreshold * 100).toInt()}%"
+        sbHistorySize.progress = currentHistorySize
+        tvHistoryValue.text = "$currentHistorySize сообщений"
+        sbTimeWindow.progress = currentTimeWindow
+        tvTimeValue.text = "$currentTimeWindow минут"
+
+        // Обработчики изменений
+        sbThreshold.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                val value = progress.coerceIn(80, 100)
+                tvThresholdValue.text = "$value%"
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        sbHistorySize.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                val value = progress.coerceIn(50, 1000)
+                tvHistoryValue.text = "$value сообщений"
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        sbTimeWindow.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                val value = progress.coerceIn(5, 120)
+                tvTimeValue.text = "$value минут"
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.dedup_settings_title))
+            .setView(dialogView)
+            .setPositiveButton("Сохранить") { _, _ ->
+                PreferenceManager.setDedupEnabled(this, cbEnabled.isChecked)
+                PreferenceManager.setDedupThreshold(this, sbThreshold.progress / 100f)
+                PreferenceManager.setDedupHistorySize(this, sbHistorySize.progress)
+                PreferenceManager.setDedupTimeWindow(this, sbTimeWindow.progress)
+                // Сбрасываем дедупликатор чтобы применить новые настройки
+                resetDeduplicator()
+                Toast.makeText(this, "Настройки сохранены", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
     // ===================== Вспомогательные методы =====================
     private fun updateStatus(text: String) {
         binding.tvStatus.text = text
@@ -185,29 +278,17 @@ class MainActivity : AppCompatActivity() {
         lastAfterFilter = 0
         lastToSynthesize = 0
         lastSynthesized = 0
+        lastSkippedDuplicates = 0
         currentPlaylist = emptyList()
         currentRealNewsCount = 0
         currentNewsFileIndices = emptySet()
         savedDurationInfo = null
-        try {
-            startService(
-                Intent(this, AudioPlayerService::class.java).setAction(AudioPlayerService.ACTION_STOP)
-            )
-        } catch (_: Exception) {}
-        binding.llPlayer.visibility = View.GONE
-        binding.btnPlay.isEnabled = false
-        binding.btnNext.isEnabled = false
-        binding.btnPause.isEnabled = false
-        binding.tvStatus.text = ""
-        channelAdapter.getAllChannels().forEach { it.newMessagesCount = 0 }
-        channelAdapter.notifyDataSetChanged()
+        resetDeduplicator()
     }
 
     private fun showProgressPanels() {
         binding.cardCollectionProgress.visibility = View.VISIBLE
-        binding.llNewsPreview.visibility = View.VISIBLE
         binding.cardNewsPreview.visibility = View.VISIBLE
-        binding.llChannelProgress.visibility = View.VISIBLE
         binding.cardChannelProgress.visibility = View.VISIBLE
     }
 
@@ -230,28 +311,28 @@ class MainActivity : AppCompatActivity() {
         val parts = mutableListOf<String>()
         parts.add("Собрано: $lastTotalCollected")
 
-        if (lastAfterDedup > 0 && lastAfterDedup < lastTotalCollected) {
+        if (lastAfterDedup > 0) {
             val removed = lastTotalCollected - lastAfterDedup
-            parts.add("дубли: -$removed")
+            if (removed > 0) {
+                parts.add("дубли: -$removed")
+            }
         }
-        if (lastAfterFilter > 0) {
-            val base = if (lastAfterDedup > 0) lastAfterDedup else lastTotalCollected
-            if (lastAfterFilter < base) {
-                val removed = base - lastAfterFilter
+        if (lastAfterFilter > 0 && lastAfterDedup > 0) {
+            val removed = lastAfterDedup - lastAfterFilter
+            if (removed > 0) {
                 parts.add("спам: -$removed")
             }
         }
         if (lastToSynthesize > 0) {
-            val base = when {
-                lastAfterFilter > 0 -> lastAfterFilter
-                lastAfterDedup > 0 -> lastAfterDedup
-                else -> lastTotalCollected
-            }
-            if (lastToSynthesize < base) {
-                val removed = base - lastToSynthesize
+            val baseForTrash = if (lastAfterFilter > 0) lastAfterFilter else if (lastAfterDedup > 0) lastAfterDedup else lastTotalCollected
+            val removed = baseForTrash - lastToSynthesize
+            if (removed > 0) {
                 parts.add("мусор: -$removed")
             }
             parts.add("к озвучке: $lastToSynthesize")
+        }
+        if (lastSkippedDuplicates > 0) {
+            parts.add("пропущено: $lastSkippedDuplicates")
         }
 
         binding.tvPipelineStatus.text = parts.joinToString(" → ")
@@ -276,8 +357,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateChannelProgress(channels: List<Channel>) {
-        val done = channels.count { it.newMessagesCount > 0 }
-        binding.tvChannelProgress.text = "Прогресс по каналам: $done из ${channels.size}"
         binding.llChannelProgressList.removeAllViews()
         channels.forEach { channel ->
             val text = if (channel.newMessagesCount > 0)
@@ -837,6 +916,9 @@ class MainActivity : AppCompatActivity() {
         showProgressPanels()
         resetProgressCounters()
 
+        // Инициализируем дедупликатор с текущими настройками
+        getDeduplicator()
+
         binding.progressBar.visibility = View.VISIBLE
         binding.btnCollectNews.text = "Остановить"
         binding.btnCollectNews.isEnabled = true
@@ -850,7 +932,8 @@ class MainActivity : AppCompatActivity() {
                 val audio = newsService.collectAndSynthesizePlaylist(
                     channels = selectedChannels,
                     timeHours = timeHours,
-                    progressCallback = createProgressCallback(selectedChannels)
+                    progressCallback = createProgressCallback(selectedChannels),
+                    deduplicator = getDeduplicator()
                 )
 
                 stopTimer()
@@ -858,6 +941,9 @@ class MainActivity : AppCompatActivity() {
                 val durationMin = withContext(Dispatchers.IO) {
                     audio?.let { calcDurationMinutes(it.files) } ?: 0
                 }
+
+                // Сохраняем счётчик пропущенных дублей
+                lastSkippedDuplicates = getDeduplicator().getSkippedCount()
 
                 runOnUiThread { handleCollectionResult(audio, durationMin) }
             } catch (_: kotlinx.coroutines.CancellationException) {
@@ -1002,6 +1088,11 @@ class MainActivity : AppCompatActivity() {
                 updateStatus(baseStatus)
             }
 
+            // Показываем уведомление о пропущенных дублях
+            if (lastSkippedDuplicates > 0) {
+                Toast.makeText(this, "Пропущено дублей: $lastSkippedDuplicates", Toast.LENGTH_LONG).show()
+            }
+
             val arrayPaths = ArrayList(audio.files.map { it.absolutePath })
             startService(Intent(this, AudioPlayerService::class.java).apply {
                 action = AudioPlayerService.ACTION_SET_PLAYLIST
@@ -1080,6 +1171,10 @@ class MainActivity : AppCompatActivity() {
         dialogView.findViewById<android.widget.Button>(R.id.btn_voice_settings)?.setOnClickListener {
             dialog.dismiss()
             startActivity(Intent(this, VoiceSelectionActivity::class.java))
+        }
+        dialogView.findViewById<android.widget.Button>(R.id.btn_dedup_settings)?.setOnClickListener {
+            dialog.dismiss()
+            showDedupSettingsDialog()
         }
         dialogView.findViewById<android.widget.Button>(R.id.btn_clear_cache)?.setOnClickListener {
             dialog.dismiss()

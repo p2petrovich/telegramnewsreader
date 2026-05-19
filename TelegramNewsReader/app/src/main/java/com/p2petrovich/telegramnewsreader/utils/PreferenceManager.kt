@@ -21,6 +21,12 @@ object PreferenceManager {
     private const val KEY_PLAYER_INDEX = "player_index"
     private const val KEY_PLAYER_IS_PLAYING = "player_is_playing"
 
+    // Deduplication settings
+    private const val KEY_DEDUP_ENABLED = "dedup_enabled"
+    private const val KEY_DEDUP_THRESHOLD = "dedup_threshold"
+    private const val KEY_DEDUP_HISTORY_SIZE = "dedup_history_size"
+    private const val KEY_DEDUP_TIME_WINDOW = "dedup_time_window"
+
     private const val PATHS_DELIMITER = "|||"
 
     private fun getPreferences(context: Context): SharedPreferences {
@@ -168,7 +174,7 @@ object PreferenceManager {
     fun getColorTheme(context: Context): String =
         getPreferences(context).getString(KEY_COLOR_THEME, "purple") ?: "purple"
 
-    // Player state - save as delimited string to preserve order
+    // Player state
     fun savePlaylistPaths(context: Context, paths: List<String>) {
         val pathsStr = paths.joinToString(PATHS_DELIMITER)
         getPreferences(context).edit().putString(KEY_PLAYER_PATHS, pathsStr).apply()
@@ -202,5 +208,35 @@ object PreferenceManager {
             .remove(KEY_PLAYER_INDEX)
             .remove(KEY_PLAYER_IS_PLAYING)
             .apply()
+    }
+
+    // ===================== Deduplication settings =====================
+
+    fun isDedupEnabled(context: Context): Boolean =
+        getPreferences(context).getBoolean(KEY_DEDUP_ENABLED, true)
+
+    fun setDedupEnabled(context: Context, enabled: Boolean) {
+        getPreferences(context).edit().putBoolean(KEY_DEDUP_ENABLED, enabled).apply()
+    }
+
+    fun getDedupThreshold(context: Context): Float =
+        getPreferences(context).getFloat(KEY_DEDUP_THRESHOLD, 0.9f)
+
+    fun setDedupThreshold(context: Context, threshold: Float) {
+        getPreferences(context).edit().putFloat(KEY_DEDUP_THRESHOLD, threshold).apply()
+    }
+
+    fun getDedupHistorySize(context: Context): Int =
+        getPreferences(context).getInt(KEY_DEDUP_HISTORY_SIZE, 500)
+
+    fun setDedupHistorySize(context: Context, size: Int) {
+        getPreferences(context).edit().putInt(KEY_DEDUP_HISTORY_SIZE, size).apply()
+    }
+
+    fun getDedupTimeWindow(context: Context): Int =
+        getPreferences(context).getInt(KEY_DEDUP_TIME_WINDOW, 60)
+
+    fun setDedupTimeWindow(context: Context, minutes: Int) {
+        getPreferences(context).edit().putInt(KEY_DEDUP_TIME_WINDOW, minutes).apply()
     }
 }

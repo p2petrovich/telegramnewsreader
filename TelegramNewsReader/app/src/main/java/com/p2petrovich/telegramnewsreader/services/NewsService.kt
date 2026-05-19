@@ -4,6 +4,7 @@ import android.util.Log
 import com.p2petrovich.telegramnewsreader.models.Channel
 import com.p2petrovich.telegramnewsreader.telegram.TelegramClient
 import com.p2petrovich.telegramnewsreader.tts.TTSManager
+import com.p2petrovich.telegramnewsreader.utils.Deduplicator
 import com.p2petrovich.telegramnewsreader.utils.TextProcessor
 import kotlinx.coroutines.*
 
@@ -70,10 +71,11 @@ class NewsService(
     suspend fun collectAndSynthesizePlaylist(
         channels: List<Channel>,
         timeHours: Double,
-        progressCallback: ProgressCallback = object : ProgressCallback {}
+        progressCallback: ProgressCallback = object : ProgressCallback {},
+        deduplicator: Deduplicator? = null
     ): AudioPlaylist? = withContext(Dispatchers.IO) {
 
-        val list = collectAndPrepareMessages(channels, timeHours, progressCallback)
+        val list = collectAndPrepareMessages(channels, timeHours, progressCallback, deduplicator)
             ?: return@withContext null
         if (list.preparedMessages.isEmpty()) return@withContext null
 
@@ -108,7 +110,8 @@ class NewsService(
     private suspend fun collectAndPrepareMessages(
         channels: List<Channel>,
         timeHours: Double,
-        progressCallback: ProgressCallback
+        progressCallback: ProgressCallback,
+        deduplicator: Deduplicator?
     ): Prepared? = withContext(Dispatchers.IO) {
         if (channels.isEmpty() || timeHours <= 0) return@withContext null
 
@@ -159,6 +162,7 @@ class NewsService(
                 val deduplicated = TextProcessor.deduplicateAcrossChannels(allMessages)
                 val dedupNewsCount = deduplicated.count { !isChannelHeader(it) }
                 progressCallback.onDeduplicationComplete(totalCollected, dedupNewsCount)
+                progressCallback.onUpdateCounters(totalCollected, dedupNewsCount, 0)
 
                 ensureActive()
 
@@ -166,11 +170,31 @@ class NewsService(
                 val preparedMessages = TextProcessor.filterMessages(deduplicated) { _, _ -> }
                 val filteredNewsCount = preparedMessages.count { !isChannelHeader(it) }
                 progressCallback.onMessageFiltered(dedupNewsCount, filteredNewsCount)
+                progressCallback.onUpdateCounters(totalCollected, filteredNewsCount, 0)
 
                 ensureActive()
 
-                // ИСПРАВЛЕНИЕ #1: Использовать afterDropTrivial вместо preparedMessages
-                val afterDropTrivial = TextProcessor.dropTrivial(preparedMessages)
+                // Дедупликация через Deduplicator (если включена)
+                val afterDedup = if (deduplicator != null && deduplicator.isEnabled) {
+                    progressCallback.onUpdateProgress("Проверка на дубли...", 0, 100)
+                    val filtered = mutableListOf<String>()
+                    for (msg in preparedMessages) {
+                        if (isChannelHeader(msg)) {
+                            filtered.add(msg)
+                        } else if (!deduplicator.isDuplicate(msg)) {
+                            filtered.add(msg)
+                        }
+                    }
+                    val skipped = deduplicator.getSkippedCount()
+                    if (skipped > 0) {
+                        Log.d(TAG, "Deduplicator skipped $skipped duplicates")
+                    }
+                    filtered
+                } else {
+                    preparedMessages
+                }
+
+                val afterDropTrivial = TextProcessor.dropTrivial(afterDedup)
                 val totalToSynthesize = afterDropTrivial.count { !isChannelHeader(it) }
 
                 ensureActive()
@@ -178,7 +202,6 @@ class NewsService(
                 progressCallback.onUpdateCounters(totalCollected, totalToSynthesize, 0)
                 progressCallback.onUpdateProgress("Подготовлено к озвучке", 100, 100)
 
-                // ИСПРАВЛЕНИЕ #1: Передавать afterDropTrivial, а не preparedMessages
                 Prepared(afterDropTrivial, totalCollected, totalToSynthesize, realNewsCount)
             }
         } catch (e: TimeoutCancellationException) {
