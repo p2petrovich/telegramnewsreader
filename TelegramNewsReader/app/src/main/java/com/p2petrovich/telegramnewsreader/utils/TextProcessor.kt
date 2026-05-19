@@ -56,6 +56,7 @@ object TextProcessor {
     private val TTS_MARKDOWN_PATTERN = Regex("[*_`]+")
     private val TTS_QUOTES_PATTERN = Regex("[«»]")
     private val TTS_SUBSCRIBE_INLINE_PATTERN = Regex("(?i)подписывай(ся|тесь)?\\s+на\\s+[^\\n.]+")
+    private val TTS_BAZA_FOOTER_PATTERN = Regex("(?i)Если у вас плохо прогружаются файлы.*BAZA.*канале в MAX")
     private val TTS_ELLIPSIS_PATTERN = Regex("\\.\\.\\.")
     private val TTS_MULTI_SPACE_PATTERN = Regex("[ \\t]{2,}")
     private val TTS_MULTI_NEWLINE = Regex("\\n{3,}")
@@ -131,6 +132,7 @@ object TextProcessor {
             cleaned = HASHTAG_MENTION_PATTERN.replace(cleaned, " ")
             cleaned = EMOJI_PATTERN.replace(cleaned, " ")
             cleaned = SUBSCRIBE_PATTERN.replace(cleaned, "")
+            cleaned = TTS_BAZA_FOOTER_PATTERN.replace(cleaned, "")
             cleaned = cleaned.trim()
 
             SUBSCRIBE_TAIL_PATTERNS.forEach { pattern ->
@@ -246,6 +248,7 @@ object TextProcessor {
         t = TTS_MARKDOWN_PATTERN.replace(t, "")
         t = TTS_QUOTES_PATTERN.replace(t, "\"")
         t = TTS_SUBSCRIBE_INLINE_PATTERN.replace(t, "")
+        t = TTS_BAZA_FOOTER_PATTERN.replace(t, "")
         t = TTS_ELLIPSIS_PATTERN.replace(t, "…")
         t = TTS_MULTI_SPACE_PATTERN.replace(t, " ")
         t = TTS_MULTI_NEWLINE.replace(t, "\n\n")

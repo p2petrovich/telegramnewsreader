@@ -288,8 +288,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun showProgressPanels() {
         binding.cardCollectionProgress.visibility = View.VISIBLE
-        binding.cardNewsPreview.visibility = View.VISIBLE
-        binding.cardChannelProgress.visibility = View.VISIBLE
+        binding.llNewsPreview.visibility = View.VISIBLE
+        binding.llChannelProgress.visibility = View.VISIBLE
     }
 
     private fun resetProgressCounters() {
