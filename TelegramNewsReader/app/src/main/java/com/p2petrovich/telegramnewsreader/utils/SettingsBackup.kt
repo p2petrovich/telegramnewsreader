@@ -431,42 +431,54 @@ object SettingsBackup {
         val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
         val projection = arrayOf(
             MediaStore.Downloads._ID,
-            MediaStore.Downloads.DISPLAY_NAME
+            MediaStore.Downloads.DISPLAY_NAME,
+            MediaStore.Downloads.DATE_MODIFIED
         )
+        // Сортируем по дате изменения: сначала самые новые
+        val sortOrder = "${MediaStore.Downloads.DATE_MODIFIED} DESC"
+
+        // 1. Сначала ищем точное совпадение имени
         val selection = "${MediaStore.Downloads.DISPLAY_NAME} = ?"
         val selectionArgs = arrayOf(BACKUP_FILE_NAME)
 
         context.contentResolver.query(
-            collection, projection, selection, selectionArgs, null
+            collection, projection, selection, selectionArgs, sortOrder
         )?.use { cursor ->
-            while (cursor.moveToNext()) {
-                val id = cursor.getLong(
-                    cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
-                )
+            if (cursor.moveToFirst()) { // Берем только первый (самый новый)
+                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID))
                 val uri = Uri.withAppendedPath(collection, id.toString())
 
-                context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                    val jsonString = inputStream.bufferedReader().use { it.readText() }
-                    return importFromJson(context, jsonString)
+                try {
+                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                        val jsonString = inputStream.bufferedReader().use { it.readText() }
+                        return importFromJson(context, jsonString)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
             }
         }
 
-        // Если не нашли по точному имени, ищем с LIKE (может быть суффикс (1), (2) и т.д.)
+        // 2. Если не нашли, ищем файлы с суффиксами (например, "backup (1).json")
+        val baseName = BACKUP_FILE_NAME.substringBeforeLast(".")
+        val extension = BACKUP_FILE_NAME.substringAfterLast(".")
         val likeSelection = "${MediaStore.Downloads.DISPLAY_NAME} LIKE ?"
-        val likeArgs = arrayOf("$BACKUP_FILE_NAME%")
+        val likeArgs = arrayOf("$baseName%$extension")
+
         context.contentResolver.query(
-            collection, projection, likeSelection, likeArgs, null
+            collection, projection, likeSelection, likeArgs, sortOrder
         )?.use { cursor ->
-            while (cursor.moveToNext()) {
-                val id = cursor.getLong(
-                    cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
-                )
+            if (cursor.moveToFirst()) { // Берем самый новый из похожих
+                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID))
                 val uri = Uri.withAppendedPath(collection, id.toString())
 
-                context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                    val jsonString = inputStream.bufferedReader().use { it.readText() }
-                    return importFromJson(context, jsonString)
+                try {
+                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                        val jsonString = inputStream.bufferedReader().use { it.readText() }
+                        return importFromJson(context, jsonString)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
             }
         }
@@ -475,10 +487,26 @@ object SettingsBackup {
     }
 
     private fun legacyLoadFromFile(context: Context): Boolean {
-        val backupFile = getDownloadsFile()
-        if (!backupFile.exists()) return false
-        val jsonString = backupFile.readText()
-        return importFromJson(context, jsonString)
+        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        if (!downloadsDir.exists() || !downloadsDir.isDirectory) return false
+
+        val baseName = BACKUP_FILE_NAME.substringBeforeLast(".")
+        val files = downloadsDir.listFiles { _, name ->
+            name.startsWith(baseName) && name.endsWith(".json")
+        }
+
+        if (files.isNullOrEmpty()) return false
+
+        // Сортируем по дате последнего изменения и берем самый свежий
+        val latestFile = files.maxByOrNull { it.lastModified() } ?: return false
+
+        return try {
+            val jsonString = latestFile.readText()
+            importFromJson(context, jsonString)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
     }
 
     fun getBackupFilePath(context: Context): String {
