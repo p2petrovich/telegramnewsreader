@@ -13,8 +13,8 @@ import java.util.concurrent.TimeUnit
 object AiProcessor {
     private const val TAG = "AiProcessor"
     
-    // Используем модель GLM-4.5 (бесплатная и отлично понимает русский)
-    private const val MODEL_NAME = "z-ai/glm-4.5-air:free"
+    // Используем DeepSeek Flash (самая быстрая бесплатная модель)
+    private const val MODEL_NAME = "deepseek/deepseek-v4-flash:free"
     private const val API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
     private val client = OkHttpClient.Builder()

@@ -203,19 +203,23 @@ class NewsService(
 
                 ensureActive()
                 
-                // 🔥 НОВОЕ: Обработка через ИИ (если включено)
+                // 🔥 УСКОРЕНО: Параллельная обработка через ИИ
                 val finalMessages = if (isAiEnabled) {
                     progressCallback.onUpdateProgress("Сжатие через ИИ...", 0, totalToSynthesize)
-                    var aiProcessed = 0
-                    afterDropTrivial.map { msg ->
-                        if (isChannelHeader(msg)) msg
-                        else {
-                            val summarized = AiProcessor.summarizeNews(msg)
-                            aiProcessed++
-                            progressCallback.onUpdateProgress("ИИ: $aiProcessed из $totalToSynthesize", aiProcessed, totalToSynthesize)
-                            summarized
+                    
+                    val deferredResults = afterDropTrivial.map { msg ->
+                        async {
+                            if (isChannelHeader(msg)) msg
+                            else {
+                                val summarized = AiProcessor.summarizeNews(msg)
+                                summarized
+                            }
                         }
-                    }.filter { it.isNotBlank() }
+                    }
+                    
+                    val results = deferredResults.awaitAll()
+                    progressCallback.onUpdateProgress("ИИ обработка завершена", totalToSynthesize, totalToSynthesize)
+                    results.filter { it.isNotBlank() }
                 } else {
                     afterDropTrivial
                 }
