@@ -15,14 +15,27 @@ import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 object SettingsBackup {
     const val BACKUP_FILE_NAME = "telegram_news_backup.json"
 
+    private fun getDatedFileName(): String {
+        val sdf = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.getDefault())
+        return "telegram_news_backup_${sdf.format(Date())}.json"
+    }
+    // Модель для отображения в списке
+    data class BackupFile(
+        val name: String,
+        val uri: Uri?,
+        val date: Long,
+        val size: Long
+    )
     private fun getBackupFile(context: Context): File {
         return File(context.filesDir, BACKUP_FILE_NAME)
     }
-
     private fun getDownloadsFile(): File {
         val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         if (!downloadsDir.exists()) {
@@ -30,32 +43,75 @@ object SettingsBackup {
         }
         return File(downloadsDir, BACKUP_FILE_NAME)
     }
-
     fun backupFileExists(context: Context): Boolean {
-        // Сначала проверяем внутреннее хранилище
         if (getBackupFile(context).exists()) return true
-
-        // Затем проверяем Downloads
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            backupFileExistsInMediaStore(context)
-        } else {
-            getDownloadsFile().exists()
-        }
+        return getAvailableBackups(context).isNotEmpty()
     }
-
-    @RequiresApi(Build.VERSION_CODES.Q)
-    private fun backupFileExistsInMediaStore(context: Context): Boolean {
-        val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
-        val projection = arrayOf(MediaStore.Downloads._ID)
-        val selection = "${MediaStore.Downloads.DISPLAY_NAME} = ?"
-        val selectionArgs = arrayOf(BACKUP_FILE_NAME)
-
-        context.contentResolver.query(
-            collection, projection, selection, selectionArgs, null
-        )?.use { cursor ->
-            return cursor.count > 0
+    // Получение списка всех доступных файлов бэкапа
+    fun getAvailableBackups(context: Context): List<BackupFile> {
+        val result = mutableListOf<BackupFile>()
+        // 1. Проверка внутреннего хранилища
+        val internalFile = getBackupFile(context)
+        if (internalFile.exists()) {
+            result.add(BackupFile(
+                name = "Внутренняя копия (кэш)",
+                uri = null,
+                date = internalFile.lastModified(),
+                size = internalFile.length()
+            ))
         }
-        return false
+        // 2. Поиск во внешнем хранилище (Downloads)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+            val projection = arrayOf(
+                MediaStore.Downloads._ID,
+                MediaStore.Downloads.DISPLAY_NAME,
+                MediaStore.Downloads.DATE_MODIFIED,
+                MediaStore.Downloads.SIZE
+            )
+            val baseName = BACKUP_FILE_NAME.substringBeforeLast(".")
+            val selection = "${MediaStore.Downloads.DISPLAY_NAME} LIKE ?"
+            val selectionArgs = arrayOf("$baseName%.json")
+            val sortOrder = "${MediaStore.Downloads.DATE_MODIFIED} DESC"
+            context.contentResolver.query(collection, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
+                val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Downloads.DISPLAY_NAME)
+                val dateCol = cursor.getColumnIndexOrThrow(MediaStore.Downloads.DATE_MODIFIED)
+                val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Downloads.SIZE)
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(idCol)
+                    val name = cursor.getString(nameCol)
+                    val date = cursor.getLong(dateCol) * 1000L
+                    val size = cursor.getLong(sizeCol)
+                    val uri = Uri.withAppendedPath(collection, id.toString())
+                    result.add(BackupFile(name, uri, date, size))
+                }
+            }
+        } else {
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            if (downloadsDir.exists() && downloadsDir.isDirectory) {
+                val baseName = BACKUP_FILE_NAME.substringBeforeLast(".")
+                downloadsDir.listFiles { _, name -> name.startsWith(baseName) && name.endsWith(".json") }
+                    ?.forEach { file -> result.add(BackupFile(file.name, null, file.lastModified(), file.length())) }
+            }
+        }
+        return result.sortedByDescending { it.date }
+    }
+    // Импорт из конкретного выбранного файла
+    fun importFromBackup(context: Context, backup: BackupFile): Boolean {
+        return try {
+            val jsonString = if (backup.uri != null) {
+                context.contentResolver.openInputStream(backup.uri)?.use { it.bufferedReader().readText() }
+            } else {
+                val file = if (backup.name == "Внутренняя копия (кэш)") getBackupFile(context)
+                else File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), backup.name)
+                if (file.exists()) file.readText() else null
+            }
+            if (jsonString != null) importFromJson(context, jsonString) else false
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
     }
 
     fun exportToJson(context: Context): String {
@@ -150,12 +206,16 @@ object SettingsBackup {
         return try {
             val jsonString = exportToJson(context)
             val bytes = jsonString.toByteArray(Charsets.UTF_8)
+            val fileName = getDatedFileName()
 
-            // 1. Всегда сохраняем во внутреннее хранилище (надёжно)
-            saveToInternalStorage(context, bytes)
+            // 1. Сохраняем во внутреннее хранилище (как основной кэш)
+            saveToInternalStorage(context, bytes, BACKUP_FILE_NAME)
 
-            // 2. Дополнительно сохраняем в Downloads (для пользователя)
-            saveFileToDownloads(context, bytes)
+            // 2. Дополнительно сохраняем с датой во внутреннее хранилище
+            saveToInternalStorage(context, bytes, fileName)
+
+            // 3. Сохраняем в Downloads с датой (для пользователя)
+            saveFileToDownloads(context, bytes, fileName)
 
             true
         } catch (e: Exception) {
@@ -164,29 +224,26 @@ object SettingsBackup {
         }
     }
 
-    private fun saveToInternalStorage(context: Context, data: ByteArray) {
-        val backupFile = getBackupFile(context)
+    private fun saveToInternalStorage(context: Context, data: ByteArray, fileName: String) {
+        val backupFile = File(context.filesDir, fileName)
         backupFile.parentFile?.mkdirs()
         backupFile.writeBytes(data)
     }
 
     @SuppressLint("ObsoleteSdkInt")
-    private fun saveFileToDownloads(context: Context, data: ByteArray): Boolean {
+    private fun saveFileToDownloads(context: Context, data: ByteArray, fileName: String): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            saveToMediaStore(context, data)
+            saveToMediaStore(context, data, fileName)
         } else {
-            legacySaveToFile(data)
+            legacySaveToFile(data, fileName)
         }
     }
 
     @RequiresApi(Build.VERSION_CODES.Q)
-    private fun saveToMediaStore(context: Context, data: ByteArray): Boolean {
+    private fun saveToMediaStore(context: Context, data: ByteArray, fileName: String): Boolean {
         return try {
-            // Удаляем старый файл, если существует, чтобы избежать дублирования
-            deleteFromMediaStore(context)
-
             val contentValues = ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME, BACKUP_FILE_NAME)
+                put(MediaStore.Downloads.DISPLAY_NAME, fileName)
                 put(MediaStore.Downloads.MIME_TYPE, "application/json")
                 put(MediaStore.Downloads.IS_PENDING, 1)
             }
@@ -221,10 +278,11 @@ object SettingsBackup {
         } catch (_: Exception) {}
     }
 
-    private fun legacySaveToFile(data: ByteArray): Boolean {
+    private fun legacySaveToFile(data: ByteArray, fileName: String): Boolean {
         return try {
-            val backupFile = getDownloadsFile()
-            backupFile.parentFile?.mkdirs()
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            if (!downloadsDir.exists()) downloadsDir.mkdirs()
+            val backupFile = File(downloadsDir, fileName)
             backupFile.writeBytes(data)
             true
         } catch (e: Exception) {

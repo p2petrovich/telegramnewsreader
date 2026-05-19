@@ -63,6 +63,30 @@ class MainActivity : AppCompatActivity() {
     private lateinit var ttsManager: TTSManager
     private lateinit var newsService: NewsService
 
+    // Поле для выбора файла через системный проводник
+    private val importLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri: android.net.Uri? ->
+        uri?.let {
+            lifecycleScope.launch {
+                val success = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    try {
+                        contentResolver.openInputStream(it)?.use { stream ->
+                            val jsonString = stream.bufferedReader().use { it.readText() }
+                            SettingsBackup.importFromJson(this@MainActivity, jsonString)
+                        } ?: false
+                    } catch (e: Exception) {
+                        false
+                    }
+                }
+                if (success) {
+                    android.widget.Toast.makeText(this@MainActivity, "Настройки восстановлены", android.widget.Toast.LENGTH_SHORT).show()
+                    recreate()
+                } else {
+                    android.widget.Toast.makeText(this@MainActivity, "Ошибка при чтении файла", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     private var lastUsedVoice: String? = null
     private var isClientReady = false
     private var isClientReadyCallbackProcessed = false
@@ -1252,22 +1276,39 @@ class MainActivity : AppCompatActivity() {
             }
         }
         dialogView.findViewById<android.widget.Button>(R.id.btn_import_settings)?.setOnClickListener {
-            lifecycleScope.launch {
-                val success = withContext(Dispatchers.IO) {
-                    SettingsBackup.loadBackupFromFile(this@MainActivity)
-                }
-                Toast.makeText(this@MainActivity,
-                    if (success) "Настройки восстановлены из $fileName"
-                    else "Файл $fileName не найден в Downloads",
-                    Toast.LENGTH_LONG
-                ).show()
-                if (success) {
-                    dialog.dismiss()
-                    recreate()
-                }
-            }
+            importLauncher.launch(arrayOf("application/json"))
         }
         dialog.show()
+    }
+
+    private fun showImportSelectionDialog() {
+        val backups = SettingsBackup.getAvailableBackups(this)
+        if (backups.isEmpty()) {
+            Toast.makeText(this, "Файлы бэкапа не найдены", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val dateFormat = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.getDefault())
+        val items = backups.map { backup ->
+            "${backup.name}\n(${dateFormat.format(java.util.Date(backup.date))})"
+        }.toTypedArray()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Выберите файл для импорта")
+            .setItems(items) { _, which ->
+                val selectedBackup = backups[which]
+                lifecycleScope.launch {
+                    val success = withContext(Dispatchers.IO) {
+                        SettingsBackup.importFromBackup(this@MainActivity, selectedBackup)
+                    }
+                    if (success) {
+                        Toast.makeText(this@MainActivity, "Настройки восстановлены", Toast.LENGTH_SHORT).show()
+                        recreate()
+                    } else {
+                        Toast.makeText(this@MainActivity, "Ошибка при импорте", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
     }
 
     private fun showAiSettingsDialog() {
