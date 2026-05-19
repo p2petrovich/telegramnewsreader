@@ -1,30 +1,33 @@
 package com.p2petrovich.telegramnewsreader.utils
 
 import android.util.Log
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.generationConfig
 import com.p2petrovich.telegramnewsreader.BuildConfig
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
 
 object AiProcessor {
     private const val TAG = "AiProcessor"
-    private const val MODEL_NAME = "gemini-1.5-flash"
+    
+    // Используем бесплатную модель Gemini через OpenRouter
+    private const val MODEL_NAME = "google/gemini-flash-1.5-free"
+    private const val API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
-    private val generativeModel by lazy {
-        GenerativeModel(
-            modelName = MODEL_NAME,
-            apiKey = BuildConfig.GEMINI_API_KEY,
-            generationConfig = generationConfig {
-                temperature = 0.4f
-                topK = 32
-                topP = 1f
-                maxOutputTokens = 1000
-            }
-        )
-    }
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
 
     suspend fun summarizeNews(newsText: String): String {
-        if (BuildConfig.GEMINI_API_KEY.isBlank()) {
-            Log.e(TAG, "Gemini API Key is missing!")
+        val apiKey = BuildConfig.GEMINI_API_KEY // Ключ OpenRouter берем из той же переменной
+        
+        if (apiKey.isBlank()) {
+            Log.e(TAG, "OpenRouter API Key is missing!")
             return newsText
         }
 
@@ -36,27 +39,69 @@ object AiProcessor {
             1. Оставь только самую важную суть (факты, цифры, результаты).
             2. Удали мусор, приветствия, призывы подписаться, ссылки и авторские отступления.
             3. Текст должен звучать естественно в устной речи. 
-            4. Если несколько новостей об одном и том же, объедини их.
+            4. Если в тексте нет полезной информации, верни пустую строку.
             5. Итоговый текст должен быть на русском языке.
-            6. Если в тексте нет полезной информации, верни пустую строку.
             
             Текст для обработки:
             $newsText
         """.trimIndent()
 
+        // Формируем JSON для OpenRouter (формат Chat Completion)
+        val json = JSONObject().apply {
+            put("model", MODEL_NAME)
+            val messages = JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", prompt)
+                })
+            }
+            put("messages", messages)
+            put("temperature", 0.4)
+        }
+
+        val mediaType = "application/json; charset=utf-8".toMediaType()
+        val body = json.toString().toRequestBody(mediaType)
+
+        val request = Request.Builder()
+            .url(API_URL)
+            .addHeader("Authorization", "Bearer $apiKey")
+            .addHeader("HTTP-Referer", "https://github.com/p2petrovich/TelegramNewsReader") // Обязательно для OpenRouter
+            .addHeader("X-Title", "TelegramNewsReader")
+            .post(body)
+            .build()
+
         return try {
-            val response = generativeModel.generateContent(prompt)
-            val summarized = response.text?.trim()
-            if (summarized.isNullOrBlank()) {
-                Log.w(TAG, "Gemini returned empty text, using original")
-                newsText
+            // Выполняем запрос в IO потоке (хотя suspend функция уже должна вызываться из IO)
+            val response = client.newCall(request).execute()
+            val responseBody = response.body?.string()
+
+            if (response.isSuccessful && responseBody != null) {
+                val jsonResponse = JSONObject(responseBody)
+                val choices = jsonResponse.getJSONArray("choices")
+                if (choices.length() > 0) {
+                    val summarized = choices.getJSONObject(0)
+                        .getJSONObject("message")
+                        .getString("content")
+                        .trim()
+                    
+                    if (summarized.isBlank()) {
+                        Log.w(TAG, "OpenRouter returned empty text")
+                        newsText
+                    } else {
+                        Log.d(TAG, "Summary success via OpenRouter!")
+                        summarized
+                    }
+                } else {
+                    newsText
+                }
             } else {
-                Log.d(TAG, "Summary success! Original length: ${newsText.length}, New: ${summarized.length}")
-                summarized
+                Log.e(TAG, "OpenRouter error: ${response.code} - ${response.message}")
+                Log.e(TAG, "Response body: $responseBody")
+                newsText
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Gemini error: ${e.message}")
-            newsText // В случае ошибки возвращаем оригинал, чтобы не ломать поток
+            Log.e(TAG, "Network error via OpenRouter: ${e.message}")
+            newsText
         }
     }
 }
