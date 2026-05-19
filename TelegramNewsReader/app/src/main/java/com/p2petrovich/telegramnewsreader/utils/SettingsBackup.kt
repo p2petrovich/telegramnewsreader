@@ -94,6 +94,11 @@ object SettingsBackup {
         json.put("dedup_history_size", PreferenceManager.getDedupHistorySize(context))
         json.put("dedup_time_window", PreferenceManager.getDedupTimeWindow(context))
 
+        // ИИ Настройки
+        json.put("ai_summary_enabled", PreferenceManager.isAiSummaryEnabled(context))
+        json.put("ai_model", PreferenceManager.getAiModel(context))
+        json.put("ai_style", PreferenceManager.getAiStyle(context))
+
         json.put("player_paths", JSONArray(PreferenceManager.getPlaylistPaths(context)))
         json.put("player_index", PreferenceManager.getPlayerIndex(context))
         json.put("player_is_playing", PreferenceManager.getPlayerIsPlaying(context))
@@ -302,6 +307,17 @@ object SettingsBackup {
             }
             if (json.has("dedup_time_window")) {
                 PreferenceManager.setDedupTimeWindow(context, json.getInt("dedup_time_window"))
+            }
+
+            // ИИ Настройки
+            if (json.has("ai_summary_enabled")) {
+                PreferenceManager.setAiSummaryEnabled(context, json.getBoolean("ai_summary_enabled"))
+            }
+            if (json.has("ai_model")) {
+                PreferenceManager.setAiModel(context, json.getString("ai_model"))
+            }
+            if (json.has("ai_style")) {
+                PreferenceManager.setAiStyle(context, json.getString("ai_style"))
             }
 
             if (json.has("player_paths")) {

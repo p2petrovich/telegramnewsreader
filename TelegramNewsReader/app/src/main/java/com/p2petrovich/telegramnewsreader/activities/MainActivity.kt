@@ -1157,19 +1157,14 @@ class MainActivity : AppCompatActivity() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_settings, null)
         val dialog = AlertDialog.Builder(this).setView(dialogView).create()
 
+        dialogView.findViewById<android.widget.Button>(R.id.btn_ai_settings)?.setOnClickListener {
+            dialog.dismiss()
+            showAiSettingsDialog()
+        }
+
         dialogView.findViewById<android.widget.Button>(R.id.btn_color_theme)?.setOnClickListener {
             dialog.dismiss()
             showColorThemeDialog()
-        }
-        
-        val switchAi = dialogView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switch_ai_summary)
-        switchAi?.isChecked = PreferenceManager.isAiSummaryEnabled(this)
-        switchAi?.setOnCheckedChangeListener { _, isChecked ->
-            PreferenceManager.setAiSummaryEnabled(this, isChecked)
-        }
-
-        dialogView.findViewById<android.widget.Button>(R.id.btn_ai_settings)?.setOnClickListener {
-            showAiSettingsDialog()
         }
 
         dialogView.findViewById<android.widget.Button>(R.id.btn_manage_presets_settings)?.setOnClickListener {
@@ -1244,9 +1239,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun showAiSettingsDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_ai_settings, null)
+        val switchEnabled = dialogView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switch_ai_enabled)
         val spinnerModel = dialogView.findViewById<android.widget.Spinner>(R.id.spinner_ai_model)
         val spinnerStyle = dialogView.findViewById<android.widget.Spinner>(R.id.spinner_ai_style)
 
+        // Загружаем текущие значения
+        switchEnabled.isChecked = PreferenceManager.isAiSummaryEnabled(this)
+        
         val models = listOf(
             "deepseek/deepseek-v4-flash:free" to "DeepSeek V4 Flash (Быстрая)",
             "google/gemini-flash-1.5-free" to "Gemini 1.5 Flash (Google)",
@@ -1268,7 +1267,6 @@ class MainActivity : AppCompatActivity() {
         styleAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinnerStyle.adapter = styleAdapter
 
-        // Устанавливаем текущие значения
         val currentModel = PreferenceManager.getAiModel(this)
         val currentStyle = PreferenceManager.getAiStyle(this)
 
@@ -1281,6 +1279,7 @@ class MainActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setView(dialogView)
             .setPositiveButton("Сохранить") { _, _ ->
+                PreferenceManager.setAiSummaryEnabled(this, switchEnabled.isChecked)
                 val selectedModel = models[spinnerModel.selectedItemPosition].first
                 val selectedStyle = styles[spinnerStyle.selectedItemPosition].first
                 PreferenceManager.setAiModel(this, selectedModel)
