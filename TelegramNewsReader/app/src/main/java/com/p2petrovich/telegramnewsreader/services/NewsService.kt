@@ -214,6 +214,11 @@ class NewsService(
                     
                     val results = deferredResults.awaitAll()
                     val filteredResults = results.filter { it.isNotBlank() }
+                    
+                    // Обновляем превью после ИИ-обработки
+                    val summarizedPreview = filteredResults.take(5)
+                    progressCallback.onUpdateNewsPreview(summarizedPreview)
+
                     val totalToSynthesizeAfterAi = filteredResults.count { !isChannelHeader(it) }
                     progressCallback.onAiProcessingComplete(totalToSynthesizeBeforeAi, totalToSynthesizeAfterAi)
                     progressCallback.onUpdateProgress("ИИ обработка завершена", 100, 100)

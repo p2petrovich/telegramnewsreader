@@ -43,10 +43,25 @@ class AuthActivity : AppCompatActivity() {
 
         setupClickListeners()
         
-        // Принудительный вызов автозаполнения при фокусе
-        binding.etPhone.setOnFocusChangeListener { v, hasFocus ->
-            if (hasFocus && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                v.context.getSystemService(AutofillManager::class.java)?.requestAutofill(v)
+        // Настройка автозаполнения для Android 8.0+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            binding.etPhone.setAutofillHints(View.AUTOFILL_HINT_PHONE)
+            // SMS_OTP доступен с API 28+, для старых используем общую подсказку
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                binding.etCode.setAutofillHints("smsOTP")
+            }
+            binding.etPassword.setAutofillHints(View.AUTOFILL_HINT_PASSWORD)
+            
+            // Принудительный запрос при фокусе
+            binding.etPhone.setOnFocusChangeListener { v, hasFocus ->
+                if (hasFocus) {
+                    v.context.getSystemService(AutofillManager::class.java)?.requestAutofill(v)
+                }
+            }
+            binding.etPassword.setOnFocusChangeListener { v, hasFocus ->
+                if (hasFocus) {
+                    v.context.getSystemService(AutofillManager::class.java)?.requestAutofill(v)
+                }
             }
         }
     }
