@@ -84,6 +84,7 @@ class MainActivity : AppCompatActivity() {
     private var lastToSynthesize = 0
     private var lastSynthesized = 0
     private var lastSkippedDuplicates = 0
+    private var lastAfterAi = 0
 
     private var activePresetId: String? = null
 
@@ -278,6 +279,7 @@ class MainActivity : AppCompatActivity() {
         lastToSynthesize = 0
         lastSynthesized = 0
         lastSkippedDuplicates = 0
+        lastAfterAi = 0
         currentPlaylist = emptyList()
         currentRealNewsCount = 0
         currentNewsFileIndices = emptySet()
@@ -310,35 +312,44 @@ class MainActivity : AppCompatActivity() {
         val parts = mutableListOf<String>()
         parts.add("Собрано: $lastTotalCollected")
 
+        // 1. Дубликаты (между каналами)
         if (lastAfterDedup > 0) {
             val removed = lastTotalCollected - lastAfterDedup
-            if (removed > 0) {
-                parts.add("дубли: -$removed")
-            }
+            if (removed > 0) parts.add("дубли: -$removed")
         }
+
+        // 2. Спам и фильтры
         if (lastAfterFilter > 0 && lastAfterDedup > 0) {
             val removed = lastAfterDedup - lastAfterFilter
-            if (removed > 0) {
-                parts.add("спам: -$removed")
-            }
+            if (removed > 0) parts.add("спам: -$removed")
         }
+
+        // 3. Мусор и ИИ
+        val baseForTrash = if (lastAfterFilter > 0) lastAfterFilter else if (lastAfterDedup > 0) lastAfterDedup else lastTotalCollected
+        
         if (lastToSynthesize > 0) {
-            val baseForTrash = if (lastAfterFilter > 0) lastAfterFilter else if (lastAfterDedup > 0) lastAfterDedup else lastTotalCollected
-            val removed = baseForTrash - lastToSynthesize
-            if (removed > 0) {
-                parts.add("мусор: -$removed")
+            val trashRemoved = baseForTrash - lastToSynthesize
+            if (trashRemoved > 0) parts.add("мусор: -$trashRemoved")
+
+            if (lastAfterAi > 0) {
+                val aiRemoved = lastToSynthesize - lastAfterAi
+                if (aiRemoved > 0) parts.add("ИИ: -$aiRemoved")
+                parts.add("к озвучке: $lastAfterAi")
+            } else {
+                parts.add("к озвучке: $lastToSynthesize")
             }
-            parts.add("к озвучке: $lastToSynthesize")
         }
+
         if (lastSkippedDuplicates > 0) {
             parts.add("пропущено: $lastSkippedDuplicates")
         }
 
         binding.tvPipelineStatus.text = parts.joinToString(" → ")
 
-        if (lastToSynthesize > 0) {
+        val finalTarget = if (lastAfterAi > 0) lastAfterAi else lastToSynthesize
+        if (finalTarget > 0) {
             binding.tvSynthesisStatus.visibility = View.VISIBLE
-            binding.tvSynthesisStatus.text = "Озвучено: $lastSynthesized из $lastToSynthesize"
+            binding.tvSynthesisStatus.text = "Озвучено: $lastSynthesized из $finalTarget"
         } else {
             binding.tvSynthesisStatus.visibility = View.GONE
         }
@@ -1036,6 +1047,14 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            override fun onAiProcessingComplete(beforeCount: Int, afterCount: Int) {
+                runOnUiThread {
+                    lastToSynthesize = beforeCount
+                    lastAfterAi = afterCount
+                    updatePipelineStatus()
+                }
+            }
+
             override fun onSynthesisStarted(messageCount: Int) {
                 runOnUiThread {
                     updateDetailedProgress("Начинаем синтез речи...", 0, 100)
@@ -1243,7 +1262,7 @@ class MainActivity : AppCompatActivity() {
 
         // Загружаем текущие значения
         switchEnabled.isChecked = PreferenceManager.isAiSummaryEnabled(this)
-        
+
         val models = listOf(
             "deepseek/deepseek-v4-flash:free" to "DeepSeek V4 Flash (Быстрая)",
             "google/gemini-flash-1.5-free" to "Gemini 1.5 Flash (Google)",

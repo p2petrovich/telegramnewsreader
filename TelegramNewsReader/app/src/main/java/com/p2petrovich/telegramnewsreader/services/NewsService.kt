@@ -18,6 +18,7 @@ interface ProgressCallback {
     fun onChannelProcessed(channel: Channel, messagesCount: Int) {}
     fun onDeduplicationComplete(beforeCount: Int, afterCount: Int) {}
     fun onMessageFiltered(originalCount: Int, filteredCount: Int) {}
+    fun onAiProcessingComplete(beforeCount: Int, afterCount: Int) {}
     fun onSynthesisStarted(messageCount: Int) {}
     fun onSynthesisProgress(current: Int, total: Int) {}
     fun onSynthesisCompleted() {}
@@ -166,7 +167,6 @@ class NewsService(
                 val deduplicated = TextProcessor.deduplicateAcrossChannels(allMessages)
                 val dedupNewsCount = deduplicated.count { !isChannelHeader(it) }
                 progressCallback.onDeduplicationComplete(totalCollected, dedupNewsCount)
-                progressCallback.onUpdateCounters(totalCollected, dedupNewsCount, 0)
 
                 ensureActive()
 
@@ -174,7 +174,6 @@ class NewsService(
                 val preparedMessages = TextProcessor.filterMessages(deduplicated) { _, _ -> }
                 val filteredNewsCount = preparedMessages.count { !isChannelHeader(it) }
                 progressCallback.onMessageFiltered(dedupNewsCount, filteredNewsCount)
-                progressCallback.onUpdateCounters(totalCollected, filteredNewsCount, 0)
 
                 ensureActive()
 
@@ -189,23 +188,19 @@ class NewsService(
                             filtered.add(msg)
                         }
                     }
-                    val skipped = deduplicator.getSkippedCount()
-                    if (skipped > 0) {
-                        Log.d(TAG, "Deduplicator skipped $skipped duplicates")
-                    }
                     filtered
                 } else {
                     preparedMessages
                 }
 
                 val afterDropTrivial = TextProcessor.dropTrivial(afterDedup)
-                val totalToSynthesize = afterDropTrivial.count { !isChannelHeader(it) }
+                val totalToSynthesizeBeforeAi = afterDropTrivial.count { !isChannelHeader(it) }
 
                 ensureActive()
                 
                 // 🔥 УСКОРЕНО: Параллельная обработка через ИИ
                 val finalMessages = if (isAiEnabled) {
-                    progressCallback.onUpdateProgress("Сжатие через ИИ...", 0, totalToSynthesize)
+                    progressCallback.onUpdateProgress("Сжатие через ИИ...", 0, totalToSynthesizeBeforeAi)
                     
                     val deferredResults = afterDropTrivial.map { msg ->
                         async {
@@ -218,8 +213,11 @@ class NewsService(
                     }
                     
                     val results = deferredResults.awaitAll()
-                    progressCallback.onUpdateProgress("ИИ обработка завершена", totalToSynthesize, totalToSynthesize)
-                    results.filter { it.isNotBlank() }
+                    val filteredResults = results.filter { it.isNotBlank() }
+                    val totalToSynthesizeAfterAi = filteredResults.count { !isChannelHeader(it) }
+                    progressCallback.onAiProcessingComplete(totalToSynthesizeBeforeAi, totalToSynthesizeAfterAi)
+                    progressCallback.onUpdateProgress("ИИ обработка завершена", 100, 100)
+                    filteredResults
                 } else {
                     afterDropTrivial
                 }

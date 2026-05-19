@@ -133,9 +133,6 @@ dependencies {
     // Image loading
     implementation "io.coil-kt:coil:2.6.0"
 
-    // Gemini AI
-    implementation("com.google.ai.client.generativeai:generativeai:0.7.0")
-
     // Date/Time backport
     implementation 'com.jakewharton.threetenabp:threetenabp:1.4.6'
 }
