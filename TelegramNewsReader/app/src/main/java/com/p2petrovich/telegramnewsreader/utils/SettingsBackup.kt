@@ -88,6 +88,12 @@ object SettingsBackup {
 
         json.put("color_theme", PreferenceManager.getColorTheme(context))
 
+        // Дедупликация
+        json.put("dedup_enabled", PreferenceManager.isDedupEnabled(context))
+        json.put("dedup_threshold", PreferenceManager.getDedupThreshold(context).toDouble())
+        json.put("dedup_history_size", PreferenceManager.getDedupHistorySize(context))
+        json.put("dedup_time_window", PreferenceManager.getDedupTimeWindow(context))
+
         json.put("player_paths", JSONArray(PreferenceManager.getPlaylistPaths(context)))
         json.put("player_index", PreferenceManager.getPlayerIndex(context))
         json.put("player_is_playing", PreferenceManager.getPlayerIsPlaying(context))
@@ -282,6 +288,20 @@ object SettingsBackup {
 
             if (json.has("color_theme")) {
                 PreferenceManager.saveColorTheme(context, json.getString("color_theme"))
+            }
+
+            // Дедупликация
+            if (json.has("dedup_enabled")) {
+                PreferenceManager.setDedupEnabled(context, json.getBoolean("dedup_enabled"))
+            }
+            if (json.has("dedup_threshold")) {
+                PreferenceManager.setDedupThreshold(context, json.getDouble("dedup_threshold").toFloat())
+            }
+            if (json.has("dedup_history_size")) {
+                PreferenceManager.setDedupHistorySize(context, json.getInt("dedup_history_size"))
+            }
+            if (json.has("dedup_time_window")) {
+                PreferenceManager.setDedupTimeWindow(context, json.getInt("dedup_time_window"))
             }
 
             if (json.has("player_paths")) {
