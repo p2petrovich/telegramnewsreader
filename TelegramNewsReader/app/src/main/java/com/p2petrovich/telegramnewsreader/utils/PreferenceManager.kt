@@ -196,7 +196,7 @@ object PreferenceManager {
     }
 
     fun getColorTheme(context: Context): String =
-        getPreferences(context).getString(KEY_COLOR_THEME, "purple") ?: "purple"
+        getPreferences(context).getString(KEY_COLOR_THEME, "light") ?: "light"
 
     // Player state
     fun savePlaylistPaths(context: Context, paths: List<String>) {

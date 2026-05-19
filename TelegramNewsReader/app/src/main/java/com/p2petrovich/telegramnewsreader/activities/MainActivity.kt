@@ -157,8 +157,6 @@ class MainActivity : AppCompatActivity() {
         setupPresets()
         initializeTelegramClient()
 
-        tryAutoImportOnFirstLaunch()
-
         lastUsedVoice = PreferenceManager.getTtsVoiceName(this)
     }
 
@@ -1437,32 +1435,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun tryAutoImportOnFirstLaunch() {
-        if (SettingsBackup.backupFileExists(this)) {
-            val isEmpty = PresetManager.getAllPresets(this).isEmpty() &&
-                    PreferenceManager.getFavoriteChannelIds(this).isEmpty()
-
-            if (isEmpty) {
-                AlertDialog.Builder(this)
-                    .setTitle("Найден файл настроек")
-                    .setMessage("Обнаружен файл резервной копии в папке Downloads. Восстановить настройки?")
-                    .setPositiveButton("Восстановить") { _, _ ->
-                        lifecycleScope.launch {
-                            val success = withContext(Dispatchers.IO) {
-                                SettingsBackup.loadBackupFromFile(this@MainActivity)
-                            }
-                            Toast.makeText(this@MainActivity,
-                                if (success) "Настройки успешно восстановлены" else "Ошибка при восстановлении",
-                                Toast.LENGTH_LONG
-                            ).show()
-                            if (success) recreate()
-                        }
-                    }
-                    .setNegativeButton("Пропустить", null)
-                    .show()
-            }
-        }
-    }
 
     override fun onResume() {
         super.onResume()

@@ -1,10 +1,12 @@
 package com.p2petrovich.telegramnewsreader.activities
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import android.view.autofill.AutofillManager
 import com.p2petrovich.telegramnewsreader.databinding.ActivityAuthBinding
 import com.p2petrovich.telegramnewsreader.telegram.TelegramClient
 import com.p2petrovich.telegramnewsreader.telegram.TelegramClientManager
@@ -40,6 +42,13 @@ class AuthActivity : AppCompatActivity() {
         }
 
         setupClickListeners()
+        
+        // Принудительный вызов автозаполнения при фокусе
+        binding.etPhone.setOnFocusChangeListener { v, hasFocus ->
+            if (hasFocus && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                v.context.getSystemService(AutofillManager::class.java)?.requestAutofill(v)
+            }
+        }
     }
 
     private fun setupClickListeners() {
