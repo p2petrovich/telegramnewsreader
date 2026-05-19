@@ -45,6 +45,7 @@ import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.PresetManager
 import com.p2petrovich.telegramnewsreader.utils.SettingsBackup
 import com.p2petrovich.telegramnewsreader.TelegramNewsApplication
+import com.p2petrovich.telegramnewsreader.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
