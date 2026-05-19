@@ -5,6 +5,19 @@ plugins {
     id 'com.google.devtools.ksp'
 }
 
+def getGitCommitCount = { ->
+    try {
+        def stdout = new ByteArrayOutputStream()
+        exec {
+            commandLine 'git', 'rev-list', '--count', 'HEAD'
+            standardOutput = stdout
+        }
+        return stdout.toString().trim().toInteger()
+    } catch (ignored) {
+        return 1
+    }
+}
+
 android {
     namespace 'com.p2petrovich.telegramnewsreader'
     compileSdk 34
@@ -22,8 +35,11 @@ android {
         applicationId = "com.example.telegramnewsreader"
         minSdk 24
         targetSdk 34
-        versionCode 3
-        versionName "3.0"
+        
+        def commitCount = getGitCommitCount()
+        versionCode commitCount
+        versionName "3.0.${commitCount}"
+
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
         splits {
