@@ -273,13 +273,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun resetCollectionState() {
-        lastTotalCollected = 0
-        lastAfterDedup = 0
-        lastAfterFilter = 0
-        lastToSynthesize = 0
-        lastSynthesized = 0
-        lastSkippedDuplicates = 0
-        lastAfterAi = 0
+        newsCollectionJob?.cancel()
+        newsCollectionJob = null
+        stopTimer()
+        resetProgressCounters()
+        updateNewsCollectionButton()
+        updateUIForReadyClient()
+
         currentPlaylist = emptyList()
         currentRealNewsCount = 0
         currentNewsFileIndices = emptySet()
@@ -294,8 +294,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun resetProgressCounters() {
-        totalProgressSteps = 0
+        lastTotalCollected = 0
+        lastAfterDedup = 0
+        lastAfterFilter = 0
+        lastToSynthesize = 0
+        lastAfterAi = 0
+        lastSynthesized = 0
+        lastSkippedDuplicates = 0
         currentProgressStep = 0
+        totalProgressSteps = 0
+        startTime = 0
+
         binding.progressBarDetailed.progress = 0
         binding.tvProgressPercentage.text = "0%"
         binding.tvDetailedStatus.text = ""
