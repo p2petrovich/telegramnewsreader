@@ -46,15 +46,19 @@ android {
 
         buildConfigField "Integer", "TELEGRAM_API_ID", telegramApiId
         buildConfigField "String", "TELEGRAM_API_HASH", "\"${telegramApiHash}\""
+
+        manifestPlaceholders = [appName: "News Reader"]
     }
 
     buildTypes {
         debug {
             applicationIdSuffix ".debug"
             versionNameSuffix "-debug"
+            manifestPlaceholders = [appName: "News Reader (Debug)"]
         }
         release {
             minifyEnabled false
+            manifestPlaceholders = [appName: "News Reader"]
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
