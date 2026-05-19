@@ -10,6 +10,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.delay
 
 object AiProcessor {
     private const val TAG = "AiProcessor"
@@ -29,8 +30,15 @@ object AiProcessor {
             return "[AI Error: Key missing] $newsText"
         }
 
+        if (newsText.isBlank()) return ""
+        
+        // Ограничение длины входного текста для избежания ошибок 400 (Bad Request / Filtered)
+        val safeText = if (newsText.length > 8000) newsText.take(8000) + "..." else newsText
+
         val modelName = PreferenceManager.getAiModel(context)
         val style = PreferenceManager.getAiStyle(context)
+
+
 
         val prompt = when (style) {
             "minimal" -> """
@@ -45,7 +53,7 @@ object AiProcessor {
                 6. В ответе верни ТОЛЬКО очищенный текст новости, без пояснений.
 
                 Текст для обработки:
-                $newsText
+                $safeText
             """.trimIndent()
 
             "extreme" -> """
@@ -59,7 +67,7 @@ object AiProcessor {
                 5. В ответе верни ТОЛЬКО это одно предложение, без кавычек и пояснений.
 
                 Текст:
-                $newsText
+                $safeText
             """.trimIndent()
 
             "balanced" -> """
@@ -74,7 +82,7 @@ object AiProcessor {
                 6. В ответе верни ТОЛЬКО готовое саммари.
 
                 Текст:
-                $newsText
+                $safeText
             """.trimIndent()
 
             else -> """
@@ -87,7 +95,7 @@ object AiProcessor {
                 4. В ответе верни ТОЛЬКО текст новости.
 
                 Текст:
-                $newsText
+                $safeText
             """.trimIndent()
         }
 
@@ -121,28 +129,40 @@ object AiProcessor {
             .post(body)
             .build()
 
-        return try {
-            val response = client.newCall(request).execute()
-            val responseBody = response.body?.string()
+        var lastAttemptResponse: String? = null
+        
+        // Повторные попытки при 429 (Rate Limit)
+        for (attempt in 1..3) {
+            try {
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string()
 
-            if (response.isSuccessful && responseBody != null) {
-                val jsonResponse = JSONObject(responseBody)
-                val choices = jsonResponse.getJSONArray("choices")
-                if (choices.length() > 0) {
-                    val summarized = choices.getJSONObject(0)
-                        .getJSONObject("message")
-                        .getString("content")
-                        .trim()
+                if (response.isSuccessful && responseBody != null) {
+                    val jsonResponse = JSONObject(responseBody)
+                    val choices = jsonResponse.getJSONArray("choices")
+                    if (choices.length() > 0) {
+                        val summarized = choices.getJSONObject(0)
+                            .getJSONObject("message")
+                            .getString("content")
+                            .trim()
 
-                    if (summarized.isBlank()) newsText else summarized
-                } else "[AI Empty Response] $newsText"
-            } else {
-                Log.e(TAG, "OpenRouter error: ${response.code}")
-                "[AI Error ${response.code}] $newsText"
+                        return if (summarized.isBlank()) safeText else summarized
+                    } else return "[AI Empty Response] $safeText"
+                } else if (response.code == 429) {
+                    Log.w(TAG, "Rate limit hit (429), attempt $attempt/3. Waiting...")
+                    lastAttemptResponse = "[AI Error 429: Rate Limit] $safeText"
+                    delay(2000L * attempt) // Экспоненциальная задержка
+                    continue
+                } else {
+                    Log.e(TAG, "OpenRouter error: ${response.code}")
+                    return "[AI Error ${response.code}] $safeText"
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Network error: ${e.message}")
+                return "[AI Network Error] $safeText"
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Network error: ${e.message}")
-            "[AI Network Error] $newsText"
         }
+        
+        return lastAttemptResponse ?: safeText
     }
 }

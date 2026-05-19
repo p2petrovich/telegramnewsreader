@@ -198,21 +198,29 @@ class NewsService(
 
                 ensureActive()
                 
-                // 🔥 УСКОРЕНО: Параллельная обработка через ИИ
+                // Параллельная обработка через ИИ с ограничением параллелизма
                 val finalMessages = if (isAiEnabled) {
                     progressCallback.onUpdateProgress("Сжатие через ИИ...", 0, totalToSynthesizeBeforeAi)
                     
-                    val deferredResults = afterDropTrivial.map { msg ->
-                        async {
-                            if (isChannelHeader(msg)) msg
-                            else {
-                                val summarized = AiProcessor.summarizeNews(msg, context)
-                                summarized
-                            }
+                    val results = mutableListOf<String>()
+                    var processedCount = 0
+                    
+                    // Обрабатываем последовательно с небольшой задержкой для избежания 429 (Rate Limit)
+                    // на бесплатных моделях OpenRouter
+                    for (msg in afterDropTrivial) {
+                        if (isChannelHeader(msg)) {
+                            results.add(msg)
+                        } else {
+                            val summarized = AiProcessor.summarizeNews(msg, context)
+                            results.add(summarized)
+                            processedCount++
+                            progressCallback.onUpdateProgress("Сжатие через ИИ...", processedCount, totalToSynthesizeBeforeAi)
+                            
+                            // Небольшая задержка между запросами для free-моделей
+                            delay(300) 
                         }
                     }
                     
-                    val results = deferredResults.awaitAll()
                     val filteredResults = results.filter { it.isNotBlank() }
                     
                     // Обновляем превью после ИИ-обработки

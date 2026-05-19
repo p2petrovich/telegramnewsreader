@@ -346,7 +346,8 @@ class MainActivity : AppCompatActivity() {
 
         binding.tvPipelineStatus.text = parts.joinToString(" → ")
 
-        val finalTarget = if (lastAfterAi > 0) lastAfterAi else lastToSynthesize
+        val finalTarget = if (lastAfterAi > 0) lastAfterAi else if (lastToSynthesize > 0) lastToSynthesize else lastAfterFilter
+
         if (finalTarget > 0) {
             binding.tvSynthesisStatus.visibility = View.VISIBLE
             binding.tvSynthesisStatus.text = "Озвучено: $lastSynthesized из $finalTarget"
@@ -367,9 +368,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateChannelProgress(channels: List<Channel>) {
+        val processedCount = channels.count { it.newMessagesCount >= 0 }
+        binding.tvChannelProgress.text = "Прогресс по каналам: $processedCount из ${channels.size}"
+
         binding.llChannelProgressList.removeAllViews()
         channels.forEach { channel ->
-            val text = if (channel.newMessagesCount > 0)
+            val text = if (channel.newMessagesCount >= 0)
                 "Новостей: ${channel.newMessagesCount}" else "Обработка..."
             binding.llChannelProgressList.addView(
                 android.widget.TextView(this).apply {
@@ -924,6 +928,9 @@ class MainActivity : AppCompatActivity() {
         val timeHours = timeValues[currentTimePeriodIndex]
         resetCollectionState()
         showProgressPanels()
+        selectedChannels.forEach { it.newMessagesCount = -1 }
+        updateChannelProgress(selectedChannels)
+
         resetProgressCounters()
 
         // Инициализируем дедупликатор с текущими настройками
