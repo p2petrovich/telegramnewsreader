@@ -202,7 +202,7 @@ object SettingsBackup {
         return json.toString(4)
     }
 
-    fun saveBackupToFile(context: Context): Boolean {
+    fun saveBackupToFile(context: Context): String? {
         return try {
             val jsonString = exportToJson(context)
             val bytes = jsonString.toByteArray(Charsets.UTF_8)
@@ -217,10 +217,10 @@ object SettingsBackup {
             // 3. Сохраняем в Downloads с датой (для пользователя)
             saveFileToDownloads(context, bytes, fileName)
 
-            true
+            fileName
         } catch (e: Exception) {
             e.printStackTrace()
-            false
+            null
         }
     }
 
