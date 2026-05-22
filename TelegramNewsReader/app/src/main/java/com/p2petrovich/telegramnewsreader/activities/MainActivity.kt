@@ -266,8 +266,10 @@ class MainActivity : AppCompatActivity() {
                 // Сбрасываем дедупликатор чтобы применить новые настройки
                 resetDeduplicator()
                 Toast.makeText(this, "Настройки сохранены", Toast.LENGTH_SHORT).show()
+                showSettingsDialog()
             }
-            .setNegativeButton("Отмена", null)
+            .setNegativeButton("Отмена") { _, _ -> showSettingsDialog() }
+            .setOnCancelListener { showSettingsDialog() }
             .show()
     }
 
@@ -643,8 +645,10 @@ class MainActivity : AppCompatActivity() {
 
                 refreshPresetChips()
                 Toast.makeText(this, "Набор $name сохранён", Toast.LENGTH_SHORT).show()
+                showSettingsDialog()
             }
-            .setNegativeButton("Отмена", null)
+            .setNegativeButton("Отмена") { _, _ -> showSettingsDialog() }
+            .setOnCancelListener { showSettingsDialog() }
             .show()
     }
 
@@ -681,6 +685,7 @@ class MainActivity : AppCompatActivity() {
             onPresetSelected = { preset ->
                 dialog.dismiss()
                 applyPreset(preset)
+                showSettingsDialog()
             },
             onPresetDelete = { preset ->
                 AlertDialog.Builder(this)
@@ -690,6 +695,7 @@ class MainActivity : AppCompatActivity() {
                         dialog.dismiss()
                         refreshPresetChips()
                         Toast.makeText(this, "Набор удалён", Toast.LENGTH_SHORT).show()
+                        showPresetsManagerDialog()
                     }
                     .setNegativeButton("Отмена", null)
                     .show()
@@ -699,6 +705,8 @@ class MainActivity : AppCompatActivity() {
                 showEditPresetDialog(preset)
             }
         )
+        
+        dialog.setOnCancelListener { showSettingsDialog() }
 
         dialog.show()
     }
@@ -760,8 +768,10 @@ class MainActivity : AppCompatActivity() {
                 PresetManager.savePreset(this, updated)
                 refreshPresetChips()
                 Toast.makeText(this, "Набор $name обновлён", Toast.LENGTH_SHORT).show()
+                showPresetsManagerDialog()
             }
-            .setNegativeButton("Отмена", null)
+            .setNegativeButton("Отмена") { _, _ -> showPresetsManagerDialog() }
+            .setOnCancelListener { showPresetsManagerDialog() }
             .show()
     }
 
@@ -1212,39 +1222,41 @@ class MainActivity : AppCompatActivity() {
 
     private fun showSettingsDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_settings, null)
-        val dialog = AlertDialog.Builder(this).setView(dialogView).create()
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .create()
 
-        dialogView.findViewById<android.widget.Button>(R.id.btn_ai_settings)?.setOnClickListener {
+        dialogView.findViewById<View>(R.id.btn_ai_settings)?.setOnClickListener {
             dialog.dismiss()
             showAiSettingsDialog()
         }
 
-        dialogView.findViewById<android.widget.Button>(R.id.btn_color_theme)?.setOnClickListener {
+        dialogView.findViewById<View>(R.id.btn_color_theme)?.setOnClickListener {
             dialog.dismiss()
             showColorThemeDialog()
         }
 
-        dialogView.findViewById<android.widget.Button>(R.id.btn_manage_presets_settings)?.setOnClickListener {
+        dialogView.findViewById<View>(R.id.btn_manage_presets_settings)?.setOnClickListener {
             dialog.dismiss()
             showPresetsManagerDialog()
         }
-        dialogView.findViewById<android.widget.Button>(R.id.btn_manage_hidden)?.setOnClickListener {
+        dialogView.findViewById<View>(R.id.btn_manage_hidden)?.setOnClickListener {
             dialog.dismiss()
             showHiddenManager()
         }
-        dialogView.findViewById<android.widget.Button>(R.id.btn_proxy_settings)?.setOnClickListener {
+        dialogView.findViewById<View>(R.id.btn_proxy_settings)?.setOnClickListener {
             dialog.dismiss()
             showProxySettingsDialog()
         }
-        dialogView.findViewById<android.widget.Button>(R.id.btn_voice_settings)?.setOnClickListener {
+        dialogView.findViewById<View>(R.id.btn_voice_settings)?.setOnClickListener {
             dialog.dismiss()
             startActivity(Intent(this, VoiceSelectionActivity::class.java))
         }
-        dialogView.findViewById<android.widget.Button>(R.id.btn_dedup_settings)?.setOnClickListener {
+        dialogView.findViewById<View>(R.id.btn_dedup_settings)?.setOnClickListener {
             dialog.dismiss()
             showDedupSettingsDialog()
         }
-        dialogView.findViewById<android.widget.Button>(R.id.btn_clear_cache)?.setOnClickListener {
+        dialogView.findViewById<View>(R.id.btn_clear_cache)?.setOnClickListener {
             dialog.dismiss()
             val (count, bytes) = NewsCache.getStats(this)
             val sizeMb = bytes / (1024 * 1024)
@@ -1258,31 +1270,50 @@ class MainActivity : AppCompatActivity() {
                 .setNegativeButton("Отмена", null)
                 .show()
         }
-        dialogView.findViewById<android.widget.Button>(R.id.btn_reset_auth)?.setOnClickListener {
+        dialogView.findViewById<View>(R.id.btn_reset_auth)?.setOnClickListener {
             dialog.dismiss()
             showResetAuthConfirmation()
         }
-        dialogView.findViewById<android.widget.Button>(R.id.btn_about)?.setOnClickListener {
+        dialogView.findViewById<View>(R.id.btn_about)?.setOnClickListener {
             dialog.dismiss()
             showAboutDialog()
         }
-        val fileName = SettingsBackup.BACKUP_FILE_NAME
-        dialogView.findViewById<android.widget.Button>(R.id.btn_export_settings)?.setOnClickListener {
-            lifecycleScope.launch {
-                val createdFileName = withContext(Dispatchers.IO) {
-                    SettingsBackup.saveBackupToFile(this@MainActivity)
-                }
-                Toast.makeText(this@MainActivity,
-                    if (createdFileName != null) "Файл $createdFileName сохранён в папку Downloads"
-                    else "Ошибка при сохранении",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
+        
+        dialogView.findViewById<View>(R.id.btn_backup_settings)?.setOnClickListener {
+            dialog.dismiss()
+            showBackupMenuDialog()
         }
-        dialogView.findViewById<android.widget.Button>(R.id.btn_import_settings)?.setOnClickListener {
-            importLauncher.launch(arrayOf("application/json"))
-        }
+
         dialog.show()
+    }
+
+    private fun showBackupMenuDialog() {
+        val fileName = SettingsBackup.BACKUP_FILE_NAME
+        val options = arrayOf("Экспортировать настройки (Экспорт)", "Импортировать настройки (Импорт)")
+        
+        AlertDialog.Builder(this)
+            .setTitle("Резервное копирование")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> { // Export
+                        lifecycleScope.launch {
+                            val createdFileName = withContext(Dispatchers.IO) {
+                                SettingsBackup.saveBackupToFile(this@MainActivity)
+                            }
+                            Toast.makeText(this@MainActivity,
+                                if (createdFileName != null) "Файл $createdFileName сохранён в папку Downloads"
+                                else "Ошибка при сохранении",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                    1 -> { // Import
+                        importLauncher.launch(arrayOf("application/json"))
+                    }
+                }
+            }
+            .setNegativeButton("Назад") { _, _ -> showSettingsDialog() }
+            .show()
     }
 
     private fun showProxySettingsDialog() {
@@ -1362,7 +1393,7 @@ class MainActivity : AppCompatActivity() {
         val items = backups.map { backup ->
             "${backup.name}\n(${dateFormat.format(java.util.Date(backup.date))})"
         }.toTypedArray()
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        AlertDialog.Builder(this)
             .setTitle("Выберите файл для импорта")
             .setItems(items) { _, which ->
                 val selectedBackup = backups[which]
@@ -1375,10 +1406,12 @@ class MainActivity : AppCompatActivity() {
                         recreate()
                     } else {
                         Toast.makeText(this@MainActivity, "Ошибка при импорте", Toast.LENGTH_SHORT).show()
+                        showSettingsDialog()
                     }
                 }
             }
-            .setNegativeButton("Отмена", null)
+            .setNegativeButton("Отмена") { _, _ -> showSettingsDialog() }
+            .setOnCancelListener { showSettingsDialog() }
             .show()
     }
 
@@ -1430,8 +1463,10 @@ class MainActivity : AppCompatActivity() {
                 PreferenceManager.setAiModel(this, selectedModel)
                 PreferenceManager.setAiStyle(this, selectedStyle)
                 Toast.makeText(this, "Настройки ИИ сохранены", Toast.LENGTH_SHORT).show()
+                showSettingsDialog()
             }
-            .setNegativeButton("Отмена", null)
+            .setNegativeButton("Отмена") { _, _ -> showSettingsDialog() }
+            .setOnCancelListener { showSettingsDialog() }
             .show()
     }
 
@@ -1458,6 +1493,8 @@ class MainActivity : AppCompatActivity() {
             dialog.dismiss()
             recreate()
         }
+        
+        dialog.setOnCancelListener { showSettingsDialog() }
 
         dialog.show()
     }
@@ -1470,7 +1507,8 @@ class MainActivity : AppCompatActivity() {
         dialogView.findViewById<TextView>(R.id.tvVersion).text = "Версия: $versionName"
         AlertDialog.Builder(this)
             .setView(dialogView)
-            .setPositiveButton("Закрыть", null)
+            .setPositiveButton("Закрыть") { _, _ -> showSettingsDialog() }
+            .setOnCancelListener { showSettingsDialog() }
             .show()
     }
 
@@ -1479,7 +1517,8 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Сброс авторизации")
             .setMessage("Все данные будут удалены. Продолжить?")
             .setPositiveButton("Да") { _, _ -> resetAuthorization() }
-            .setNegativeButton("Отмена", null)
+            .setNegativeButton("Отмена") { _, _ -> showSettingsDialog() }
+            .setOnCancelListener { showSettingsDialog() }
             .show()
     }
 
@@ -1567,8 +1606,10 @@ class MainActivity : AppCompatActivity() {
                 PreferenceManager.saveHiddenIds(this, hiddenIds)
                 loadChannels()
                 Toast.makeText(this, "Каналы возвращены", Toast.LENGTH_SHORT).show()
+                showSettingsDialog()
             }
-            .setNegativeButton("Отмена", null)
+            .setNegativeButton("Отмена") { _, _ -> showSettingsDialog() }
+            .setOnCancelListener { showSettingsDialog() }
             .show()
     }
 
