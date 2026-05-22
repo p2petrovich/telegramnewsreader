@@ -1232,6 +1232,10 @@ class MainActivity : AppCompatActivity() {
             dialog.dismiss()
             showHiddenManager()
         }
+        dialogView.findViewById<android.widget.Button>(R.id.btn_proxy_settings)?.setOnClickListener {
+            dialog.dismiss()
+            showProxySettingsDialog()
+        }
         dialogView.findViewById<android.widget.Button>(R.id.btn_voice_settings)?.setOnClickListener {
             dialog.dismiss()
             startActivity(Intent(this, VoiceSelectionActivity::class.java))
@@ -1279,6 +1283,73 @@ class MainActivity : AppCompatActivity() {
             importLauncher.launch(arrayOf("application/json"))
         }
         dialog.show()
+    }
+
+    private fun showProxySettingsDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_proxy_settings, null)
+        val swEnabled = dialogView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switch_proxy_enabled)
+        val etHost = dialogView.findViewById<EditText>(R.id.et_proxy_host)
+        val etPort = dialogView.findViewById<EditText>(R.id.et_proxy_port)
+        val etSecret = dialogView.findViewById<EditText>(R.id.et_proxy_secret)
+        val btnTest = dialogView.findViewById<Button>(R.id.btn_test_proxy)
+        val tvStatus = dialogView.findViewById<TextView>(R.id.tv_proxy_status)
+
+        // Загружаем текущие значения
+        swEnabled.isChecked = PreferenceManager.isProxyEnabled(this)
+        etHost.setText(PreferenceManager.getProxyHost(this))
+        val port = PreferenceManager.getProxyPort(this)
+        etPort.setText(if (port > 0) port.toString() else "")
+        etSecret.setText(PreferenceManager.getProxySecret(this))
+
+        btnTest.setOnClickListener {
+            val host = etHost.text.toString().trim()
+            val portStr = etPort.text.toString().trim()
+            val secret = etSecret.text.toString().trim()
+
+            if (host.isEmpty() || portStr.isEmpty() || secret.isEmpty()) {
+                tvStatus.text = "❌ Заполните все поля"
+                tvStatus.setTextColor(android.graphics.Color.RED)
+                return@setOnClickListener
+            }
+
+            tvStatus.text = "⌛ Проверка..."
+            tvStatus.setTextColor(android.graphics.Color.GRAY)
+            btnTest.isEnabled = false
+
+            telegramClient.testProxy(host, portStr.toIntOrNull() ?: 0, secret) { ping, error ->
+                runOnUiThread {
+                    btnTest.isEnabled = true
+                    if (ping != null) {
+                        val text = if (ping == 0.0) "✅ Доступен"
+                        else "✅ Доступен (${(ping * 1000).toInt()} мс)"
+                        tvStatus.text = text
+                        tvStatus.setTextColor(android.graphics.Color.parseColor("#4CAF50")) // Green
+                    } else {
+                        tvStatus.text = "❌ Ошибка: ${error ?: "timeout"}"
+                        tvStatus.setTextColor(android.graphics.Color.RED)
+                    }
+                }
+            }
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Настройки MTProto")
+            .setView(dialogView)
+            .setPositiveButton("Сохранить") { _, _ ->
+                PreferenceManager.setProxyEnabled(this, swEnabled.isChecked)
+                PreferenceManager.setProxyHost(this, etHost.text.toString().trim())
+                PreferenceManager.setProxyPort(this, etPort.text.toString().toIntOrNull() ?: 0)
+                PreferenceManager.setProxySecret(this, etSecret.text.toString().trim())
+
+                // Сразу применяем настройки в клиенте
+                telegramClient.applyProxySettings()
+                Toast.makeText(this, "Настройки прокси обновлены", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Отмена") { _, _ ->
+                showSettingsDialog()
+            }
+            .setOnCancelListener { showSettingsDialog() }
+            .show()
     }
 
     private fun showImportSelectionDialog() {

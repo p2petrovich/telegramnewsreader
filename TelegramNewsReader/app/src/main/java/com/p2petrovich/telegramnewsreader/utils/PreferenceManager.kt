@@ -30,6 +30,12 @@ object PreferenceManager {
     private const val KEY_AI_MODEL = "ai_model"
     private const val KEY_AI_STYLE = "ai_style"
 
+    // Proxy settings
+    private const val KEY_PROXY_ENABLED = "proxy_enabled"
+    private const val KEY_PROXY_HOST = "proxy_host"
+    private const val KEY_PROXY_PORT = "proxy_port"
+    private const val KEY_PROXY_SECRET = "proxy_secret"
+
     private const val PATHS_DELIMITER = "|||"
 
     private fun getPreferences(context: Context): SharedPreferences {
@@ -262,5 +268,35 @@ object PreferenceManager {
 
     fun setDedupTimeWindow(context: Context, minutes: Int) {
         getPreferences(context).edit().putInt(KEY_DEDUP_TIME_WINDOW, minutes).apply()
+    }
+
+    // ===================== Proxy settings =====================
+
+    fun isProxyEnabled(context: Context): Boolean =
+        getPreferences(context).getBoolean(KEY_PROXY_ENABLED, false)
+
+    fun setProxyEnabled(context: Context, enabled: Boolean) {
+        getPreferences(context).edit().putBoolean(KEY_PROXY_ENABLED, enabled).apply()
+    }
+
+    fun getProxyHost(context: Context): String =
+        getPreferences(context).getString(KEY_PROXY_HOST, "") ?: ""
+
+    fun setProxyHost(context: Context, host: String) {
+        getPreferences(context).edit().putString(KEY_PROXY_HOST, host).apply()
+    }
+
+    fun getProxyPort(context: Context): Int =
+        getPreferences(context).getInt(KEY_PROXY_PORT, 0)
+
+    fun setProxyPort(context: Context, port: Int) {
+        getPreferences(context).edit().putInt(KEY_PROXY_PORT, port).apply()
+    }
+
+    fun getProxySecret(context: Context): String =
+        getPreferences(context).getString(KEY_PROXY_SECRET, "") ?: ""
+
+    fun setProxySecret(context: Context, secret: String) {
+        getPreferences(context).edit().putString(KEY_PROXY_SECRET, secret).apply()
     }
 }

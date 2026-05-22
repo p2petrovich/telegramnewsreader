@@ -6,6 +6,7 @@ import org.drinkless.tdlib.Client
 import org.drinkless.tdlib.TdApi
 import com.p2petrovich.telegramnewsreader.ApiConfig
 import com.p2petrovich.telegramnewsreader.models.Channel
+import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.CompletableDeferred
 import kotlin.coroutines.resume
@@ -72,6 +73,7 @@ class TelegramClient(private val context: Context) {
                         }
                         is TdApi.AuthorizationStateWaitTdlibParameters -> {
                             setTdlibParameters()
+                            applyProxySettings()
                         }
                         is TdApi.AuthorizationStateWaitPhoneNumber -> {
                             isAuthorized = false
@@ -357,6 +359,87 @@ class TelegramClient(private val context: Context) {
     fun close() {
         client?.send(TdApi.Close()) { }
         client = null
+    }
+
+    fun applyProxySettings() {
+        if (PreferenceManager.isProxyEnabled(context)) {
+            val host = PreferenceManager.getProxyHost(context)
+            val port = PreferenceManager.getProxyPort(context)
+            val secret = extractSecret(PreferenceManager.getProxySecret(context))
+
+            if (host.isNotEmpty() && port > 0) {
+                // Сначала удаляем все старые прокси
+                client?.send(TdApi.GetProxies()) { result ->
+                    if (result is TdApi.Proxies) {
+                        result.proxies.forEach { p ->
+                            client?.send(TdApi.RemoveProxy(p.id)) {}
+                        }
+                    }
+                    val proxyType = TdApi.ProxyTypeMtproto(secret)
+                    Log.d(TAG, "Applying MTProto proxy: $host:$port")
+                    client?.send(TdApi.AddProxy(host, port, true, proxyType)) { res ->
+                        if (res is TdApi.Proxy) {
+                            client?.send(TdApi.EnableProxy(res.id)) {
+                                Log.d(TAG, "Proxy applied and enabled")
+                            }
+                        } else if (res is TdApi.Error) {
+                            Log.e(TAG, "Failed to add proxy: ${res.code} - ${res.message}")
+                        }
+                    }
+                }
+                return
+            }
+        }
+        client?.send(TdApi.DisableProxy()) {
+            Log.d(TAG, "Proxy disabled")
+        }
+    }
+
+    private fun extractSecret(input: String): String {
+        val trimmed = input.trim()
+        // Вытаскиваем secret= из ссылки t.me/proxy?... или tg://proxy?...
+        Regex("[?&]secret=([^&\\s]+)").find(trimmed)?.let { return it.groupValues[1] }
+        return trimmed
+    }
+
+    fun testProxy(host: String, port: Int, secret: String, callback: (Double?, String?) -> Unit) {
+        if (client == null) {
+            callback(null, "Библиотека не готова")
+            return
+        }
+
+        val cleanSecret = extractSecret(secret)
+        val proxyType = TdApi.ProxyTypeMtproto(cleanSecret)
+
+        fun tryDc(dcIds: List<Int>) {
+            if (dcIds.isEmpty()) {
+                callback(null, "Нет ответа от серверов Telegram")
+                return
+            }
+            val dc = dcIds.first()
+            client?.send(TdApi.TestProxy(host, port, proxyType, dc, 10.0)) { result ->
+                when (result) {
+                    is TdApi.Seconds -> callback(result.seconds, null)
+                    is TdApi.Ok -> callback(0.0, null) // Прокси доступен, но замер не вернул время
+                    is TdApi.Error -> {
+                        // Если ошибка 400 (Bad Request), пробуем следующий DC
+                        if (result.code == 400) {
+                            tryDc(dcIds.drop(1))
+                        } else {
+                            callback(null, "${result.message} (код ${result.code})")
+                        }
+                    }
+                    else -> {
+                        val typeName = result?.javaClass?.simpleName ?: "null"
+                        Log.e(TAG, "TestProxy unknown result: $typeName")
+                        callback(null, "Неожиданный ответ: $typeName")
+                    }
+                }
+            }
+        }
+        
+        // Перебираем основные дата-центры (Европа, США, Азия)
+        tryDc(listOf(2, 1, 3))
     }
 
     private fun waitForReady(timeoutSec: Int): Boolean {
