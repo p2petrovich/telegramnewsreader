@@ -1265,11 +1265,11 @@ class MainActivity : AppCompatActivity() {
         val fileName = SettingsBackup.BACKUP_FILE_NAME
         dialogView.findViewById<android.widget.Button>(R.id.btn_export_settings)?.setOnClickListener {
             lifecycleScope.launch {
-                val success = withContext(Dispatchers.IO) {
+                val createdFileName = withContext(Dispatchers.IO) {
                     SettingsBackup.saveBackupToFile(this@MainActivity)
                 }
                 Toast.makeText(this@MainActivity,
-                    if (success) "Файл $fileName сохранён в папку Downloads"
+                    if (createdFileName != null) "Файл $createdFileName сохранён в папку Downloads"
                     else "Ошибка при сохранении",
                     Toast.LENGTH_LONG
                 ).show()
