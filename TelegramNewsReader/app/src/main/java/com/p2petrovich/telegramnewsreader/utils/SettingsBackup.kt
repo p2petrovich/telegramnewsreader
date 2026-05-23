@@ -117,47 +117,20 @@ object SettingsBackup {
     fun exportToJson(context: Context): String {
         val json = JSONObject()
 
-        json.put("is_authorized", PreferenceManager.isAuthorized(context))
-        json.put("phone_number", PreferenceManager.getPhoneNumber(context) ?: "")
-
-        json.put("tts_voice_name", PreferenceManager.getTtsVoiceName(context) ?: "")
-        json.put("tts_pitch", PreferenceManager.getTtsPitch(context))
-        json.put("tts_rate", PreferenceManager.getTtsRate(context))
-
-        val hiddenUsernamesArray = JSONArray()
-        PreferenceManager.getHiddenUsernames(context).forEach { hiddenUsernamesArray.put(it) }
-        json.put("hidden_usernames", hiddenUsernamesArray)
-
-        val hiddenIdsArray = JSONArray()
-        PreferenceManager.getHiddenIds(context).forEach { hiddenIdsArray.put(it) }
-        json.put("hidden_ids", hiddenIdsArray)
-
-        val hiddenIdTitleMap = JSONObject()
-        PreferenceManager.getHiddenIdTitleMap(context).forEach { (id, title) ->
-            hiddenIdTitleMap.put(id.toString(), title)
+        // Сохраняем ВСЕ настройки из SharedPreferences (включая прокси, TTS для разных голосов и т.д.)
+        val prefs = context.getSharedPreferences("telegram_news_prefs", Context.MODE_PRIVATE)
+        val allPrefs = prefs.all
+        val prefsJson = JSONObject()
+        allPrefs.forEach { (key, value) ->
+            if (value is Set<*>) {
+                val array = JSONArray()
+                value.forEach { array.put(it) }
+                prefsJson.put(key, array)
+            } else {
+                prefsJson.put(key, value)
+            }
         }
-        json.put("hidden_id_title_map", hiddenIdTitleMap)
-
-        val favoriteChannelsArray = JSONArray()
-        PreferenceManager.getFavoriteChannelIds(context).forEach { favoriteChannelsArray.put(it.toString()) }
-        json.put("favorite_channels", favoriteChannelsArray)
-
-        json.put("color_theme", PreferenceManager.getColorTheme(context))
-
-        // Дедупликация
-        json.put("dedup_enabled", PreferenceManager.isDedupEnabled(context))
-        json.put("dedup_threshold", PreferenceManager.getDedupThreshold(context).toDouble())
-        json.put("dedup_history_size", PreferenceManager.getDedupHistorySize(context))
-        json.put("dedup_time_window", PreferenceManager.getDedupTimeWindow(context))
-
-        // ИИ Настройки
-        json.put("ai_summary_enabled", PreferenceManager.isAiSummaryEnabled(context))
-        json.put("ai_model", PreferenceManager.getAiModel(context))
-        json.put("ai_style", PreferenceManager.getAiStyle(context))
-
-        json.put("player_paths", JSONArray(PreferenceManager.getPlaylistPaths(context)))
-        json.put("player_index", PreferenceManager.getPlayerIndex(context))
-        json.put("player_is_playing", PreferenceManager.getPlayerIsPlaying(context))
+        json.put("all_preferences", prefsJson)
 
         val presets = PresetManager.getAllPresets(context)
         val presetsArray = JSONArray()
@@ -295,102 +268,32 @@ object SettingsBackup {
         return try {
             val json = JSONObject(jsonString)
 
-            if (json.has("is_authorized")) {
-                PreferenceManager.setAuthorized(context, json.getBoolean("is_authorized"))
-            }
-            if (json.has("phone_number") && json.getString("phone_number").isNotEmpty()) {
-                PreferenceManager.savePhoneNumber(context, json.getString("phone_number"))
-            }
-
-            if (json.has("tts_voice_name") && json.getString("tts_voice_name").isNotEmpty()) {
-                PreferenceManager.saveTtsVoiceName(context, json.getString("tts_voice_name"))
-            }
-            if (json.has("tts_pitch")) {
-                PreferenceManager.saveTtsPitch(context, json.getDouble("tts_pitch").toFloat())
-            }
-            if (json.has("tts_rate")) {
-                PreferenceManager.saveTtsRate(context, json.getDouble("tts_rate").toFloat())
-            }
-
-            if (json.has("hidden_usernames")) {
-                val arr = json.getJSONArray("hidden_usernames")
-                val set = mutableSetOf<String>()
-                for (i in 0 until arr.length()) {
-                    set.add(arr.getString(i))
+            if (json.has("all_preferences")) {
+                val prefsJson = json.getJSONObject("all_preferences")
+                val prefs = context.getSharedPreferences("telegram_news_prefs", Context.MODE_PRIVATE)
+                val editor = prefs.edit()
+                
+                prefsJson.keys().forEach { key ->
+                    val value = prefsJson.get(key)
+                    when (value) {
+                        is Boolean -> editor.putBoolean(key, value)
+                        is Int -> editor.putInt(key, value)
+                        is Long -> editor.putLong(key, value)
+                        is Double -> {
+                            // SharedPreferences не поддерживают Double, обычно это Float (Pitch/Rate)
+                            editor.putFloat(key, value.toFloat())
+                        }
+                        is String -> editor.putString(key, value)
+                        is JSONArray -> {
+                            val set = mutableSetOf<String>()
+                            for (i in 0 until value.length()) {
+                                set.add(value.getString(i))
+                            }
+                            editor.putStringSet(key, set)
+                        }
+                    }
                 }
-                PreferenceManager.saveHiddenUsernames(context, set)
-            }
-
-            if (json.has("hidden_ids")) {
-                val arr = json.getJSONArray("hidden_ids")
-                val set = mutableSetOf<String>()
-                for (i in 0 until arr.length()) {
-                    set.add(arr.getString(i))
-                }
-                PreferenceManager.saveHiddenIds(context, set)
-            }
-
-            if (json.has("hidden_id_title_map")) {
-                val obj = json.getJSONObject("hidden_id_title_map")
-                val map = mutableMapOf<Long, String>()
-                obj.keys().forEach { key ->
-                    val id = key.toLongOrNull() ?: return@forEach
-                    map[id] = obj.getString(key)
-                }
-                PreferenceManager.saveHiddenIdTitleMap(context, map)
-            }
-
-            if (json.has("favorite_channels")) {
-                val arr = json.getJSONArray("favorite_channels")
-                val set = mutableSetOf<Long>()
-                for (i in 0 until arr.length()) {
-                    arr.getString(i).toLongOrNull()?.let { set.add(it) }
-                }
-                PreferenceManager.saveFavoriteChannelIds(context, set)
-            }
-
-            if (json.has("color_theme")) {
-                PreferenceManager.saveColorTheme(context, json.getString("color_theme"))
-            }
-
-            // Дедупликация
-            if (json.has("dedup_enabled")) {
-                PreferenceManager.setDedupEnabled(context, json.getBoolean("dedup_enabled"))
-            }
-            if (json.has("dedup_threshold")) {
-                PreferenceManager.setDedupThreshold(context, json.getDouble("dedup_threshold").toFloat())
-            }
-            if (json.has("dedup_history_size")) {
-                PreferenceManager.setDedupHistorySize(context, json.getInt("dedup_history_size"))
-            }
-            if (json.has("dedup_time_window")) {
-                PreferenceManager.setDedupTimeWindow(context, json.getInt("dedup_time_window"))
-            }
-
-            // ИИ Настройки
-            if (json.has("ai_summary_enabled")) {
-                PreferenceManager.setAiSummaryEnabled(context, json.getBoolean("ai_summary_enabled"))
-            }
-            if (json.has("ai_model")) {
-                PreferenceManager.setAiModel(context, json.getString("ai_model"))
-            }
-            if (json.has("ai_style")) {
-                PreferenceManager.setAiStyle(context, json.getString("ai_style"))
-            }
-
-            if (json.has("player_paths")) {
-                val arr = json.getJSONArray("player_paths")
-                val list = mutableListOf<String>()
-                for (i in 0 until arr.length()) {
-                    list.add(arr.getString(i))
-                }
-                PreferenceManager.savePlaylistPaths(context, list)
-            }
-            if (json.has("player_index")) {
-                PreferenceManager.savePlayerIndex(context, json.getInt("player_index"))
-            }
-            if (json.has("player_is_playing")) {
-                PreferenceManager.savePlayerIsPlaying(context, json.getBoolean("player_is_playing"))
+                editor.apply()
             }
 
             if (json.has("presets")) {
