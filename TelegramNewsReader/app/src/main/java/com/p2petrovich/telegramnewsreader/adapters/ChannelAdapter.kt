@@ -81,7 +81,7 @@ class ChannelAdapter(
                 "${channel.newMessagesCount} новых" else "Нет новостей"
             channel.isFavorite = PreferenceManager.isChannelFavorite(context, channel.id)
             if (channel.isFavorite) {
-                binding.imageFavorite.setImageResource(R.drawable.ic_star)
+                binding.imageFavorite.setIconResource(R.drawable.ic_star)
                 binding.imageFavorite.visibility = android.view.View.VISIBLE
             } else {
                 binding.imageFavorite.visibility = android.view.View.GONE

@@ -1,74 +1,81 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/card_channel"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="6dp">
+    android:layout_marginHorizontal="6dp"
+    android:layout_marginVertical="2dp"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="0dp"
+    app:strokeColor="?attr/colorOutlineVariant"
+    app:strokeWidth="1dp">
 
-    <ImageView
-        android:id="@+id/ivAvatar"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:src="@drawable/ic_channel_placeholder"
-        android:contentDescription="@string/app_name"
-        android:scaleType="centerCrop"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent" />
-
-    <TextView
-        android:id="@+id/textChannelName"
-        android:layout_width="0dp"
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Channel Name"
-        android:textSize="15sp"
-        android:textStyle="bold"
-        android:layout_marginStart="6dp"
-        android:layout_marginEnd="4dp"
-        android:maxLines="1"
-        android:ellipsize="end"
-        app:layout_constraintStart_toEndOf="@id/ivAvatar"
-        app:layout_constraintTop_toTopOf="@id/ivAvatar"
-        app:layout_constraintEnd_toStartOf="@id/imageFavorite"
-        app:layout_constraintBottom_toTopOf="@id/textNewMessages" />
+        android:padding="8dp">
 
-    <TextView
-        android:id="@+id/textNewMessages"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:text="0 новых"
-        android:textSize="12sp"
-        android:textColor="#666666"
-        android:layout_marginStart="6dp"
-        android:layout_marginEnd="4dp"
-        android:maxLines="1"
-        app:layout_constraintStart_toEndOf="@id/ivAvatar"
-        app:layout_constraintTop_toBottomOf="@id/textChannelName"
-        app:layout_constraintEnd_toStartOf="@id/imageFavorite"
-        app:layout_constraintBottom_toBottomOf="@id/ivAvatar" />
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/ivAvatar"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:scaleType="centerCrop"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
+            tools:src="@drawable/ic_channel_placeholder" />
 
-    <!-- Иконка избранного -->
-    <ImageView
-        android:id="@+id/imageFavorite"
-        android:layout_width="20dp"
-        android:layout_height="20dp"
-        android:src="@drawable/ic_star_border"
-        android:layout_marginEnd="6dp"
-        android:padding="2dp"
-        app:layout_constraintEnd_toStartOf="@id/checkboxChannel"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        <TextView
+            android:id="@+id/textChannelName"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="4dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textAppearance="?attr/textAppearanceTitleSmall"
+            app:layout_constraintBottom_toTopOf="@id/textNewMessages"
+            app:layout_constraintEnd_toStartOf="@id/imageFavorite"
+            app:layout_constraintStart_toEndOf="@id/ivAvatar"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_chainStyle="packed"
+            tools:text="Название канала" />
 
-    <CheckBox
-        android:id="@+id/checkboxChannel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginEnd="2dp"
-        android:scaleX="0.8"
-        android:scaleY="0.8"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        <TextView
+            android:id="@+id/textNewMessages"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:textAppearance="?attr/textAppearanceLabelSmall"
+            android:textColor="?attr/colorPrimary"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="@id/textChannelName"
+            app:layout_constraintStart_toStartOf="@id/textChannelName"
+            app:layout_constraintTop_toBottomOf="@id/textChannelName"
+            tools:text="15 новых" />
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/imageFavorite"
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            app:icon="@drawable/ic_star_border"
+            app:iconSize="18dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/checkboxChannel"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/checkboxChannel"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:minWidth="40dp"
+            android:minHeight="40dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</com.google.android.material.card.MaterialCardView>
