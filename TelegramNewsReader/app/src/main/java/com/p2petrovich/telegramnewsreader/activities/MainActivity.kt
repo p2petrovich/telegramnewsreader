@@ -500,6 +500,7 @@ class MainActivity : AppCompatActivity() {
             activePresetId = null
             refreshPresetChips()
         }
+        updateChannelStats()
     }
 
     private fun restoreLastSelection() {
@@ -576,6 +577,7 @@ class MainActivity : AppCompatActivity() {
         updateNewsCollectionButton()
         PresetManager.saveLastSelection(this, preset.channelIds, preset.timePeriodIndex)
         refreshPresetChips()
+        updateChannelStats()
         Toast.makeText(this, "Набор ${preset.name} применён", Toast.LENGTH_SHORT).show()
     }
 

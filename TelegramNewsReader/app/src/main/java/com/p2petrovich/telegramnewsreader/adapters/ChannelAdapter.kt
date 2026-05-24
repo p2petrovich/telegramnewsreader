@@ -41,12 +41,16 @@ class ChannelAdapter(
     fun filterByPreset(channelIds: Set<Long>) {
         isFiltered = true
         val filtered = allChannels.filter { it.id in channelIds }
-        applyDisplayList(filtered)
+        displayedChannels.clear()
+        displayedChannels.addAll(filtered)
+        notifyDataSetChanged()
     }
 
     fun clearFilter() {
         isFiltered = false
-        applyDisplayList(allChannels.toList())
+        displayedChannels.clear()
+        displayedChannels.addAll(allChannels)
+        notifyDataSetChanged()
     }
 
     fun isFilterActive(): Boolean = isFiltered
