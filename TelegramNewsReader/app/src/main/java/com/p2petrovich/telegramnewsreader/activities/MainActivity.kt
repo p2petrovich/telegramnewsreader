@@ -1332,35 +1332,48 @@ class MainActivity : AppCompatActivity() {
         etPort.setText(if (port > 0) port.toString() else "")
         etSecret.setText(PreferenceManager.getProxySecret(this))
 
-        btnTest.setOnClickListener {
-            val host = etHost.text.toString().trim()
-            val portStr = etPort.text.toString().trim()
-            val secret = etSecret.text.toString().trim()
-
-            if (host.isEmpty() || portStr.isEmpty() || secret.isEmpty()) {
-                tvStatus.text = "❌ Заполните все поля"
-                tvStatus.setTextColor(android.graphics.Color.RED)
-                return@setOnClickListener
-            }
-
+        val performTest = { h: String, p: Int, s: String ->
             tvStatus.text = "⌛ Проверка..."
             tvStatus.setTextColor(android.graphics.Color.GRAY)
             btnTest.isEnabled = false
 
-            telegramClient.testProxy(host, portStr.toIntOrNull() ?: 0, secret) { ping, error ->
+            telegramClient.testProxy(h, p, s) { ping, error ->
                 runOnUiThread {
                     btnTest.isEnabled = true
                     if (ping != null) {
                         val text = if (ping == 0.0) "✅ Доступен"
                         else "✅ Доступен (${(ping * 1000).toInt()} мс)"
                         tvStatus.text = text
-                        tvStatus.setTextColor(android.graphics.Color.parseColor("#4CAF50")) // Green
+                        tvStatus.setTextColor(android.graphics.Color.parseColor("#4CAF50"))
                     } else {
                         tvStatus.text = "❌ Ошибка: ${error ?: "timeout"}"
                         tvStatus.setTextColor(android.graphics.Color.RED)
                     }
                 }
             }
+        }
+
+        // Авто-проверка при открытии, если прокси включен и данные есть
+        if (swEnabled.isChecked) {
+            val h = etHost.text.toString().trim()
+            val s = etSecret.text.toString().trim()
+            if (h.isNotEmpty() && port > 0 && s.isNotEmpty()) {
+                performTest(h, port, s)
+            }
+        }
+
+        btnTest.setOnClickListener {
+            val h = etHost.text.toString().trim()
+            val pStr = etPort.text.toString().trim()
+            val s = etSecret.text.toString().trim()
+
+            if (h.isEmpty() || pStr.isEmpty() || s.isEmpty()) {
+                tvStatus.text = "❌ Заполните все поля"
+                tvStatus.setTextColor(android.graphics.Color.RED)
+                return@setOnClickListener
+            }
+
+            performTest(h, pStr.toIntOrNull() ?: 0, s)
         }
 
         AlertDialog.Builder(this)
