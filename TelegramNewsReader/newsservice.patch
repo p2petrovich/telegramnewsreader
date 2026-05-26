@@ -1,8 +1,0 @@
---- a/TelegramNewsReader/app/src/main/java/com/example/telegramnewsreader/services/NewsService.kt
-+++ b/TelegramNewsReader/app/src/main/java/com/example/telegramnewsreader/services/NewsService.kt
-@@ -107,8 +107,10 @@
-         } catch (e: Exception) {
-             Log.e(\"NewsService\", \"Ошибка получения сообщений для канала ${channel.id}\", e)\n            0\n        }\n    }\n+
-
-     // 🔥 НОВОЕ: Метод для получения количества новостей для всех каналов\n    suspend fun getAllChannelsNewsCount(\n        channels: List<Channel>,\n        timeHours: Double\n    ): Map<Long, Int> = withContext(Dispatchers.IO) {\n        val result = mutableMapOf<Long, Int>()\n+
-         try {\n            val currentTimeSeconds = System.currentTimeMillis() / 1000\n            val fromDate = currentTimeSeconds - (timeHours * 3600).toLong()\n\n            channels.forEach { channel ->\n                try {\n                    val messages = telegramClient.getChannelMessagesPaginated(channel.id, fromDate)\n                    result[channel.id] = messages.size\n                } catch (e: Exception) {\n                    Log.e(\"NewsService\", \"Ошибка получения сообщений для канала ${channel.id}\", e)\n                    // Можно вернуть -1 или другое значение, чтобы обозначить ошибку\n                    result[channel.id] = -1\n                }\n            }\n        } catch (e: Exception) {\n            Log.e(\"NewsService\", \"Ошибка при получении количества новостей для всех каналов\", e)\n            // В случае глобальной ошибки, можно вернуть пустую карту или пробросить исключение дальше\n            return@withContext emptyMap()\n        }\n\n        return@withContext result\n    }\n+
