@@ -28,4 +28,4 @@
 - **Архитектура**: MVVM (ViewBinding).
 
 ## Лицензия
-Apache License 2.0
+PolyForm Noncommercial License 1.0.0
