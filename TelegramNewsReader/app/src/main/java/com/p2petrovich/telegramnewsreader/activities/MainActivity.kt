@@ -230,8 +230,7 @@ class MainActivity : AppCompatActivity() {
         // Обработчики изменений
         sbThreshold.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                val value = progress.coerceIn(80, 100)
-                tvThresholdValue.text = "$value%"
+                tvThresholdValue.text = "$progress%"
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
@@ -239,8 +238,7 @@ class MainActivity : AppCompatActivity() {
 
         sbHistorySize.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                val value = progress.coerceIn(50, 1000)
-                tvHistoryValue.text = "$value сообщений"
+                tvHistoryValue.text = "$progress сообщений"
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
@@ -248,8 +246,7 @@ class MainActivity : AppCompatActivity() {
 
         sbTimeWindow.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                val value = progress.coerceIn(5, 120)
-                tvTimeValue.text = "$value минут"
+                tvTimeValue.text = "$progress минут"
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
