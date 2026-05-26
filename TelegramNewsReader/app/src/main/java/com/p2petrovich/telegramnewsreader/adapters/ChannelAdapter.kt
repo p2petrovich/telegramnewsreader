@@ -2,15 +2,16 @@ package com.p2petrovich.telegramnewsreader.adapters
 
 import android.content.Context
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
-import com.p2petrovich.telegramnewsreader.databinding.ItemChannelBinding
-import com.p2petrovich.telegramnewsreader.models.Channel
-import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import coil.load
 import coil.transform.CircleCropTransformation
 import com.p2petrovich.telegramnewsreader.R
+import com.p2petrovich.telegramnewsreader.databinding.ItemChannelBinding
+import com.p2petrovich.telegramnewsreader.models.Channel
+import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import java.io.File
 
 class ChannelAdapter(
@@ -41,16 +42,12 @@ class ChannelAdapter(
     fun filterByPreset(channelIds: Set<Long>) {
         isFiltered = true
         val filtered = allChannels.filter { it.id in channelIds }
-        displayedChannels.clear()
-        displayedChannels.addAll(filtered)
-        notifyDataSetChanged()
+        applyDisplayList(filtered)
     }
 
     fun clearFilter() {
         isFiltered = false
-        displayedChannels.clear()
-        displayedChannels.addAll(allChannels)
-        notifyDataSetChanged()
+        applyDisplayList(allChannels.toList())
     }
 
     fun isFilterActive(): Boolean = isFiltered
@@ -64,6 +61,17 @@ class ChannelAdapter(
         if (dispIdx >= 0) {
             displayedChannels[dispIdx].photoPath = path
             notifyItemChanged(dispIdx)
+        }
+    }
+
+    /**
+     * Точечное обновление всех видимых элементов — нужно, когда поменялось
+     * что-то у самих объектов Channel (например, newMessagesCount после
+     * фоновой загрузки) и нужно перерисовать видимые холдеры.
+     */
+    fun refreshVisibleItems() {
+        if (displayedChannels.isNotEmpty()) {
+            notifyItemRangeChanged(0, displayedChannels.size)
         }
     }
 
@@ -82,14 +90,18 @@ class ChannelAdapter(
         fun bind(channel: Channel) {
             binding.textChannelName.text = channel.title
             binding.textNewMessages.text = if (channel.newMessagesCount > 0)
-                "${channel.newMessagesCount} новых" else "Нет новостей"
+                context.getString(R.string.channel_news_count, channel.newMessagesCount)
+            else
+                context.getString(R.string.channel_no_news)
+
             channel.isFavorite = PreferenceManager.isChannelFavorite(context, channel.id)
             if (channel.isFavorite) {
                 binding.imageFavorite.setIconResource(R.drawable.ic_star)
-                binding.imageFavorite.visibility = android.view.View.VISIBLE
+                binding.imageFavorite.visibility = View.VISIBLE
             } else {
-                binding.imageFavorite.visibility = android.view.View.GONE
+                binding.imageFavorite.visibility = View.GONE
             }
+
             val path = channel.photoPath
             if (!path.isNullOrBlank()) {
                 val f = File(path)
@@ -97,11 +109,12 @@ class ChannelAdapter(
                     placeholder(R.drawable.ic_channel_placeholder)
                     error(R.drawable.ic_channel_placeholder)
                     transformations(CircleCropTransformation())
-                    memoryCacheKey(f.absolutePath + "#" + f.lastModified())
+                    memoryCacheKey("${f.absolutePath}#${f.lastModified()}")
                 }
             } else {
                 binding.ivAvatar.setImageResource(R.drawable.ic_channel_placeholder)
             }
+
             binding.checkboxChannel.setOnCheckedChangeListener(null)
             binding.checkboxChannel.isChecked = channel.isSelected
             binding.checkboxChannel.setOnCheckedChangeListener { _, isChecked ->
@@ -151,7 +164,8 @@ class ChannelAdapter(
         override fun getNewListSize() = newList.size
         override fun areItemsTheSame(oldPos: Int, newPos: Int) = oldList[oldPos].id == newList[newPos].id
         override fun areContentsTheSame(oldPos: Int, newPos: Int): Boolean {
-            val old = oldList[oldPos]; val new = newList[newPos]
+            val old = oldList[oldPos]
+            val new = newList[newPos]
             return old.title == new.title && old.isSelected == new.isSelected &&
                     old.isFavorite == new.isFavorite && old.newMessagesCount == new.newMessagesCount &&
                     old.photoPath == new.photoPath
