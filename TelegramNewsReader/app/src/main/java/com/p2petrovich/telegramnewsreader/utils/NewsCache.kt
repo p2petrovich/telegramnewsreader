@@ -53,14 +53,14 @@ object NewsCache {
         files.sortBy { it.lastModified() }
 
         while (files.size > MAX_CACHE_FILES) {
-            val old = files.removeFirst()
+            val old = files.removeAt(0)
             try { old.delete() } catch (_: Exception) {}
         }
 
         var totalBytes = files.sumOf { it.length() }
         val maxBytes = MAX_CACHE_SIZE_MB.toLong() * 1024 * 1024
         while (totalBytes > maxBytes && files.isNotEmpty()) {
-            val old = files.removeFirst()
+            val old = files.removeAt(0)
             totalBytes -= old.length()
             try { old.delete() } catch (_: Exception) {}
         }

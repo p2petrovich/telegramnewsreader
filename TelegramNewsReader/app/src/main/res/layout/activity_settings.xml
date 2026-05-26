@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:padding="16dp"
-    android:animateLayoutChanges="true">  
+    android:animateLayoutChanges="true">
 
     <TextView
         android:id="@+id/tv_speed"
@@ -65,8 +65,18 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <RadioButton android:id="@+id/rb_male" android:text="@string/voice_male" />
-        <RadioButton android:id="@+id/rb_female" android:text="@string/voice_female" />
+        <RadioButton
+            android:id="@+id/rb_male"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/voice_male" />
+
+        <RadioButton
+            android:id="@+id/rb_female"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="@string/voice_female" />
     </RadioGroup>
 
     <Button
