@@ -67,3 +67,16 @@ Thumbs.db
 /captures
 .externalNativeBuild
 .cxx
+
+# --- Telegram News Reader specific ---
+# Разрешаем библиотеки (обязательно для сборки другими пользователями)
+!**/TelegramNewsReader/app/libs/*.aar
+
+# Локальный мусор и отчеты
+**/TelegramNewsReader/lint-report.txt
+**/TelegramNewsReader/rules.md
+**/TelegramNewsReader/TelegramClient.patch
+**/TelegramNewsReader/setup_env.bat
+**/TelegramNewsReader/setup_env.ps1
+**/TelegramNewsReader/app/release/
+**/TelegramNewsReader/.kotlin/
