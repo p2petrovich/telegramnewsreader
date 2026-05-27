@@ -43,7 +43,12 @@ class EdgeTtsProvider(
         private const val TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4"
         private const val WS_BASE = "wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1"
 
-        // Максимум символов на один запрос (Edge ограничивает ~10KB SSML)
+        // Sec-MS-GEC
+        private const val SEC_MS_GEC_SALT = "S3+7QYV30P!pVQf@"
+        private const val EDGE_VERSION    = "130.0.2849.68"
+        private const val WIN_EPOCH_DELTA = 11_644_473_600L  // секунд между 1601 и 1970
+        private const val FIVE_MIN_TICKS  = 3_000_000_000L   // 5 минут в 100-нс тиках
+
         private const val MAX_CHARS = 3000
 
         private val sharedClient = OkHttpClient.Builder()
@@ -101,6 +106,23 @@ class EdgeTtsProvider(
         }
     }
 
+    /**
+     * Генерирует Sec-MS-GEC токен.
+     * Алгоритм: Windows FileTime (100-нс с 1601-01-01 UTC), округлённый вниз до 5 минут,
+     * затем SHA-256(ticks + salt) в hex uppercase.
+     */
+    private fun generateSecMsGec(): String {
+        val unixSeconds = System.currentTimeMillis() / 1000L
+        var ticks = (unixSeconds + WIN_EPOCH_DELTA) * 10_000_000L
+        ticks -= ticks % FIVE_MIN_TICKS
+
+        val payload = "$ticks$SEC_MS_GEC_SALT"
+        val digest = java.security.MessageDigest
+            .getInstance("SHA-256")
+            .digest(payload.toByteArray(Charsets.US_ASCII))
+        return digest.joinToString("") { "%02X".format(it) }
+    }
+
     // ─── Синтез одной части через WebSocket ──────────────────────────────────
 
     private suspend fun synthesizePart(text: String, outputFile: File): Boolean {
@@ -108,7 +130,13 @@ class EdgeTtsProvider(
             val connectionId = uuid()
             val requestId    = uuid()
             val timestamp    = isoTimestamp()
-            val wsUrl        = "$WS_BASE?TrustedClientToken=$TOKEN&ConnectionId=$connectionId"
+            val secMsGec     = generateSecMsGec()
+            
+            val wsUrl = "$WS_BASE" +
+                    "?TrustedClientToken=$TOKEN" +
+                    "&Sec-MS-GEC=$secMsGec" +
+                    "&Sec-MS-GEC-Version=1-$EDGE_VERSION" +
+                    "&ConnectionId=$connectionId"
 
             val request = Request.Builder()
                 .url(wsUrl)
@@ -120,7 +148,7 @@ class EdgeTtsProvider(
                 .header("User-Agent",
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
                     "AppleWebKit/537.36 (KHTML, like Gecko) " +
-                    "Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0")
+                    "Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0")
                 .build()
 
             val audioBuf = ByteArrayOutputStream()
@@ -165,7 +193,7 @@ class EdgeTtsProvider(
                 }
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                    Log.e(TAG, "WS failure: ${t.message} (${response?.code})")
+                    Log.e(TAG, "WS failure code=${response?.code} msg=${response?.message}", t)
                     if (continuation.isActive && !resumed) {
                         resumed = true
                         continuation.resume(false)
