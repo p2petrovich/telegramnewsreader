@@ -212,37 +212,47 @@ class VoiceSelectionActivity : AppCompatActivity() {
     // ── Android TTS список ────────────────────────────────────────────────────
 
     private fun loadVoices() {
-        val ttsManager = TTSManagerSingleton.getInstance(this)
-        val allVoiceEntries = ttsManager.getAvailableVoiceEntries()
-
-        val russianVoices = allVoiceEntries.filter {
-            it.language == "ru" || it.language.startsWith("ru", ignoreCase = true)
-        }
-
-        if (russianVoices.isEmpty()) {
-            Toast.makeText(this, "Русские голоса TTS не найдены", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        val savedVoiceName = PreferenceManager.getTtsVoiceName(this)
-        val savedVoiceIsRussian = russianVoices.any { it.systemName == savedVoiceName }
-
-        val currentSelectedVoice = if (savedVoiceIsRussian) {
-            savedVoiceName
-        } else {
-            russianVoices.firstOrNull()?.systemName.also {
-                if (it != null) PreferenceManager.saveTtsVoiceName(this, it)
+        CoroutineScope(Dispatchers.Main).launch {
+            val ttsManager = TTSManagerSingleton.getInstance(this@VoiceSelectionActivity)
+            
+            // Ждем инициализации Android TTS, иначе список voices будет неполным
+            val isReady = ttsManager.waitInit()
+            if (!isReady) {
+                Log.e("VoiceSelection", "TTS initialization timed out")
             }
+
+            val allVoiceEntries = ttsManager.getAvailableVoiceEntries()
+            val russianVoices = allVoiceEntries.filter {
+                it.language == "ru" || it.language.startsWith("ru", ignoreCase = true)
+            }
+
+            if (russianVoices.isEmpty()) {
+                if (isReady) {
+                    Toast.makeText(this@VoiceSelectionActivity, "Русские голоса TTS не найдены", Toast.LENGTH_LONG).show()
+                }
+                return@launch
+            }
+
+            val savedVoiceName = PreferenceManager.getTtsVoiceName(this@VoiceSelectionActivity)
+            val savedVoiceIsRussian = russianVoices.any { it.systemName == savedVoiceName }
+
+            val currentSelectedVoice = if (savedVoiceIsRussian) {
+                savedVoiceName
+            } else {
+                russianVoices.firstOrNull()?.systemName.also {
+                    if (it != null) PreferenceManager.saveTtsVoiceName(this@VoiceSelectionActivity, it)
+                }
+            }
+
+            voiceAdapter = VoiceAdapter(
+                voiceEntries = russianVoices,
+                selectedVoiceName = currentSelectedVoice,
+                onVoiceSelected = { voiceEntry -> onVoiceSelected(voiceEntry) },
+                onVoicePlay = { voiceEntry -> onVoicePlay(voiceEntry) }
+            )
+
+            recyclerView.adapter = voiceAdapter
         }
-
-        voiceAdapter = VoiceAdapter(
-            voiceEntries = russianVoices,
-            selectedVoiceName = currentSelectedVoice,
-            onVoiceSelected = { voiceEntry -> onVoiceSelected(voiceEntry) },
-            onVoicePlay = { voiceEntry -> onVoicePlay(voiceEntry) }
-        )
-
-        recyclerView.adapter = voiceAdapter
     }
 
     private fun onVoiceSelected(voiceEntry: VoiceEntry) {

@@ -114,21 +114,18 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         voiceParametersApplied = true
     }
 
-    private suspend fun ensureTtsInitialized(): Boolean {
+    suspend fun waitInit(): Boolean {
         if (ttsInitialized.get()) return true
-        if (tts != null && initializationContinuation == null) {
-            return suspendCancellableCoroutine { continuation ->
+        return withTimeoutOrNull(5000L) {
+            suspendCancellableCoroutine { continuation ->
                 initializationContinuation = continuation
                 continuation.invokeOnCancellation { initializationContinuation = null }
             }
-        }
-        return ttsInitialized.get()
+        } ?: ttsInitialized.get()
     }
 
     fun getAvailableVoiceEntries(): List<VoiceEntry> {
-        val systemVoices = tts?.voices?.filter {
-            it.locale.language == "ru" || it.locale.language == "en"
-        }?.toList() ?: emptyList()
+        val systemVoices = tts?.voices?.toList() ?: emptyList()
         return VoiceMappings.mapVoices(systemVoices)
     }
 
@@ -222,7 +219,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         pauseMs: Int = 1000,
         progressCallback: SynthesisProgressCallback?
     ): AudioPlaylist? {
-        if (!ensureTtsInitialized() || tts == null) return null
+        if (!waitInit() || tts == null) return null
 
         progressCallback?.onStarted(texts.size)
 
