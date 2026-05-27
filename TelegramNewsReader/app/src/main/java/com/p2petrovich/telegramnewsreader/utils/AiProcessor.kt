@@ -11,6 +11,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 
 object AiProcessor {
     private const val TAG = "AiProcessor"
@@ -21,6 +23,49 @@ object AiProcessor {
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
+
+    /**
+     * Проверяет доступность выбранной модели, отправляя пустой запрос.
+     * Возвращает Pair(успех, сообщение)
+     */
+    suspend fun testModelAvailability(modelName: String, context: Context): Pair<Boolean, String> {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        if (apiKey.isBlank()) return false to "API ключ отсутствует"
+
+        val json = JSONObject().apply {
+            put("model", modelName)
+            val messages = JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", "ping")
+                })
+            }
+            put("messages", messages)
+            put("max_tokens", 1) // Минимум токенов для проверки
+        }
+
+        val mediaType = "application/json; charset=utf-8".toMediaType()
+        val body = json.toString().toRequestBody(mediaType)
+
+        val request = Request.Builder()
+            .url(API_URL)
+            .addHeader("Authorization", "Bearer $apiKey")
+            .post(body)
+            .build()
+
+        return try {
+            val response = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                client.newCall(request).execute()
+            }
+            if (response.isSuccessful) {
+                true to "Модель доступна"
+            } else {
+                false to "Ошибка ${response.code}: ${response.message}"
+            }
+        } catch (e: Exception) {
+            false to "Сеть недоступна: ${e.message}"
+        }
+    }
 
     suspend fun summarizeNews(newsText: String, context: Context): String {
         val apiKey = BuildConfig.GEMINI_API_KEY

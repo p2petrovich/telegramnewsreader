@@ -48,6 +48,7 @@ import com.p2petrovich.telegramnewsreader.tts.TTSManager
 import com.p2petrovich.telegramnewsreader.tts.TTSManagerSingleton
 import com.p2petrovich.telegramnewsreader.utils.Deduplicator
 import com.p2petrovich.telegramnewsreader.utils.NewsCache
+import com.p2petrovich.telegramnewsreader.utils.AiProcessor
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.PresetManager
 import com.p2petrovich.telegramnewsreader.utils.SettingsBackup
@@ -1447,6 +1448,31 @@ class MainActivity : AppCompatActivity() {
 
         val styleIdx = styles.indexOfFirst { it.first == currentStyle }.coerceAtLeast(0)
         spinnerStyle.setSelection(styleIdx)
+
+        val btnTest = dialogView.findViewById<android.widget.Button>(R.id.btn_test_ai_model)
+        val tvStatus = dialogView.findViewById<android.widget.TextView>(R.id.tv_ai_test_status)
+
+        btnTest.setOnClickListener {
+            val selectedModel = models[spinnerModel.selectedItemPosition].first
+            btnTest.isEnabled = false
+            btnTest.text = "Проверяю..."
+            tvStatus.text = ""
+
+            lifecycleScope.launch {
+                val result = AiProcessor.testModelAvailability(selectedModel, this@MainActivity)
+                btnTest.isEnabled = true
+                btnTest.text = "Проверить доступность"
+                
+                if (result.first) {
+                    tvStatus.text = "✅ Доступна"
+                    tvStatus.setTextColor(Color.GREEN)
+                } else {
+                    tvStatus.text = "❌ Ошибка"
+                    tvStatus.setTextColor(Color.RED)
+                    Toast.makeText(this@MainActivity, result.second, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
 
         AlertDialog.Builder(this)
             .setView(dialogView)
