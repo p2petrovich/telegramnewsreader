@@ -51,7 +51,11 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     private var tts: TextToSpeech? = null
     private var ttsInitialized = AtomicBoolean(false)
-    private var initializationContinuation: CancellableContinuation<Boolean>? = null
+
+    // Список ожидающих инициализации корутин — чтобы несколько вызовов waitInit()
+    // не перетирали друг друга.
+    private val initWaiters = mutableListOf<CancellableContinuation<Boolean>>()
+    private val initLock = Any()
 
     private var voiceParametersApplied = false
     private var currentAppliedPitch: Float? = null
@@ -66,20 +70,28 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     }
 
     override fun onInit(status: Int) {
-        if (status == TextToSpeech.SUCCESS) {
+        val success = status == TextToSpeech.SUCCESS
+        if (success) {
             ttsInitialized.set(true)
             val result = tts?.setLanguage(Locale("ru"))
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                 tts?.setLanguage(Locale.US)
             }
             applySavedVoice()
-            initializationContinuation?.resume(true)
         } else {
             ttsInitialized.set(false)
             Log.e(TAG, "TTS init failed, status=$status")
-            initializationContinuation?.resume(false)
         }
-        initializationContinuation = null
+
+        // Разбудить всех ожидающих
+        val waiters = synchronized(initLock) {
+            val copy = initWaiters.toList()
+            initWaiters.clear()
+            copy
+        }
+        waiters.forEach { cont ->
+            if (cont.isActive) cont.resume(success)
+        }
     }
 
     private fun applySavedVoice() {
@@ -115,12 +127,31 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         voiceParametersApplied = true
     }
 
+    /**
+     * Ждёт инициализации Android TTS. Безопасно вызывать из нескольких корутин одновременно —
+     * каждая получит результат, никто не потеряется.
+     */
     suspend fun waitInit(): Boolean {
         if (ttsInitialized.get()) return true
+        if (tts == null) return false
+
         return withTimeoutOrNull(5000L) {
-            suspendCancellableCoroutine { continuation ->
-                initializationContinuation = continuation
-                continuation.invokeOnCancellation { initializationContinuation = null }
+            suspendCancellableCoroutine<Boolean> { continuation ->
+                // Если успели проинициализироваться, пока заходили — сразу резюмим
+                if (ttsInitialized.get()) {
+                    continuation.resume(true)
+                    return@suspendCancellableCoroutine
+                }
+
+                synchronized(initLock) {
+                    initWaiters.add(continuation)
+                }
+
+                continuation.invokeOnCancellation {
+                    synchronized(initLock) {
+                        initWaiters.remove(continuation)
+                    }
+                }
             }
         } ?: ttsInitialized.get()
     }
@@ -138,7 +169,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             tts?.language = it.locale
             tts?.voice = it
             PreferenceManager.saveTtsVoiceName(context, voiceName)
-            voiceParametersApplied = false  // сброс — гарантирует применение настроек нового голоса
+            voiceParametersApplied = false
             applyVoiceSettings(voiceName)
         }
     }
@@ -201,11 +232,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         fun onActualCounts(newsCount: Int, partsCount: Int) {}
     }
 
-    /**
-     * Результат: список WAV-файлов, по одному на каждую главу (заголовок или новость).
-     * Внутри каждого файла все части этой главы склеены + тишина в конце.
-     * Кнопка «Далее» в плеере просто переключает файл — никакого seek.
-     */
     data class AudioPlaylist(
         val files: List<File>,
         val actualNewsCount: Int = 0,
@@ -248,7 +274,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             if (isHeader) {
                 val cleanTitle = stripHeaderMarker(raw)
                 if (cleanTitle.isNotBlank()) {
-                    // Добавляем паузу после заголовка канала
                     prepared += PreparedNews(newsIndex, "$cleanTitle...", true)
                 }
             } else {
@@ -281,7 +306,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         var silenceFile: File? = null
         var baselineFormat: WavMeta? = null
 
-        // Результат: один WAV-файл на каждую главу
         val chapterFiles = mutableListOf<File>()
         val newsFileIndices = mutableSetOf<Int>()
 
@@ -319,7 +343,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 } else {
                     val edge = edgeProvider
                     if (edge != null) {
-                        // Попытка Edge TTS
                         val tmp = File(context.cacheDir, "${baseUtteranceId}_part_${partIndex}.wav")
                         val ok = withTimeoutOrNull(20_000L) { edge.synthesizeToWav(partText, tmp) } ?: false
                         if (ok && tmp.exists() && tmp.length() > 0) {
@@ -330,7 +353,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                         }
                     }
 
-                    // Fallback или основной путь для Android TTS
                     if (wav == null) {
                         wav = synthesizePartToWav(partText, partIndex, baseUtteranceId)
                     }
@@ -377,12 +399,10 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 }
             }
 
-            // Добавляем тишину в конец главы (кроме последней)
             if (idx != prepared.lastIndex && pauseMs > 0 && silenceFile != null) {
                 partWavs.add(silenceFile!!)
             }
 
-            // Склеиваем все части этой главы в один файл
             val chapterWav = File(context.cacheDir, "${baseUtteranceId}_ch${chapterIndex}.wav")
             val ok = if (partWavs.size == 1) {
                 partWavs.first().copyTo(chapterWav, overwrite = true)
@@ -391,7 +411,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 AudioUtils.concatWavFiles(partWavs, chapterWav)
             }
 
-            // Удаляем временные части (кроме кэшированных и тишины)
             val silPath = silenceFile?.absolutePath
             partWavs.forEach { f ->
                 if (f.exists() && f != chapterWav && f.absolutePath != silPath
@@ -453,7 +472,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     }
 
     private suspend fun synthesizePartToWav(text: String, partIndex: Int, baseUtteranceId: String): File? {
-        // Таймаут 15 сек — защита от зависания Android TTS
         return withTimeoutOrNull(15_000L) {
             suspendCancellableCoroutine { continuation ->
                 val utteranceId = "${baseUtteranceId}_part_${partIndex}"
@@ -461,7 +479,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 val params = Bundle().apply {
                     putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
                 }
-                // Сбрасываем старый listener до установки нового — исправляет race condition
                 tts?.setOnUtteranceProgressListener(null)
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(id: String?) {}
@@ -552,8 +569,17 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     fun shutdown() {
         ttsInitialized.set(false)
-        initializationContinuation?.cancel()
-        initializationContinuation = null
+
+        // Разбудить ожидающих со статусом false
+        val waiters = synchronized(initLock) {
+            val copy = initWaiters.toList()
+            initWaiters.clear()
+            copy
+        }
+        waiters.forEach { cont ->
+            if (cont.isActive) cont.resume(false)
+        }
+
         tts?.stop()
         tts?.shutdown()
         tts = null

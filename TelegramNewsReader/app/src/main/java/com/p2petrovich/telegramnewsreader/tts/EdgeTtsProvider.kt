@@ -27,6 +27,8 @@ import kotlin.coroutines.resume
  * Голоса: ru-RU-DmitryNeural (муж), ru-RU-SvetlanaNeural (жен).
  * Выходной формат: WAV (riff-24khz-16bit-mono-pcm) — совместим с текущим пайплайном.
  * Бесплатно, без API ключа.
+ *
+ * Алгоритм Sec-MS-GEC — повторяет эталон rany2/edge-tts (drm.py).
  */
 class EdgeTtsProvider(
     val voice: String = VOICE_DMITRY,
@@ -43,11 +45,11 @@ class EdgeTtsProvider(
         private const val TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4"
         private const val WS_BASE = "wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1"
 
-        // Sec-MS-GEC
-        private const val SEC_MS_GEC_SALT = "S3+7QYV30P!pVQf@"
-        private const val EDGE_VERSION    = "130.0.2849.68"
-        private const val WIN_EPOCH_DELTA = 11_644_473_600L  // секунд между 1601 и 1970
-        private const val FIVE_MIN_TICKS  = 3_000_000_000L   // 5 минут в 100-нс тиках
+        // Sec-MS-GEC — версия Chromium должна быть актуальной (синхронизировано с rany2/edge-tts)
+        private const val CHROMIUM_FULL_VERSION  = "143.0.3650.75"
+        private const val CHROMIUM_MAJOR_VERSION = "143"
+        private const val SEC_MS_GEC_VERSION     = "1-$CHROMIUM_FULL_VERSION"
+        private const val WIN_EPOCH              = 11_644_473_600L
 
         private const val MAX_CHARS = 3000
 
@@ -71,7 +73,6 @@ class EdgeTtsProvider(
     suspend fun synthesizeToWav(text: String, outputFile: File): Boolean {
         if (text.isBlank()) return false
 
-        // Общий таймаут 60 сек
         return withTimeoutOrNull(60_000L) {
             if (text.length <= MAX_CHARS) {
                 synthesizePart(text, outputFile)
@@ -108,18 +109,29 @@ class EdgeTtsProvider(
 
     /**
      * Генерирует Sec-MS-GEC токен.
-     * Алгоритм: Windows FileTime (100-нс с 1601-01-01 UTC), округлённый вниз до 5 минут,
-     * затем SHA-256(ticks + salt) в hex uppercase.
+     *
+     * Алгоритм (1-в-1 с rany2/edge-tts drm.py):
+     *  1. Unix timestamp (секунды, double)
+     *  2. + WIN_EPOCH (переход к Windows file time, 1601-01-01)
+     *  3. округление вниз до 5 минут (% 300)
+     *  4. * 1e9 / 100 — перевод в 100-нс интервалы
+     *  5. форматирование как целое
+     *  6. SHA-256(ticksStr + TRUSTED_CLIENT_TOKEN) → uppercase hex
+     *
+     * Соль для SHA-256 — это сам TRUSTED_CLIENT_TOKEN.
      */
     private fun generateSecMsGec(): String {
-        val unixSeconds = System.currentTimeMillis() / 1000L
-        var ticks = (unixSeconds + WIN_EPOCH_DELTA) * 10_000_000L
-        ticks -= ticks % FIVE_MIN_TICKS
+        var ticks: Double = System.currentTimeMillis() / 1000.0
+        ticks += WIN_EPOCH
+        ticks -= ticks % 300.0
+        ticks *= 1e9 / 100.0
 
-        val payload = "$ticks$SEC_MS_GEC_SALT"
+        val ticksStr = String.format(Locale.US, "%.0f", ticks)
+        val strToHash = "$ticksStr$TOKEN"
+
         val digest = java.security.MessageDigest
             .getInstance("SHA-256")
-            .digest(payload.toByteArray(Charsets.US_ASCII))
+            .digest(strToHash.toByteArray(Charsets.US_ASCII))
         return digest.joinToString("") { "%02X".format(it) }
     }
 
@@ -131,11 +143,11 @@ class EdgeTtsProvider(
             val requestId    = uuid()
             val timestamp    = isoTimestamp()
             val secMsGec     = generateSecMsGec()
-            
+
             val wsUrl = "$WS_BASE" +
                     "?TrustedClientToken=$TOKEN" +
                     "&Sec-MS-GEC=$secMsGec" +
-                    "&Sec-MS-GEC-Version=1-$EDGE_VERSION" +
+                    "&Sec-MS-GEC-Version=$SEC_MS_GEC_VERSION" +
                     "&ConnectionId=$connectionId"
 
             val request = Request.Builder()
@@ -143,12 +155,13 @@ class EdgeTtsProvider(
                 .header("Pragma", "no-cache")
                 .header("Cache-Control", "no-cache")
                 .header("Origin", "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold")
-                .header("Accept-Encoding", "gzip, deflate, br")
-                .header("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7")
+                .header("Accept-Encoding", "gzip, deflate, br, zstd")
+                .header("Accept-Language", "en-US,en;q=0.9")
                 .header("User-Agent",
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
                     "AppleWebKit/537.36 (KHTML, like Gecko) " +
-                    "Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0")
+                    "Chrome/$CHROMIUM_MAJOR_VERSION.0.0.0 Safari/537.36 " +
+                    "Edg/$CHROMIUM_MAJOR_VERSION.0.0.0")
                 .build()
 
             val audioBuf = ByteArrayOutputStream()
@@ -268,8 +281,6 @@ class EdgeTtsProvider(
             val pcm = if (dataOffset > 0) {
                 audioBytes.copyOfRange(dataOffset, audioBytes.size)
             } else {
-                // Если не нашли data-чанк, возможно это чистый PCM или битый WAV
-                // Пробуем отрезать стандартные 44 байта если это похоже на WAV
                 if (audioBytes.size > 44 && String(audioBytes.copyOfRange(0, 4)) == "RIFF") {
                     audioBytes.copyOfRange(44, audioBytes.size)
                 } else audioBytes
@@ -304,7 +315,6 @@ class EdgeTtsProvider(
             for (f in files) {
                 val bytes = f.readBytes()
                 if (bytes.size < 44) continue
-                // Пропускаем RIFF-заголовок (44 байта) — берём только PCM
                 val dataStart = findDataChunkOffset(bytes)
                 if (dataStart > 0 && dataStart < bytes.size) {
                     allPcm.write(bytes, dataStart, bytes.size - dataStart)
@@ -342,7 +352,7 @@ class EdgeTtsProvider(
                             ((wav[i+6].toInt() and 0xFF) shl 16) or
                             ((wav[i+7].toInt() and 0xFF) shl 24)
             i += 8
-            if (chunkId == "data") return i  // данные начинаются здесь
+            if (chunkId == "data") return i
             i += chunkSize
         }
         return -1
@@ -361,8 +371,8 @@ class EdgeTtsProvider(
         writeLE(36 + pcmSize, 4, 4)
         "WAVE".toByteArray().copyInto(header, 8)
         "fmt ".toByteArray().copyInto(header, 12)
-        writeLE(16,           16, 4)   // субчанк fmt size
-        writeLE(1,            20, 2)   // PCM = 1
+        writeLE(16,           16, 4)
+        writeLE(1,            20, 2)
         writeLE(channels,     22, 2)
         writeLE(sampleRate,   24, 4)
         writeLE(byteRate,     28, 4)
@@ -388,7 +398,6 @@ class EdgeTtsProvider(
         val parts   = mutableListOf<String>()
         val current = StringBuilder()
 
-        // Разбиваем по предложениям (. ! ? …)
         val sentences = text.split(Regex("(?<=[.!?…])\\s+"))
 
         for (sentence in sentences) {
@@ -398,7 +407,6 @@ class EdgeTtsProvider(
                     current.clear()
                 }
                 if (sentence.length > maxChars) {
-                    // Очень длинное предложение — режем по словам
                     sentence.chunked(maxChars).forEach { parts.add(it) }
                 } else {
                     current.append(sentence)
