@@ -29,6 +29,9 @@ import kotlin.coroutines.resume
  * Бесплатно, без API ключа.
  *
  * Алгоритм Sec-MS-GEC и SSML — повторяют эталон rany2/edge-tts.
+ *
+ * Важно: в новой версии протокола Microsoft turn.end может приходить как бинарный фрейм
+ * (с заголовком Path:turn.end), а не как текстовый. Бинарный обработчик это учитывает.
  */
 class EdgeTtsProvider(
     val voice: String = VOICE_DMITRY,
@@ -169,6 +172,18 @@ class EdgeTtsProvider(
             var turned   = false  // получили turn.end?
             var resumed  = false
 
+            // Единая точка завершения с защитой от двойного вызова
+            fun finish(ws: WebSocket?, success: Boolean, reason: String) {
+                if (resumed) return
+                resumed = true
+                turned = true
+                Log.d(TAG, "finish: success=$success, reason=$reason, audioSize=${audioBuf.size()}")
+                try { ws?.close(1000, "done") } catch (_: Exception) {}
+                val bytes = synchronized(audioBuf) { audioBuf.toByteArray() }
+                val ok = if (success) writeWav(bytes, outputFile) else false
+                if (continuation.isActive) continuation.resume(ok)
+            }
+
             val ws = sharedClient.newWebSocket(request, object : WebSocketListener() {
 
                 override fun onOpen(webSocket: WebSocket, response: Response) {
@@ -181,55 +196,70 @@ class EdgeTtsProvider(
                     webSocket.send(ssml)
                 }
 
-                // Текстовые фреймы — служебные (turn.start / turn.end / metadata / response)
+                // Текстовые фреймы — служебные (turn.start / turn.end / response)
                 override fun onMessage(webSocket: WebSocket, text: String) {
                     Log.d(TAG, "← text frame:\n${text.take(400)}")
-                    if (text.contains("Path:turn.end") && !turned) {
-                        turned = true
-                        webSocket.close(1000, "done")
-                        val bytes = synchronized(audioBuf) { audioBuf.toByteArray() }
-                        val ok = writeWav(bytes, outputFile)
-                        if (continuation.isActive && !resumed) {
-                            resumed = true
-                            continuation.resume(ok)
-                        }
+                    val path = extractPath(text)
+                    if (path == "turn.end") {
+                        finish(webSocket, success = true, reason = "turn.end (text)")
                     }
                 }
 
-                // Бинарные фреймы — аудио
+                // Бинарные фреймы — аудио ИЛИ служебные (turn.end иногда приходит как binary)
                 override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-                    val isFirst = synchronized(audioBuf) { audioBuf.size() == 0 }
-                    if (isFirst) Log.d(TAG, "← first audio frame, size=${bytes.size}")
-
                     val data = bytes.toByteArray()
                     if (data.size < 2) return
+
                     val headerLen = ((data[0].toInt() and 0xFF) shl 8) or
                                      (data[1].toInt() and 0xFF)
                     if (data.size < 2 + headerLen) return
+
                     val header = String(data, 2, headerLen, Charsets.UTF_8)
-                    if (header.contains("Path:audio")) {
-                        val audioStart = 2 + headerLen
-                        synchronized(audioBuf) {
-                            audioBuf.write(data, audioStart, data.size - audioStart)
+                    val path = extractPath(header)
+
+                    when (path) {
+                        "audio" -> {
+                            val isFirst = synchronized(audioBuf) { audioBuf.size() == 0 }
+                            if (isFirst) Log.d(TAG, "← first audio frame, frameSize=${data.size}, headerLen=$headerLen")
+                            val audioStart = 2 + headerLen
+                            synchronized(audioBuf) {
+                                audioBuf.write(data, audioStart, data.size - audioStart)
+                            }
+                        }
+                        "turn.end" -> {
+                            Log.d(TAG, "← turn.end (binary)")
+                            finish(webSocket, success = true, reason = "turn.end (binary)")
+                        }
+                        else -> {
+                            Log.d(TAG, "← binary frame, path='$path', header='${header.take(160)}'")
                         }
                     }
                 }
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     Log.e(TAG, "WS failure code=${response?.code} msg=${response?.message}", t)
-                    if (continuation.isActive && !resumed) {
+                    if (!resumed) {
                         resumed = true
-                        continuation.resume(false)
+                        if (continuation.isActive) continuation.resume(false)
+                    }
+                }
+
+                override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                    Log.d(TAG, "WS closing code=$code reason='$reason' turned=$turned audioSize=${audioBuf.size()}")
+                    // Подтверждаем закрытие со стороны клиента
+                    try { webSocket.close(1000, null) } catch (_: Exception) {}
+                    // Если уже получили аудио, но turn.end не пришёл — записываем что есть
+                    if (!resumed) {
+                        val hasAudio = audioBuf.size() > 0
+                        finish(null, success = hasAudio, reason = "onClosing")
                     }
                 }
 
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                     Log.d(TAG, "WS closed code=$code reason='$reason' turned=$turned audioSize=${audioBuf.size()}")
-                    if (!turned && continuation.isActive && !resumed) {
-                        resumed = true
-                        val bytes = synchronized(audioBuf) { audioBuf.toByteArray() }
-                        val ok = writeWav(bytes, outputFile)
-                        continuation.resume(ok)
+                    if (!resumed) {
+                        val hasAudio = audioBuf.size() > 0
+                        finish(null, success = hasAudio, reason = "onClosed")
                     }
                 }
             })
@@ -238,6 +268,24 @@ class EdgeTtsProvider(
                 ws.cancel()
             }
         }
+    }
+
+    /**
+     * Извлекает значение Path: из заголовка фрейма.
+     * Заголовки приходят в формате "Header:value\r\nHeader2:value2\r\n\r\n".
+     */
+    private fun extractPath(header: String): String? {
+        val marker = "Path:"
+        val idx = header.indexOf(marker)
+        if (idx < 0) return null
+        val start = idx + marker.length
+        var end = start
+        while (end < header.length) {
+            val c = header[end]
+            if (c == '\r' || c == '\n') break
+            end++
+        }
+        return header.substring(start, end).trim().ifEmpty { null }
     }
 
     // ─── Построение WebSocket сообщений ──────────────────────────────────────
