@@ -27,13 +27,13 @@ import kotlin.coroutines.resume
  *
  * Использует неофициальный WebSocket API, тот же что Edge браузер.
  * Голоса: ru-RU-DmitryNeural (муж), ru-RU-SvetlanaNeural (жен).
- *
- * Edge присылает MP3 (audio-24khz-48kbitrate-mono-mp3) — единственный формат,
- * поддерживаемый бесплатным эндпоинтом. PCM/RIFF возвращает ошибку 1007.
- * Мы декодируем MP3 в WAV 24kHz/16bit/mono через FFmpegKit, чтобы остальной
- * пайплайн работал с WAV без изменений.
+ * Выходной формат: WAV (riff-24khz-16bit-mono-pcm) — совместим с текущим пайплайном.
+ * Бесплатно, без API ключа.
  *
  * Алгоритм Sec-MS-GEC и SSML — повторяют эталон rany2/edge-tts.
+ *
+ * Важно: в новой версии протокола Microsoft turn.end может приходить как бинарный фрейм
+ * (с заголовком Path:turn.end), а не как текстовый. Бинарный обработчик это учитывает.
  */
 class EdgeTtsProvider(
     val voice: String = VOICE_DMITRY,
@@ -56,14 +56,6 @@ class EdgeTtsProvider(
         private const val SEC_MS_GEC_VERSION     = "1-$CHROMIUM_FULL_VERSION"
         private const val WIN_EPOCH              = 11_644_473_600L
 
-        // Единственный поддерживаемый формат для бесплатного эндпоинта
-        private const val OUTPUT_FORMAT = "audio-24khz-48kbitrate-mono-mp3"
-
-        // Целевой формат WAV после декодирования (для совместимости с остальным пайплайном)
-        private const val TARGET_SAMPLE_RATE = 24000
-        private const val TARGET_CHANNELS    = 1
-        private const val TARGET_BITS        = 16
-
         private const val MAX_CHARS = 3000
 
         private val sharedClient = OkHttpClient.Builder()
@@ -80,7 +72,7 @@ class EdgeTtsProvider(
 
     /**
      * Синтезирует [text] в WAV-файл [outputFile].
-     * Внутренне получает MP3 от Edge, потом декодирует в WAV через FFmpeg.
+     * Если текст длиннее [MAX_CHARS] — разбивает на части и склеивает PCM.
      * @return true при успехе
      */
     suspend fun synthesizeToWav(text: String, outputFile: File): Boolean {
@@ -88,9 +80,9 @@ class EdgeTtsProvider(
 
         return withTimeoutOrNull(60_000L) {
             if (text.length <= MAX_CHARS) {
-                synthesizePartToWav(text, outputFile)
+                synthesizePart(text, outputFile)
             } else {
-                synthesizeLongToWav(text, outputFile)
+                synthesizeLong(text, outputFile)
             }
         } ?: run {
             Log.e(TAG, "synthesizeToWav overall timeout for: ${text.take(60)}")
@@ -98,78 +90,38 @@ class EdgeTtsProvider(
         }
     }
 
-    // ─── Один кусок: MP3 → WAV ──────────────────────────────────────────────
+    // ─── Длинный текст: разбить → синтезировать части → склеить ─────────────
 
-    private suspend fun synthesizePartToWav(text: String, outputFile: File): Boolean {
-        val mp3File = File(outputFile.parentFile, outputFile.nameWithoutExtension + "_edge.mp3")
-        return try {
-            val gotMp3 = synthesizePartToMp3(text, mp3File)
-            if (!gotMp3 || !mp3File.exists() || mp3File.length() == 0L) {
-                Log.e(TAG, "MP3 synthesis failed")
-                return false
-            }
-            val converted = convertMp3ToWav(mp3File, outputFile)
-            if (!converted) Log.e(TAG, "MP3→WAV conversion failed")
-            converted
-        } finally {
-            try { mp3File.delete() } catch (_: Exception) {}
-        }
-    }
-
-    // ─── Длинный текст: каждая часть → свой MP3 → склейка MP3 → один WAV ────
-
-    private suspend fun synthesizeLongToWav(text: String, outputFile: File): Boolean {
+    private suspend fun synthesizeLong(text: String, outputFile: File): Boolean {
         val parts = splitText(text, MAX_CHARS)
-        val tempMp3s = mutableListOf<File>()
+        val tempFiles = mutableListOf<File>()
 
-        return try {
+        try {
             for ((i, part) in parts.withIndex()) {
-                val tmp = File(outputFile.parentFile, "${outputFile.nameWithoutExtension}_edge_part$i.mp3")
-                val ok = synthesizePartToMp3(part, tmp)
-                if (!ok || !tmp.exists() || tmp.length() == 0L) {
+                val tmp = File(outputFile.parentFile, "${outputFile.nameWithoutExtension}_edge_part$i.wav")
+                val ok = synthesizePart(part, tmp)
+                if (!ok) {
                     Log.e(TAG, "Part $i synthesis failed")
                     return false
                 }
-                tempMp3s.add(tmp)
+                tempFiles.add(tmp)
             }
-
-            // Склейка MP3 — простая конкатенация байтов (для CBR MP3 это работает)
-            val mergedMp3 = File(outputFile.parentFile, outputFile.nameWithoutExtension + "_edge_merged.mp3")
-            try {
-                FileOutputStream(mergedMp3).use { out ->
-                    for (f in tempMp3s) out.write(f.readBytes())
-                }
-                convertMp3ToWav(mergedMp3, outputFile)
-            } finally {
-                try { mergedMp3.delete() } catch (_: Exception) {}
-            }
+            return concatPcmWavFiles(tempFiles, outputFile)
         } finally {
-            tempMp3s.forEach { try { it.delete() } catch (_: Exception) {} }
+            tempFiles.forEach { try { it.delete() } catch (_: Exception) {} }
         }
-    }
-
-    // ─── FFmpeg: MP3 → WAV ───────────────────────────────────────────────────
-
-    private fun convertMp3ToWav(mp3: File, wav: File): Boolean {
-        if (wav.exists()) wav.delete()
-        val cmd = arrayOf(
-            "-y",
-            "-i", mp3.absolutePath,
-            "-ar", TARGET_SAMPLE_RATE.toString(),
-            "-ac", TARGET_CHANNELS.toString(),
-            "-sample_fmt", "s16",
-            wav.absolutePath
-        )
-        val session = FFmpegKit.executeWithArguments(cmd)
-        val ok = ReturnCode.isSuccess(session.returnCode) && wav.exists() && wav.length() > 44
-        if (!ok) {
-            Log.e(TAG, "FFmpeg MP3→WAV failed: rc=${session.returnCode}, logs=${session.allLogsAsString?.take(500)}")
-        }
-        return ok
     }
 
     /**
-     * Генерирует Sec-MS-GEC токен (см. drm.py rany2/edge-tts).
+     * Генерирует Sec-MS-GEC токен.
+     *
+     * Алгоритм (1-в-1 с rany2/edge-tts drm.py):
+     *  1. Unix timestamp (секунды, double)
+     *  2. + WIN_EPOCH (переход к Windows file time, 1601-01-01)
+     *  3. округление вниз до 5 минут (% 300)
+     *  4. * 1e9 / 100 — перевод в 100-нс интервалы
+     *  5. форматирование как целое
+     *  6. SHA-256(ticksStr + TRUSTED_CLIENT_TOKEN) → uppercase hex
      */
     private fun generateSecMsGec(): String {
         var ticks: Double = System.currentTimeMillis() / 1000.0
@@ -186,9 +138,9 @@ class EdgeTtsProvider(
         return digest.joinToString("") { "%02X".format(it) }
     }
 
-    // ─── Синтез одной части в MP3 через WebSocket ───────────────────────────
+    // ─── Синтез одной части через WebSocket ──────────────────────────────────
 
-    private suspend fun synthesizePartToMp3(text: String, outputMp3: File): Boolean {
+    private suspend fun synthesizePart(text: String, outputFile: File): Boolean {
         return suspendCancellableCoroutine { continuation ->
             val connectionId = uuid()
             val requestId    = uuid()
@@ -201,7 +153,8 @@ class EdgeTtsProvider(
                     "&Sec-MS-GEC-Version=$SEC_MS_GEC_VERSION" +
                     "&ConnectionId=$connectionId"
 
-            Log.d(TAG, "synthesizePartToMp3 start, text='${text.take(40)}', voice=$voice")
+            Log.d(TAG, "synthesizePart start, text='${text.take(40)}', voice=$voice")
+            Log.d(TAG, "WS URL: $wsUrl")
 
             val request = Request.Builder()
                 .url(wsUrl)
@@ -218,26 +171,18 @@ class EdgeTtsProvider(
                 .build()
 
             val audioBuf = ByteArrayOutputStream()
-            var turned   = false
+            var turned   = false  // получили turn.end?
             var resumed  = false
 
+            // Единая точка завершения с защитой от двойного вызова
             fun finish(ws: WebSocket?, success: Boolean, reason: String) {
                 if (resumed) return
                 resumed = true
                 turned = true
-                val size = synchronized(audioBuf) { audioBuf.size() }
-                Log.d(TAG, "finish: success=$success, reason=$reason, mp3Size=$size")
+                Log.d(TAG, "finish: success=$success, reason=$reason, audioSize=${audioBuf.size()}")
                 try { ws?.close(1000, "done") } catch (_: Exception) {}
-                val ok = if (success && size > 0) {
-                    val bytes = synchronized(audioBuf) { audioBuf.toByteArray() }
-                    try {
-                        FileOutputStream(outputMp3).use { it.write(bytes) }
-                        outputMp3.exists() && outputMp3.length() > 0
-                    } catch (e: Exception) {
-                        Log.e(TAG, "writeMp3 failed: ${e.message}")
-                        false
-                    }
-                } else false
+                val bytes = synchronized(audioBuf) { audioBuf.toByteArray() }
+                val ok = if (success) writeMp3ToWav(bytes, outputFile) else false
                 if (continuation.isActive) continuation.resume(ok)
             }
 
@@ -247,18 +192,22 @@ class EdgeTtsProvider(
                     Log.d(TAG, "WS opened (http=${response.code})")
                     val cfg  = buildConfigMsg(timestamp)
                     val ssml = buildSsmlMsg(requestId, timestamp, text)
+                    Log.d(TAG, "→ config:\n$cfg")
+                    Log.d(TAG, "→ ssml:\n$ssml")
                     webSocket.send(cfg)
                     webSocket.send(ssml)
                 }
 
+                // Текстовые фреймы — служебные (turn.start / turn.end / response)
                 override fun onMessage(webSocket: WebSocket, text: String) {
-                    Log.d(TAG, "← text frame:\n${text.take(300)}")
+                    Log.d(TAG, "← text frame:\n${text.take(400)}")
                     val path = extractPath(text)
                     if (path == "turn.end") {
                         finish(webSocket, success = true, reason = "turn.end (text)")
                     }
                 }
 
+                // Бинарные фреймы — аудио ИЛИ служебные (turn.end иногда приходит как binary)
                 override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
                     val data = bytes.toByteArray()
                     if (data.size < 2) return
@@ -272,14 +221,11 @@ class EdgeTtsProvider(
 
                     when (path) {
                         "audio" -> {
+                            val isFirst = synchronized(audioBuf) { audioBuf.size() == 0 }
+                            if (isFirst) Log.d(TAG, "← first audio frame, frameSize=${data.size}, headerLen=$headerLen")
                             val audioStart = 2 + headerLen
-                            val payloadSize = data.size - audioStart
-                            if (payloadSize > 0) {
-                                val isFirst = synchronized(audioBuf) { audioBuf.size() == 0 }
-                                if (isFirst) Log.d(TAG, "← first audio frame, payloadSize=$payloadSize")
-                                synchronized(audioBuf) {
-                                    audioBuf.write(data, audioStart, payloadSize)
-                                }
+                            synchronized(audioBuf) {
+                                audioBuf.write(data, audioStart, data.size - audioStart)
                             }
                         }
                         "turn.end" -> {
@@ -302,7 +248,9 @@ class EdgeTtsProvider(
 
                 override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
                     Log.d(TAG, "WS closing code=$code reason='$reason' turned=$turned audioSize=${audioBuf.size()}")
+                    // Подтверждаем закрытие со стороны клиента
                     try { webSocket.close(1000, null) } catch (_: Exception) {}
+                    // Если уже получили аудио, но turn.end не пришёл — записываем что есть
                     if (!resumed) {
                         val hasAudio = audioBuf.size() > 0
                         finish(null, success = hasAudio, reason = "onClosing")
@@ -324,7 +272,10 @@ class EdgeTtsProvider(
         }
     }
 
-    /** Извлекает значение Path: из заголовка фрейма. */
+    /**
+     * Извлекает значение Path: из заголовка фрейма.
+     * Заголовки приходят в формате "Header:value\r\nHeader2:value2\r\n\r\n".
+     */
     private fun extractPath(header: String): String? {
         val marker = "Path:"
         val idx = header.indexOf(marker)
@@ -347,7 +298,7 @@ class EdgeTtsProvider(
                      "Path:speech.config\r\n\r\n"
         val body = """{"context":{"synthesis":{"audio":{"metadataoptions":""" +
                    """{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},""" +
-                   """"outputFormat":"$OUTPUT_FORMAT"}}}}"""
+                   """"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}"""
         return header + body
     }
 
@@ -377,6 +328,127 @@ class EdgeTtsProvider(
                "<prosody pitch='$pitchStr' rate='$rateStr' volume='+0%'>" +
                escaped +
                "</prosody></voice></speak>"
+    }
+
+    // ─── WAV утилиты ─────────────────────────────────────────────────────────
+
+    /**
+     * Сохраняет MP3-байты во временный файл, конвертирует в WAV через FFmpegKit,
+     * удаляет временный MP3. Выход: 24kHz / 16bit / mono — совместим с пайплайном.
+     */
+    private fun writeMp3ToWav(mp3Bytes: ByteArray, outputFile: File): Boolean {
+        if (mp3Bytes.isEmpty()) {
+            Log.e(TAG, "writeMp3ToWav: empty MP3 buffer for ${outputFile.name}")
+            return false
+        }
+        val mp3Tmp = File(outputFile.parentFile, "${outputFile.nameWithoutExtension}_raw.mp3")
+        return try {
+            mp3Tmp.writeBytes(mp3Bytes)
+            Log.d(TAG, "writeMp3ToWav: saved ${mp3Bytes.size} bytes to ${mp3Tmp.name}, converting...")
+
+            val cmd = arrayOf(
+                "-y",
+                "-i", mp3Tmp.absolutePath,
+                "-ar", "24000",
+                "-ac", "1",
+                "-sample_fmt", "s16",
+                outputFile.absolutePath
+            )
+            val session = FFmpegKit.executeWithArguments(cmd)
+            val ok = ReturnCode.isSuccess(session.returnCode) &&
+                     outputFile.exists() && outputFile.length() > 44
+            Log.d(TAG, "writeMp3ToWav: FFmpeg ok=$ok, outSize=${outputFile.length()}")
+            ok
+        } catch (e: Exception) {
+            Log.e(TAG, "writeMp3ToWav failed: ${e.message}")
+            false
+        } finally {
+            try { mp3Tmp.delete() } catch (_: Exception) {}
+        }
+    }
+
+    /**
+     * Склейка нескольких WAV (одинаковый формат 24kHz/16bit/mono).
+     */
+    private fun concatPcmWavFiles(files: List<File>, output: File): Boolean {
+        if (files.isEmpty()) return false
+        if (files.size == 1) {
+            files[0].copyTo(output, overwrite = true)
+            return output.exists()
+        }
+
+        return try {
+            val allPcm = ByteArrayOutputStream()
+
+            for (f in files) {
+                val bytes = f.readBytes()
+                if (bytes.size < 44) continue
+                val dataStart = findDataChunkOffset(bytes)
+                if (dataStart > 0 && dataStart < bytes.size) {
+                    allPcm.write(bytes, dataStart, bytes.size - dataStart)
+                } else {
+                    allPcm.write(bytes, 44, bytes.size - 44)
+                }
+            }
+
+            val pcmData   = allPcm.toByteArray()
+            val wavHeader = buildWavHeader(
+                pcmData.size,
+                sampleRate = 24000,
+                channels   = 1,
+                bitsPerSample = 16
+            )
+
+            FileOutputStream(output).use { os ->
+                os.write(wavHeader)
+                os.write(pcmData)
+            }
+            output.exists() && output.length() > 44
+        } catch (e: Exception) {
+            Log.e(TAG, "concatPcmWavFiles: ${e.message}")
+            false
+        }
+    }
+
+    /** Находит смещение начала PCM-данных (после "data" chunk header). */
+    private fun findDataChunkOffset(wav: ByteArray): Int {
+        var i = 12
+        while (i + 8 <= wav.size) {
+            val chunkId   = String(wav, i, 4, Charsets.US_ASCII)
+            val chunkSize = ((wav[i+4].toInt() and 0xFF))       or
+                            ((wav[i+5].toInt() and 0xFF) shl 8)  or
+                            ((wav[i+6].toInt() and 0xFF) shl 16) or
+                            ((wav[i+7].toInt() and 0xFF) shl 24)
+            i += 8
+            if (chunkId == "data") return i
+            i += chunkSize
+        }
+        return -1
+    }
+
+    /** Строит стандартный 44-байтный WAV-заголовок. */
+    private fun buildWavHeader(pcmSize: Int, sampleRate: Int, channels: Int, bitsPerSample: Int): ByteArray {
+        val byteRate   = sampleRate * channels * bitsPerSample / 8
+        val blockAlign = channels * bitsPerSample / 8
+        val header     = ByteArray(44)
+
+        fun writeLE(value: Int, offset: Int, bytes: Int) {
+            for (b in 0 until bytes) header[offset + b] = ((value shr (8 * b)) and 0xFF).toByte()
+        }
+        "RIFF".toByteArray().copyInto(header, 0)
+        writeLE(36 + pcmSize, 4, 4)
+        "WAVE".toByteArray().copyInto(header, 8)
+        "fmt ".toByteArray().copyInto(header, 12)
+        writeLE(16,           16, 4)
+        writeLE(1,            20, 2)
+        writeLE(channels,     22, 2)
+        writeLE(sampleRate,   24, 4)
+        writeLE(byteRate,     28, 4)
+        writeLE(blockAlign,   32, 2)
+        writeLE(bitsPerSample,34, 2)
+        "data".toByteArray().copyInto(header, 36)
+        writeLE(pcmSize,      40, 4)
+        return header
     }
 
     // ─── Вспомогательные ─────────────────────────────────────────────────────
