@@ -60,6 +60,7 @@ object TextProcessor {
     private val TTS_ELLIPSIS_PATTERN = Regex("\\.\\.\\.")
     private val TTS_MULTI_SPACE_PATTERN = Regex("[ \\t]{2,}")
     private val TTS_MULTI_NEWLINE = Regex("\\n{3,}")
+    private val TTS_AI_ERROR_PATTERN = Regex("(?i)\\[AI Error.*?\\]")
 
     private val TRIVIAL_PATTERN = Regex("^(фото|видео|аудио|ссылка|репост)\\b.*$", RegexOption.IGNORE_CASE)
 
@@ -252,6 +253,7 @@ object TextProcessor {
         t = TTS_ELLIPSIS_PATTERN.replace(t, "…")
         t = TTS_MULTI_SPACE_PATTERN.replace(t, " ")
         t = TTS_MULTI_NEWLINE.replace(t, "\n\n")
+        t = TTS_AI_ERROR_PATTERN.replace(t, "")
         return t.trim()
     }
 

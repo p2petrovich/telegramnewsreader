@@ -354,6 +354,10 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                     }
 
                     if (wav == null) {
+                        // Гарантируем, что для Android TTS установлен правильный голос перед синтезом части
+                        if (voiceName != "default") {
+                            setVoiceByName(voiceName)
+                        }
                         wav = synthesizePartToWav(partText, partIndex, baseUtteranceId)
                     }
 
