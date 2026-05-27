@@ -138,6 +138,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             tts?.language = it.locale
             tts?.voice = it
             PreferenceManager.saveTtsVoiceName(context, voiceName)
+            voiceParametersApplied = false  // сброс — гарантирует применение настроек нового голоса
             applyVoiceSettings(voiceName)
         }
     }
@@ -320,7 +321,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                     if (edge != null) {
                         // Попытка Edge TTS
                         val tmp = File(context.cacheDir, "${baseUtteranceId}_part_${partIndex}.wav")
-                        val ok = edge.synthesizeToWav(partText, tmp)
+                        val ok = withTimeoutOrNull(20_000L) { edge.synthesizeToWav(partText, tmp) } ?: false
                         if (ok && tmp.exists() && tmp.length() > 0) {
                             wav = tmp
                         } else {
@@ -452,47 +453,55 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     }
 
     private suspend fun synthesizePartToWav(text: String, partIndex: Int, baseUtteranceId: String): File? {
-        return suspendCancellableCoroutine { continuation ->
-            val utteranceId = "${baseUtteranceId}_part_${partIndex}"
-            val tempWavFile = File(context.cacheDir, "${utteranceId}.wav")
-            val params = Bundle().apply {
-                putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
-            }
-            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(id: String?) {}
-                override fun onDone(id: String?) {
-                    if (id == utteranceId) {
-                        tts?.setOnUtteranceProgressListener(null)
-                        if (continuation.isActive) continuation.resume(tempWavFile)
-                    }
+        // Таймаут 15 сек — защита от зависания Android TTS
+        return withTimeoutOrNull(15_000L) {
+            suspendCancellableCoroutine { continuation ->
+                val utteranceId = "${baseUtteranceId}_part_${partIndex}"
+                val tempWavFile = File(context.cacheDir, "${utteranceId}.wav")
+                val params = Bundle().apply {
+                    putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
                 }
-                @Deprecated("Deprecated in Java")
-                override fun onError(id: String?) {
-                    if (id == utteranceId) {
-                        tts?.setOnUtteranceProgressListener(null)
-                        if (continuation.isActive) continuation.resume(null)
-                        tempWavFile.delete()
-                    }
-                }
-                override fun onError(id: String?, errorCode: Int) {
-                    if (id == utteranceId) {
-                        tts?.setOnUtteranceProgressListener(null)
-                        if (continuation.isActive) continuation.resume(null)
-                        tempWavFile.delete()
-                    }
-                }
-            })
-            val result = tts?.synthesizeToFile(text, params, tempWavFile, utteranceId)
-            if (result == TextToSpeech.ERROR) {
+                // Сбрасываем старый listener до установки нового — исправляет race condition
                 tts?.setOnUtteranceProgressListener(null)
-                if (continuation.isActive) continuation.resume(null)
-                tempWavFile.delete()
+                tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(id: String?) {}
+                    override fun onDone(id: String?) {
+                        if (id == utteranceId) {
+                            tts?.setOnUtteranceProgressListener(null)
+                            if (continuation.isActive) continuation.resume(tempWavFile)
+                        }
+                    }
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(id: String?) {
+                        if (id == utteranceId) {
+                            tts?.setOnUtteranceProgressListener(null)
+                            if (continuation.isActive) continuation.resume(null)
+                            tempWavFile.delete()
+                        }
+                    }
+                    override fun onError(id: String?, errorCode: Int) {
+                        if (id == utteranceId) {
+                            tts?.setOnUtteranceProgressListener(null)
+                            if (continuation.isActive) continuation.resume(null)
+                            tempWavFile.delete()
+                        }
+                    }
+                })
+                val result = tts?.synthesizeToFile(text, params, tempWavFile, utteranceId)
+                if (result == TextToSpeech.ERROR) {
+                    tts?.setOnUtteranceProgressListener(null)
+                    if (continuation.isActive) continuation.resume(null)
+                    tempWavFile.delete()
+                }
+                continuation.invokeOnCancellation {
+                    tts?.stop()
+                    tts?.setOnUtteranceProgressListener(null)
+                    tempWavFile.delete()
+                }
             }
-            continuation.invokeOnCancellation {
-                tts?.stop()
-                tts?.setOnUtteranceProgressListener(null)
-                tempWavFile.delete()
-            }
+        } ?: run {
+            Log.e(TAG, "synthesizePartToWav timeout for part $partIndex")
+            null
         }
     }
 

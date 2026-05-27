@@ -354,10 +354,33 @@ object TextProcessor {
             Regex("\\bтыс\\.\\b") to "тысяч",
             Regex("\\bчел\\.\\b") to "человек"
         )
-        
         maps.forEach { (regex, replacement) ->
             t = t.replace(regex, replacement)
         }
+
+        // Новостные аббревиатуры — \\b не затронет слова вроде "ЦБРФ"
+        val newsAbbreviations = listOf(
+            Regex("\\bРФ\\b")                               to "Россия",
+            Regex("\\bСША\\b")                              to "Соединённые Штаты",
+            Regex("\\bЕС\\b(?![а-яёА-ЯЁ])")                to "Евросоюз",
+            Regex("\\bООН\\b")                              to "Организация Объединённых Наций",
+            Regex("\\bЦБ\\b")                               to "Центробанк",
+            Regex("\\bМВД\\b")                              to "министерство внутренних дел",
+            Regex("\\bМИД\\b")                              to "министерство иностранных дел",
+            Regex("\\bФСБ\\b")                              to "ФСБ",
+            Regex("\\bМЧС\\b")                              to "МЧС",
+            Regex("\\bВСУ\\b")                              to "украинские войска",
+            Regex("\\bНАТО\\b")                             to "НАТО",
+            Regex("\\bпр-т\\b")                             to "проспект",
+            Regex("\\bгр\\.\\b")                            to "гражданин",
+            Regex("\\bтрлн\\.?\\b", RegexOption.IGNORE_CASE) to "триллионов",
+            Regex("\\bмлрд\\.?\\b", RegexOption.IGNORE_CASE) to "миллиардов",
+            Regex("\\bмлн\\.?\\b",  RegexOption.IGNORE_CASE) to "миллионов"
+        )
+        newsAbbreviations.forEach { (regex, replacement) ->
+            t = t.replace(regex, replacement)
+        }
+
         return t
     }
 
