@@ -28,7 +28,7 @@ import kotlin.coroutines.resume
  * Выходной формат: WAV (riff-24khz-16bit-mono-pcm) — совместим с текущим пайплайном.
  * Бесплатно, без API ключа.
  *
- * Алгоритм Sec-MS-GEC — повторяет эталон rany2/edge-tts (drm.py).
+ * Алгоритм Sec-MS-GEC и SSML — повторяют эталон rany2/edge-tts.
  */
 class EdgeTtsProvider(
     val voice: String = VOICE_DMITRY,
@@ -117,8 +117,6 @@ class EdgeTtsProvider(
      *  4. * 1e9 / 100 — перевод в 100-нс интервалы
      *  5. форматирование как целое
      *  6. SHA-256(ticksStr + TRUSTED_CLIENT_TOKEN) → uppercase hex
-     *
-     * Соль для SHA-256 — это сам TRUSTED_CLIENT_TOKEN.
      */
     private fun generateSecMsGec(): String {
         var ticks: Double = System.currentTimeMillis() / 1000.0
@@ -150,6 +148,9 @@ class EdgeTtsProvider(
                     "&Sec-MS-GEC-Version=$SEC_MS_GEC_VERSION" +
                     "&ConnectionId=$connectionId"
 
+            Log.d(TAG, "synthesizePart start, text='${text.take(40)}', voice=$voice")
+            Log.d(TAG, "WS URL: $wsUrl")
+
             val request = Request.Builder()
                 .url(wsUrl)
                 .header("Pragma", "no-cache")
@@ -171,12 +172,18 @@ class EdgeTtsProvider(
             val ws = sharedClient.newWebSocket(request, object : WebSocketListener() {
 
                 override fun onOpen(webSocket: WebSocket, response: Response) {
-                    webSocket.send(buildConfigMsg(timestamp))
-                    webSocket.send(buildSsmlMsg(requestId, timestamp, text))
+                    Log.d(TAG, "WS opened (http=${response.code})")
+                    val cfg  = buildConfigMsg(timestamp)
+                    val ssml = buildSsmlMsg(requestId, timestamp, text)
+                    Log.d(TAG, "→ config:\n$cfg")
+                    Log.d(TAG, "→ ssml:\n$ssml")
+                    webSocket.send(cfg)
+                    webSocket.send(ssml)
                 }
 
-                // Текстовые фреймы — служебные (turn.start / turn.end / metadata)
+                // Текстовые фреймы — служебные (turn.start / turn.end / metadata / response)
                 override fun onMessage(webSocket: WebSocket, text: String) {
+                    Log.d(TAG, "← text frame:\n${text.take(400)}")
                     if (text.contains("Path:turn.end") && !turned) {
                         turned = true
                         webSocket.close(1000, "done")
@@ -191,6 +198,9 @@ class EdgeTtsProvider(
 
                 // Бинарные фреймы — аудио
                 override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+                    val isFirst = synchronized(audioBuf) { audioBuf.size() == 0 }
+                    if (isFirst) Log.d(TAG, "← first audio frame, size=${bytes.size}")
+
                     val data = bytes.toByteArray()
                     if (data.size < 2) return
                     val headerLen = ((data[0].toInt() and 0xFF) shl 8) or
@@ -214,6 +224,7 @@ class EdgeTtsProvider(
                 }
 
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    Log.d(TAG, "WS closed code=$code reason='$reason' turned=$turned audioSize=${audioBuf.size()}")
                     if (!turned && continuation.isActive && !resumed) {
                         resumed = true
                         val bytes = synchronized(audioBuf) { audioBuf.toByteArray() }
@@ -249,6 +260,10 @@ class EdgeTtsProvider(
         return header + buildSsml(text)
     }
 
+    /**
+     * SSML в формате rany2/edge-tts: одна строка, одинарные кавычки, xml:lang='en-US',
+     * атрибуты в порядке pitch → rate → volume.
+     */
     private fun buildSsml(text: String): String {
         val rateStr  = formatRatePct(ratePct)
         val pitchStr = formatPitchHz(pitchHz)
@@ -258,11 +273,11 @@ class EdgeTtsProvider(
             .replace(">", "&gt;")
             .replace("\"", "&quot;")
 
-        return """<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="ru-RU">
-<voice name="$voice">
-<prosody rate="$rateStr" pitch="$pitchStr">$escaped</prosody>
-</voice>
-</speak>"""
+        return "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>" +
+               "<voice name='$voice'>" +
+               "<prosody pitch='$pitchStr' rate='$rateStr' volume='+0%'>" +
+               escaped +
+               "</prosody></voice></speak>"
     }
 
     // ─── WAV утилиты ─────────────────────────────────────────────────────────
@@ -300,7 +315,6 @@ class EdgeTtsProvider(
 
     /**
      * Склейка нескольких WAV (одинаковый формат 24kHz/16bit/mono).
-     * Первый файл даёт RIFF-заголовок, остальные — только PCM-данные.
      */
     private fun concatPcmWavFiles(files: List<File>, output: File): Boolean {
         if (files.isEmpty()) return false
@@ -344,7 +358,7 @@ class EdgeTtsProvider(
 
     /** Находит смещение начала PCM-данных (после "data" chunk header). */
     private fun findDataChunkOffset(wav: ByteArray): Int {
-        var i = 12  // пропускаем "RIFF....WAVE"
+        var i = 12
         while (i + 8 <= wav.size) {
             val chunkId   = String(wav, i, 4, Charsets.US_ASCII)
             val chunkSize = ((wav[i+4].toInt() and 0xFF))       or
