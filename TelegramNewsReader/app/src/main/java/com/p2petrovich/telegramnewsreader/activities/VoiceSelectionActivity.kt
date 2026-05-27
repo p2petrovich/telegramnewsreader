@@ -9,17 +9,49 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.RadioButton
+import android.widget.RadioGroup
+import android.widget.SeekBar
+import android.widget.Spinner
+import android.widget.TextView
 import com.p2petrovich.telegramnewsreader.R
 import com.p2petrovich.telegramnewsreader.adapters.VoiceAdapter
+import com.p2petrovich.telegramnewsreader.tts.EdgeTtsProvider
 import com.p2petrovich.telegramnewsreader.tts.TTSManagerSingleton
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.models.VoiceEntry
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 class VoiceSelectionActivity : AppCompatActivity() {
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var voiceAdapter: VoiceAdapter
     private var pendingVoiceRestore: Runnable? = null
+
+    // Edge TTS UI
+    private lateinit var rgTtsEngine: RadioGroup
+    private lateinit var rbAndroid: RadioButton
+    private lateinit var rbEdge: RadioButton
+    private lateinit var layoutEdgeSettings: LinearLayout
+    private lateinit var layoutAndroidSettings: LinearLayout
+    private lateinit var spinnerEdgeVoice: Spinner
+    private lateinit var sbEdgeRate: SeekBar
+    private lateinit var tvEdgeRate: TextView
+    private lateinit var btnTestEdge: Button
+
+    private val edgeVoices = listOf(
+        EdgeTtsProvider.VOICE_DMITRY   to "Dmitry — мужской (рекомендуется)",
+        EdgeTtsProvider.VOICE_SVETLANA to "Svetlana — женский"
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,8 +72,144 @@ class VoiceSelectionActivity : AppCompatActivity() {
         recyclerView = findViewById(R.id.recyclerVoices)
         recyclerView.layoutManager = LinearLayoutManager(this)
 
+        bindEdgeViews()
+        setupEngineSelector()
         loadVoices()
     }
+
+    // ── Инициализация Edge UI ─────────────────────────────────────────────────
+
+    private fun bindEdgeViews() {
+        rgTtsEngine          = findViewById(R.id.rgTtsEngine)
+        rbAndroid            = findViewById(R.id.rbAndroid)
+        rbEdge               = findViewById(R.id.rbEdge)
+        layoutEdgeSettings   = findViewById(R.id.layoutEdgeSettings)
+        layoutAndroidSettings = findViewById(R.id.layoutAndroidSettings)
+        spinnerEdgeVoice     = findViewById(R.id.spinnerEdgeVoice)
+        sbEdgeRate           = findViewById(R.id.sbEdgeRate)
+        tvEdgeRate           = findViewById(R.id.tvEdgeRate)
+        btnTestEdge          = findViewById(R.id.btnTestEdge)
+    }
+
+    private fun setupEngineSelector() {
+        val ttsManager = TTSManagerSingleton.getInstance(this)
+
+        // ── RadioGroup: выбор движка ──
+        val savedEngine = PreferenceManager.getTtsEngine(this)
+        if (savedEngine == "edge") rbEdge.isChecked = true else rbAndroid.isChecked = true
+        applyEngineVisibility(savedEngine)
+
+        rgTtsEngine.setOnCheckedChangeListener { _, checkedId ->
+            val engine = if (checkedId == R.id.rbEdge) "edge" else "android"
+            PreferenceManager.saveTtsEngine(this, engine)
+            applyEngineVisibility(engine)
+            ttsManager.refreshEdgeProvider()
+            val label = if (engine == "edge") "Edge TTS включён" else "Android TTS включён"
+            Toast.makeText(this, label, Toast.LENGTH_SHORT).show()
+        }
+
+        // ── Spinner голоса Edge ──
+        val spinnerAdapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            edgeVoices.map { it.second }
+        ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+        spinnerEdgeVoice.adapter = spinnerAdapter
+
+        val savedVoice = PreferenceManager.getEdgeVoice(this)
+        val voiceIndex = edgeVoices.indexOfFirst { it.first == savedVoice }.coerceAtLeast(0)
+        spinnerEdgeVoice.setSelection(voiceIndex)
+
+        spinnerEdgeVoice.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>, v: View?, pos: Int, id: Long) {
+                PreferenceManager.saveEdgeVoice(this@VoiceSelectionActivity, edgeVoices[pos].first)
+                ttsManager.refreshEdgeProvider()
+            }
+            override fun onNothingSelected(parent: AdapterView<*>) {}
+        }
+
+        // ── SeekBar скорости Edge ──
+        // Диапазон -50..+100 отображаем как progress 0..150 (смещение +50)
+        val savedRate = PreferenceManager.getEdgeRate(this)
+        sbEdgeRate.max      = 150
+        sbEdgeRate.progress = savedRate + 50
+        tvEdgeRate.text     = formatRatePct(savedRate)
+
+        sbEdgeRate.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar, progress: Int, fromUser: Boolean) {
+                val rate = progress - 50  // обратно в -50..+100
+                tvEdgeRate.text = formatRatePct(rate)
+                if (fromUser) PreferenceManager.saveEdgeRate(this@VoiceSelectionActivity, rate)
+            }
+            override fun onStartTrackingTouch(sb: SeekBar) {}
+            override fun onStopTrackingTouch(sb: SeekBar) {
+                ttsManager.refreshEdgeProvider()
+            }
+        })
+
+        // ── Кнопка теста Edge ──
+        btnTestEdge.setOnClickListener {
+            val voice = edgeVoices[spinnerEdgeVoice.selectedItemPosition].first
+            val rate  = sbEdgeRate.progress - 50
+            testEdgeVoice(voice, rate)
+        }
+    }
+
+    private fun applyEngineVisibility(engine: String) {
+        if (engine == "edge") {
+            layoutEdgeSettings.visibility    = View.VISIBLE
+            layoutAndroidSettings.visibility = View.GONE
+        } else {
+            layoutEdgeSettings.visibility    = View.GONE
+            layoutAndroidSettings.visibility = View.VISIBLE
+        }
+    }
+
+    private fun formatRatePct(rate: Int): String =
+        if (rate >= 0) "+${rate}%" else "${rate}%"
+
+    // ── Тест Edge голоса (синтез в фоне + воспроизведение через Android MediaPlayer) ──
+
+    private fun testEdgeVoice(voice: String, rate: Int) {
+        btnTestEdge.isEnabled = false
+        btnTestEdge.text      = "⏳ Синтезирую..."
+
+        CoroutineScope(Dispatchers.IO).launch {
+            val provider = EdgeTtsProvider(voice = voice, ratePct = rate)
+            val outFile  = File(cacheDir, "edge_test_preview.wav")
+            val ok = provider.synthesizeToWav(
+                "Привет! Это голос Edge TTS. Качество звучания Microsoft Neural.", outFile
+            )
+            withContext(Dispatchers.Main) {
+                btnTestEdge.isEnabled = true
+                btnTestEdge.text      = "▶ Тест Edge голоса"
+                if (ok && outFile.exists()) {
+                    playPreviewWav(outFile)
+                } else {
+                    Toast.makeText(
+                        this@VoiceSelectionActivity,
+                        "Не удалось синтезировать — проверьте интернет",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+    }
+
+    private fun playPreviewWav(file: File) {
+        try {
+            val mp = android.media.MediaPlayer().apply {
+                setDataSource(file.absolutePath)
+                prepare()
+                start()
+                setOnCompletionListener { release() }
+            }
+        } catch (e: Exception) {
+            Log.e("VoiceSelection", "Preview playback failed: ${e.message}")
+        }
+    }
+
+    // ── Android TTS список ────────────────────────────────────────────────────
 
     private fun loadVoices() {
         val ttsManager = TTSManagerSingleton.getInstance(this)
@@ -53,7 +221,6 @@ class VoiceSelectionActivity : AppCompatActivity() {
 
         if (russianVoices.isEmpty()) {
             Toast.makeText(this, "Русские голоса TTS не найдены", Toast.LENGTH_LONG).show()
-            finish()
             return
         }
 
@@ -90,14 +257,12 @@ class VoiceSelectionActivity : AppCompatActivity() {
         val ttsManager = TTSManagerSingleton.getInstance(this)
         val currentVoice = PreferenceManager.getTtsVoiceName(this)
 
-        // Отменяем предыдущее восстановление
         pendingVoiceRestore?.let { recyclerView.removeCallbacks(it) }
 
         ttsManager.setVoiceByEntry(voiceEntry)
         ttsManager.applyVoiceSettings(voiceEntry.systemName)
         ttsManager.speak("Привет! Это голос ${voiceEntry.displayName}. Как вам качество звучания?")
 
-        // Восстанавливаем предыдущий голос
         if (currentVoice != null && currentVoice != voiceEntry.systemName) {
             pendingVoiceRestore = Runnable {
                 ttsManager.setVoiceByName(currentVoice)
@@ -108,6 +273,8 @@ class VoiceSelectionActivity : AppCompatActivity() {
 
         Toast.makeText(this, "Тестирую: ${voiceEntry.displayName}", Toast.LENGTH_SHORT).show()
     }
+
+    // ── Навигация / lifecycle ─────────────────────────────────────────────────
 
     override fun onSupportNavigateUp(): Boolean {
         finish()

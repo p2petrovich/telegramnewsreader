@@ -23,6 +23,7 @@ import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.withTimeoutOrNull
 
 object TTSManagerSingleton {
     @Volatile
@@ -55,6 +56,9 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     private var voiceParametersApplied = false
     private var currentAppliedPitch: Float? = null
     private var currentAppliedRate: Float? = null
+
+    // Edge TTS провайдер (null = используем Android TTS)
+    @Volatile private var edgeProvider: EdgeTtsProvider? = null
 
     init {
         tts = TextToSpeech(context, this)
@@ -148,6 +152,22 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         currentAppliedPitch = pitch
         currentAppliedRate = rate
     }
+
+    /** Пересоздаёт Edge TTS провайдер по текущим настройкам. Вызывать при смене движка/голоса. */
+    fun refreshEdgeProvider() {
+        edgeProvider = if (PreferenceManager.getTtsEngine(context) == "edge") {
+            EdgeTtsProvider(
+                voice   = PreferenceManager.getEdgeVoice(context),
+                ratePct = PreferenceManager.getEdgeRate(context),
+                pitchHz = PreferenceManager.getEdgePitch(context)
+            )
+        } else {
+            null
+        }
+    }
+
+    /** Возвращает true если сейчас выбран Edge TTS движок. */
+    fun isEdgeEngineActive(): Boolean = edgeProvider != null
 
     fun speak(text: String) {
         if (ttsInitialized.get()) {
@@ -289,7 +309,16 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                     wav = cachedFile
                     cachedWavPaths.add(cachedFile.absolutePath)
                 } else {
-                    wav = synthesizePartToWav(partText, partIndex, baseUtteranceId)
+                    val edge = edgeProvider
+                    wav = if (edge != null) {
+                        // Edge TTS
+                        val tmp = File(context.cacheDir, "${baseUtteranceId}_part_${partIndex}.wav")
+                        val ok = withTimeoutOrNull(20_000L) { edge.synthesizeToWav(partText, tmp) } ?: false
+                        if (ok && tmp.exists() && tmp.length() > 0) tmp else { tmp.delete(); null }
+                    } else {
+                        // Android TTS
+                        synthesizePartToWav(partText, partIndex, baseUtteranceId)
+                    }
                     if (wav == null || !wav.exists() || wav.length() == 0L) {
                         Log.e(TAG, "Failed to synthesize part $i of chapter ${idx + 1}")
                         cleanupChapterFiles(chapterFiles, cachedWavPaths)

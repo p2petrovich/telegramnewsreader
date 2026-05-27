@@ -36,6 +36,12 @@ object PreferenceManager {
     private const val KEY_PROXY_PORT = "proxy_port"
     private const val KEY_PROXY_SECRET = "proxy_secret"
 
+    // Edge TTS settings
+    private const val KEY_TTS_ENGINE  = "tts_engine"        // "android" | "edge"
+    private const val KEY_EDGE_VOICE  = "edge_tts_voice"
+    private const val KEY_EDGE_RATE   = "edge_tts_rate_pct"  // Int, -50..+100
+    private const val KEY_EDGE_PITCH  = "edge_tts_pitch_hz"  // Int, -200..+200
+
     private const val PATHS_DELIMITER = "|||"
 
     private fun getPreferences(context: Context): SharedPreferences {
@@ -298,5 +304,36 @@ object PreferenceManager {
 
     fun setProxySecret(context: Context, secret: String) {
         getPreferences(context).edit().putString(KEY_PROXY_SECRET, secret).apply()
+    }
+
+    // ===================== Edge TTS settings =====================
+
+    fun getTtsEngine(context: Context): String =
+        getPreferences(context).getString(KEY_TTS_ENGINE, "android") ?: "android"
+
+    fun saveTtsEngine(context: Context, engine: String) {
+        getPreferences(context).edit().putString(KEY_TTS_ENGINE, engine).apply()
+    }
+
+    fun getEdgeVoice(context: Context): String =
+        getPreferences(context).getString(KEY_EDGE_VOICE, "ru-RU-DmitryNeural")
+            ?: "ru-RU-DmitryNeural"
+
+    fun saveEdgeVoice(context: Context, voice: String) {
+        getPreferences(context).edit().putString(KEY_EDGE_VOICE, voice).apply()
+    }
+
+    fun getEdgeRate(context: Context): Int =
+        getPreferences(context).getInt(KEY_EDGE_RATE, 0)
+
+    fun saveEdgeRate(context: Context, rate: Int) {
+        getPreferences(context).edit().putInt(KEY_EDGE_RATE, rate).apply()
+    }
+
+    fun getEdgePitch(context: Context): Int =
+        getPreferences(context).getInt(KEY_EDGE_PITCH, 0)
+
+    fun saveEdgePitch(context: Context, pitch: Int) {
+        getPreferences(context).edit().putInt(KEY_EDGE_PITCH, pitch).apply()
     }
 }
