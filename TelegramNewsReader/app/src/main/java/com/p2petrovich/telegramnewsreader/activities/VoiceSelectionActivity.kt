@@ -46,6 +46,8 @@ class VoiceSelectionActivity : AppCompatActivity() {
     private lateinit var spinnerEdgeVoice: Spinner
     private lateinit var sbEdgeRate: SeekBar
     private lateinit var tvEdgeRate: TextView
+    private lateinit var sbEdgePitch: SeekBar
+    private lateinit var tvEdgePitch: TextView
     private lateinit var btnTestEdge: Button
 
     private val edgeVoices = listOf(
@@ -88,6 +90,8 @@ class VoiceSelectionActivity : AppCompatActivity() {
         spinnerEdgeVoice     = findViewById(R.id.spinnerEdgeVoice)
         sbEdgeRate           = findViewById(R.id.sbEdgeRate)
         tvEdgeRate           = findViewById(R.id.tvEdgeRate)
+        sbEdgePitch          = findViewById(R.id.sbEdgePitch)
+        tvEdgePitch          = findViewById(R.id.tvEdgePitch)
         btnTestEdge          = findViewById(R.id.btnTestEdge)
     }
 
@@ -129,17 +133,34 @@ class VoiceSelectionActivity : AppCompatActivity() {
         }
 
         // ── SeekBar скорости Edge ──
-        // Диапазон -50..+100 отображаем как progress 0..150 (смещение +50)
         val savedRate = PreferenceManager.getEdgeRate(this)
         sbEdgeRate.max      = 150
         sbEdgeRate.progress = savedRate + 50
-        tvEdgeRate.text     = formatRatePct(savedRate)
+        tvEdgeRate.text     = EdgeTtsProvider.formatRatePct(savedRate)
 
         sbEdgeRate.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar, progress: Int, fromUser: Boolean) {
-                val rate = progress - 50  // обратно в -50..+100
-                tvEdgeRate.text = formatRatePct(rate)
+                val rate = progress - 50
+                tvEdgeRate.text = EdgeTtsProvider.formatRatePct(rate)
                 if (fromUser) PreferenceManager.saveEdgeRate(this@VoiceSelectionActivity, rate)
+            }
+            override fun onStartTrackingTouch(sb: SeekBar) {}
+            override fun onStopTrackingTouch(sb: SeekBar) {
+                ttsManager.refreshEdgeProvider()
+            }
+        })
+
+        // ── SeekBar тона Edge ──
+        val savedPitch = PreferenceManager.getEdgePitch(this)
+        sbEdgePitch.max      = 400
+        sbEdgePitch.progress = savedPitch + 200
+        tvEdgePitch.text     = EdgeTtsProvider.formatPitchHz(savedPitch)
+
+        sbEdgePitch.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar, progress: Int, fromUser: Boolean) {
+                val pitch = progress - 200
+                tvEdgePitch.text = EdgeTtsProvider.formatPitchHz(pitch)
+                if (fromUser) PreferenceManager.saveEdgePitch(this@VoiceSelectionActivity, pitch)
             }
             override fun onStartTrackingTouch(sb: SeekBar) {}
             override fun onStopTrackingTouch(sb: SeekBar) {
@@ -158,24 +179,24 @@ class VoiceSelectionActivity : AppCompatActivity() {
     private fun applyEngineVisibility(engine: String) {
         if (engine == "edge") {
             layoutEdgeSettings.visibility    = View.VISIBLE
-            layoutAndroidSettings.visibility = View.GONE
+            layoutAndroidSettings.visibility = View.VISIBLE // Оставляем список Android видимым
         } else {
             layoutEdgeSettings.visibility    = View.GONE
             layoutAndroidSettings.visibility = View.VISIBLE
         }
     }
 
-    private fun formatRatePct(rate: Int): String =
-        if (rate >= 0) "+${rate}%" else "${rate}%"
+    // Удален дубликат formatRatePct, используется EdgeTtsProvider.formatRatePct
 
     // ── Тест Edge голоса (синтез в фоне + воспроизведение через Android MediaPlayer) ──
 
     private fun testEdgeVoice(voice: String, rate: Int) {
         btnTestEdge.isEnabled = false
         btnTestEdge.text      = "⏳ Синтезирую..."
+        val pitch = sbEdgePitch.progress - 200
 
         CoroutineScope(Dispatchers.IO).launch {
-            val provider = EdgeTtsProvider(voice = voice, ratePct = rate)
+            val provider = EdgeTtsProvider(voice = voice, ratePct = rate, pitchHz = pitch)
             val outFile  = File(cacheDir, "edge_test_preview.wav")
             val ok = provider.synthesizeToWav(
                 "Привет! Это голос Edge TTS. Качество звучания Microsoft Neural.", outFile
@@ -197,15 +218,21 @@ class VoiceSelectionActivity : AppCompatActivity() {
     }
 
     private fun playPreviewWav(file: File) {
+        var mp: android.media.MediaPlayer? = null
         try {
-            val mp = android.media.MediaPlayer().apply {
+            mp = android.media.MediaPlayer().apply {
                 setDataSource(file.absolutePath)
                 prepare()
                 start()
                 setOnCompletionListener { release() }
+                setOnErrorListener { _, _, _ ->
+                    release()
+                    true
+                }
             }
         } catch (e: Exception) {
             Log.e("VoiceSelection", "Preview playback failed: ${e.message}")
+            mp?.release()
         }
     }
 

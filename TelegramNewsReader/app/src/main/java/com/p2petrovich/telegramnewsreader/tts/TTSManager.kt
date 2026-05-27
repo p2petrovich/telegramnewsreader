@@ -62,6 +62,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     init {
         tts = TextToSpeech(context, this)
+        refreshEdgeProvider()
     }
 
     override fun onInit(status: Int) {
@@ -297,25 +298,42 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 val partText = parts[i]
                 val partIndex = ((item.originalIndex + 1) * 1000 + (i + 1))
 
-                val hash = NewsCache.messageHash(partText, voiceName, cachePitch, cacheRate)
+                val isEdgeActive = edgeProvider != null
+                val hash = if (isEdgeActive) {
+                    val ev = PreferenceManager.getEdgeVoice(context)
+                    val er = PreferenceManager.getEdgeRate(context)
+                    val ep = PreferenceManager.getEdgePitch(context)
+                    NewsCache.messageHash(partText, "edge:$ev", ep.toFloat(), er.toFloat())
+                } else {
+                    NewsCache.messageHash(partText, voiceName, cachePitch, cacheRate)
+                }
+
                 val cachedFile = NewsCache.findCachedWav(context, hash)
 
-                val wav: File?
+                var wav: File? = null
 
                 if (cachedFile != null) {
                     wav = cachedFile
                     cachedWavPaths.add(cachedFile.absolutePath)
                 } else {
                     val edge = edgeProvider
-                    wav = if (edge != null) {
-                        // Edge TTS
+                    if (edge != null) {
+                        // Попытка Edge TTS
                         val tmp = File(context.cacheDir, "${baseUtteranceId}_part_${partIndex}.wav")
-                        val ok = withTimeoutOrNull(20_000L) { edge.synthesizeToWav(partText, tmp) } ?: false
-                        if (ok && tmp.exists() && tmp.length() > 0) tmp else { tmp.delete(); null }
-                    } else {
-                        // Android TTS
-                        synthesizePartToWav(partText, partIndex, baseUtteranceId)
+                        val ok = edge.synthesizeToWav(partText, tmp)
+                        if (ok && tmp.exists() && tmp.length() > 0) {
+                            wav = tmp
+                        } else {
+                            tmp.delete()
+                            Log.w(TAG, "Edge TTS failed for part $partIndex, falling back to Android TTS")
+                        }
                     }
+
+                    // Fallback или основной путь для Android TTS
+                    if (wav == null) {
+                        wav = synthesizePartToWav(partText, partIndex, baseUtteranceId)
+                    }
+
                     if (wav == null || !wav.exists() || wav.length() == 0L) {
                         Log.e(TAG, "Failed to synthesize part $i of chapter ${idx + 1}")
                         cleanupChapterFiles(chapterFiles, cachedWavPaths)

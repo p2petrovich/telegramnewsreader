@@ -45,13 +45,16 @@ class EdgeTtsProvider(
 
         // Максимум символов на один запрос (Edge ограничивает ~10KB SSML)
         private const val MAX_CHARS = 3000
-    }
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
-        .build()
+        private val sharedClient = OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
+            .build()
+
+        fun formatRatePct(rate: Int): String = if (rate >= 0) "+${rate}%" else "${rate}%"
+        fun formatPitchHz(pitch: Int): String = if (pitch >= 0) "+${pitch}Hz" else "${pitch}Hz"
+    }
 
     // ─── Публичный метод: текст → WAV файл ───────────────────────────────────
 
@@ -63,6 +66,7 @@ class EdgeTtsProvider(
     suspend fun synthesizeToWav(text: String, outputFile: File): Boolean {
         if (text.isBlank()) return false
 
+        // Общий таймаут 60 сек
         return withTimeoutOrNull(60_000L) {
             if (text.length <= MAX_CHARS) {
                 synthesizePart(text, outputFile)
@@ -70,7 +74,7 @@ class EdgeTtsProvider(
                 synthesizeLong(text, outputFile)
             }
         } ?: run {
-            Log.e(TAG, "synthesizeToWav timeout for: ${text.take(60)}")
+            Log.e(TAG, "synthesizeToWav overall timeout for: ${text.take(60)}")
             false
         }
     }
@@ -121,8 +125,9 @@ class EdgeTtsProvider(
 
             val audioBuf = ByteArrayOutputStream()
             var turned   = false  // получили turn.end?
+            var resumed  = false
 
-            val ws = client.newWebSocket(request, object : WebSocketListener() {
+            val ws = sharedClient.newWebSocket(request, object : WebSocketListener() {
 
                 override fun onOpen(webSocket: WebSocket, response: Response) {
                     webSocket.send(buildConfigMsg(timestamp))
@@ -134,13 +139,16 @@ class EdgeTtsProvider(
                     if (text.contains("Path:turn.end") && !turned) {
                         turned = true
                         webSocket.close(1000, "done")
-                        val ok = writeWav(audioBuf.toByteArray(), outputFile)
-                        if (continuation.isActive) continuation.resume(ok)
+                        val bytes = synchronized(audioBuf) { audioBuf.toByteArray() }
+                        val ok = writeWav(bytes, outputFile)
+                        if (continuation.isActive && !resumed) {
+                            resumed = true
+                            continuation.resume(ok)
+                        }
                     }
                 }
 
                 // Бинарные фреймы — аудио
-                // Формат: 2 байта (big-endian) = длина заголовка, затем заголовок, затем PCM
                 override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
                     val data = bytes.toByteArray()
                     if (data.size < 2) return
@@ -150,20 +158,25 @@ class EdgeTtsProvider(
                     val header = String(data, 2, headerLen, Charsets.UTF_8)
                     if (header.contains("Path:audio")) {
                         val audioStart = 2 + headerLen
-                        audioBuf.write(data, audioStart, data.size - audioStart)
+                        synchronized(audioBuf) {
+                            audioBuf.write(data, audioStart, data.size - audioStart)
+                        }
                     }
                 }
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     Log.e(TAG, "WS failure: ${t.message} (${response?.code})")
-                    if (continuation.isActive) continuation.resume(false)
+                    if (continuation.isActive && !resumed) {
+                        resumed = true
+                        continuation.resume(false)
+                    }
                 }
 
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                    // Если turn.end не пришёл, а соединение закрыто — пробуем записать что есть
-                    if (!turned && continuation.isActive) {
-                        turned = true
-                        val ok = writeWav(audioBuf.toByteArray(), outputFile)
+                    if (!turned && continuation.isActive && !resumed) {
+                        resumed = true
+                        val bytes = synchronized(audioBuf) { audioBuf.toByteArray() }
+                        val ok = writeWav(bytes, outputFile)
                         continuation.resume(ok)
                     }
                 }
@@ -196,8 +209,8 @@ class EdgeTtsProvider(
     }
 
     private fun buildSsml(text: String): String {
-        val rateStr  = if (ratePct >= 0) "+${ratePct}%" else "${ratePct}%"
-        val pitchStr = if (pitchHz >= 0) "+${pitchHz}Hz" else "${pitchHz}Hz"
+        val rateStr  = formatRatePct(ratePct)
+        val pitchStr = formatPitchHz(pitchHz)
         val escaped  = text
             .replace("&", "&amp;")
             .replace("<", "&lt;")
@@ -214,9 +227,8 @@ class EdgeTtsProvider(
     // ─── WAV утилиты ─────────────────────────────────────────────────────────
 
     /**
-     * Записывает PCM-данные в файл.
-     * riff-24khz-16bit-mono-pcm уже приходит с RIFF-заголовком в первом фрейме,
-     * поэтому просто сохраняем байты как есть.
+     * Записывает PCM-данные в файл, гарантируя корректный WAV-заголовок.
+     * Edge присылает RIFF, но часто с неверным размером или лишними чанками.
      */
     private fun writeWav(audioBytes: ByteArray, outputFile: File): Boolean {
         if (audioBytes.isEmpty()) {
@@ -224,8 +236,23 @@ class EdgeTtsProvider(
             return false
         }
         return try {
-            FileOutputStream(outputFile).use { it.write(audioBytes) }
-            outputFile.exists() && outputFile.length() > 44  // минимум: RIFF заголовок
+            val dataOffset = findDataChunkOffset(audioBytes)
+            val pcm = if (dataOffset > 0) {
+                audioBytes.copyOfRange(dataOffset, audioBytes.size)
+            } else {
+                // Если не нашли data-чанк, возможно это чистый PCM или битый WAV
+                // Пробуем отрезать стандартные 44 байта если это похоже на WAV
+                if (audioBytes.size > 44 && String(audioBytes.copyOfRange(0, 4)) == "RIFF") {
+                    audioBytes.copyOfRange(44, audioBytes.size)
+                } else audioBytes
+            }
+
+            val header = buildWavHeader(pcm.size, 24000, 1, 16)
+            FileOutputStream(outputFile).use { os ->
+                os.write(header)
+                os.write(pcm)
+            }
+            outputFile.exists() && outputFile.length() > 44
         } catch (e: Exception) {
             Log.e(TAG, "writeWav failed: ${e.message}")
             false
