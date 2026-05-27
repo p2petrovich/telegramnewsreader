@@ -1416,25 +1416,70 @@ class MainActivity : AppCompatActivity() {
         val switchEnabled = dialogView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switch_ai_enabled)
         val spinnerModel = dialogView.findViewById<android.widget.Spinner>(R.id.spinner_ai_model)
         val spinnerStyle = dialogView.findViewById<android.widget.Spinner>(R.id.spinner_ai_style)
+        val btnTestManual = dialogView.findViewById<android.widget.Button>(R.id.btn_test_ai_model)
+        val tvStatusManual = dialogView.findViewById<android.widget.TextView>(R.id.tv_ai_test_status)
+
+        // Кнопку ручной проверки скрываем, так как проверка будет автоматической
+        btnTestManual?.visibility = View.GONE
+        tvStatusManual?.visibility = View.GONE
 
         switchEnabled.isChecked = PreferenceManager.isAiSummaryEnabled(this)
 
         val models = listOf(
-            "deepseek/deepseek-v4-flash:free" to "DeepSeek V4 Flash (Быстрая)",
-            "google/gemini-flash-1.5-free" to "Gemini 1.5 Flash (Google)",
-            "z-ai/glm-4.5-air:free" to "GLM-4.5 Air (Хороший русский)",
-            "meta-llama/llama-3.3-70b-instruct:free" to "Llama 3.3 70B (Умная)"
+            "z-ai/glm-4.5-air:free" to "GLM-4.5 Air (Хороший русский) — FREE",
+            "openai/gpt-oss-120b:free" to "GPT-OSS 120B (Сильный) — FREE",
+            "nvidia/nemotron-3-super-120b-a12b:free" to "Nemotron-3 Super (Стабильный) — FREE",
+            "deepseek/deepseek-v4-flash:free" to "DeepSeek V4 Flash — FREE",
+            "google/gemini-flash-1.5-free" to "Gemini 1.5 Flash (Google) — FREE",
+            "meta-llama/llama-3.3-70b-instruct:free" to "Llama 3.3 70B — FREE"
         )
+
+        val modelStatuses = mutableMapOf<String, String>()
+        models.forEach { modelStatuses[it.first] = "⏳" }
+
+        val modelAdapter = object : android.widget.ArrayAdapter<Pair<String, String>>(
+            this, R.layout.item_model_status, models
+        ) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                return createViewFromResource(position, convertView, parent, R.layout.item_model_status)
+            }
+            override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View {
+                return createViewFromResource(position, convertView, parent, R.layout.item_model_status)
+            }
+            private fun createViewFromResource(position: Int, convertView: View?, parent: ViewGroup, resource: Int): View {
+                val view = convertView ?: layoutInflater.inflate(resource, parent, false)
+                val item = getItem(position)
+                val tvName = view.findViewById<TextView>(R.id.tv_model_name)
+                val tvStatus = view.findViewById<TextView>(R.id.tv_model_status)
+                
+                tvName.text = item?.second
+                val status = modelStatuses[item?.first] ?: "⏳"
+                tvStatus.text = status
+                
+                when (status) {
+                    "✅" -> tvStatus.setTextColor(Color.GREEN)
+                    "❌" -> tvStatus.setTextColor(Color.RED)
+                    else -> tvStatus.setTextColor(Color.GRAY)
+                }
+                return view
+            }
+        }
+        spinnerModel.adapter = modelAdapter
+
+        // Запускаем фоновую проверку всех моделей сразу
+        lifecycleScope.launch {
+            models.forEach { modelPair ->
+                val result = AiProcessor.testModelAvailability(modelPair.first, this@MainActivity)
+                modelStatuses[modelPair.first] = if (result.first) "✅" else "❌"
+                modelAdapter.notifyDataSetChanged()
+            }
+        }
 
         val styles = listOf(
             "minimal" to "Только чистка от мусора",
             "balanced" to "Сбалансированное сжатие (в 2 раза)",
             "extreme" to "Радио-молния (1 предложение)"
         )
-
-        val modelAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, models.map { it.second })
-        modelAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinnerModel.adapter = modelAdapter
 
         val styleAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, styles.map { it.second })
         styleAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
@@ -1448,31 +1493,6 @@ class MainActivity : AppCompatActivity() {
 
         val styleIdx = styles.indexOfFirst { it.first == currentStyle }.coerceAtLeast(0)
         spinnerStyle.setSelection(styleIdx)
-
-        val btnTest = dialogView.findViewById<android.widget.Button>(R.id.btn_test_ai_model)
-        val tvStatus = dialogView.findViewById<android.widget.TextView>(R.id.tv_ai_test_status)
-
-        btnTest.setOnClickListener {
-            val selectedModel = models[spinnerModel.selectedItemPosition].first
-            btnTest.isEnabled = false
-            btnTest.text = "Проверяю..."
-            tvStatus.text = ""
-
-            lifecycleScope.launch {
-                val result = AiProcessor.testModelAvailability(selectedModel, this@MainActivity)
-                btnTest.isEnabled = true
-                btnTest.text = "Проверить доступность"
-                
-                if (result.first) {
-                    tvStatus.text = "✅ Доступна"
-                    tvStatus.setTextColor(Color.GREEN)
-                } else {
-                    tvStatus.text = "❌ Ошибка"
-                    tvStatus.setTextColor(Color.RED)
-                    Toast.makeText(this@MainActivity, result.second, Toast.LENGTH_LONG).show()
-                }
-            }
-        }
 
         AlertDialog.Builder(this)
             .setView(dialogView)
