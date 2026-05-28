@@ -91,7 +91,7 @@ object TextProcessor {
         messages: List<String>,
         onFilterProgress: ((originalCount: Int, filteredCount: Int) -> Unit)? = null
     ): List<String> {
-        Log.e(TAG, "====== FILTER START: ${messages.size} messages ======")
+        Log.i(TAG, "====== FILTER START: ${messages.size} messages ======")
 
         var droppedTooShort = 0
         var droppedUrlOnly = 0
@@ -109,32 +109,32 @@ object TextProcessor {
 
             if (trimmed.length <= 3) {
                 droppedTooShort++
-                Log.w(TAG, "SPAM [too_short]: $preview")
+                Log.d(TAG, "SPAM [too_short]: $preview")
                 return@mapNotNull null
             }
 
             if (trimmed.matches(Regex("^https?://.*$"))) {
                 droppedUrlOnly++
-                Log.w(TAG, "SPAM [url_only]: $preview")
+                Log.d(TAG, "SPAM [url_only]: $preview")
                 return@mapNotNull null
             }
 
             if (trimmed.matches(Regex("^[\\p{So}\\p{Sk}\\s]+$"))) {
                 droppedEmojiOnly++
-                Log.w(TAG, "SPAM [emoji_only]: $preview")
+                Log.d(TAG, "SPAM [emoji_only]: $preview")
                 return@mapNotNull null
             }
 
             if (trimmed.matches(Regex("^\\d{2}:\\d{2}\\s*—\\s*\\[.*]$"))) {
                 droppedBracketTime++
-                Log.w(TAG, "SPAM [media_no_text]: $preview")
+                Log.d(TAG, "SPAM [media_no_text]: $preview")
                 return@mapNotNull null
             }
 
             val matchedPromo = PROMO_PATTERNS.firstOrNull { it.containsMatchIn(trimmed) }
             if (matchedPromo != null) {
                 droppedPromo++
-                Log.w(TAG, "SPAM [promo: ${matchedPromo.pattern.take(30)}]: $preview")
+                Log.d(TAG, "SPAM [promo: ${matchedPromo.pattern.take(30)}]: $preview")
                 return@mapNotNull null
             }
 
@@ -154,7 +154,7 @@ object TextProcessor {
 
             if (cleaned.isBlank() || cleaned.length <= 5) {
                 droppedAfterClean++
-                Log.w(TAG, "SPAM [empty_after_clean]: $preview")
+                Log.d(TAG, "SPAM [empty_after_clean]: $preview")
                 return@mapNotNull null
             }
 
@@ -168,9 +168,9 @@ object TextProcessor {
             finalMessage
         }.distinct().take(200)
 
-        Log.e(TAG, "====== FILTER RESULT: ${messages.size} -> ${filtered.size} ======")
-        Log.e(TAG, "  too_short=$droppedTooShort url=$droppedUrlOnly emoji=$droppedEmojiOnly")
-        Log.e(TAG, "  media=$droppedBracketTime promo=$droppedPromo empty_clean=$droppedAfterClean trim=$droppedTooLong")
+        Log.i(TAG, "====== FILTER RESULT: ${messages.size} -> ${filtered.size} ======")
+        Log.i(TAG, "  too_short=$droppedTooShort url=$droppedUrlOnly emoji=$droppedEmojiOnly")
+        Log.i(TAG, "  media=$droppedBracketTime promo=$droppedPromo empty_clean=$droppedAfterClean trim=$droppedTooLong")
 
         onFilterProgress?.invoke(messages.size, filtered.size)
         return filtered
@@ -214,11 +214,11 @@ object TextProcessor {
             } else {
                 removedCount++
                 val preview = msg.take(100).replace("\n", " | ")
-                Log.w(TAG, "DEDUP [jaccard>0.55]: $preview")
+                Log.d(TAG, "DEDUP [jaccard>0.55]: $preview")
             }
         }
 
-        Log.e(TAG, "dedup: ${messages.size} -> ${result.size} (removed $removedCount)")
+        Log.i(TAG, "dedup: ${messages.size} -> ${result.size} (removed $removedCount)")
         return result
     }
 
@@ -474,24 +474,24 @@ object TextProcessor {
             when {
                 withoutTimePrefix.length < 8 -> {
                     droppedShort++
-                    Log.w(TAG, "DROP [<8chars]: $preview")
+                    Log.d(TAG, "DROP [<8chars]: $preview")
                     false
                 }
                 TRIVIAL_PATTERN.containsMatchIn(withoutTimePrefix) -> {
                     droppedTrivial++
-                    Log.w(TAG, "DROP [trivial]: $preview")
+                    Log.d(TAG, "DROP [trivial]: $preview")
                     false
                 }
                 // Удаляем только если ВСЁ сообщение — короткий призыв подписаться
                 SUBSCRIBE_CHECK_PATTERN.matches(trimmed) -> {
                     droppedSubscribe++
-                    Log.w(TAG, "DROP [subscribe_short]: $preview")
+                    Log.d(TAG, "DROP [subscribe_short]: $preview")
                     false
                 }
                 // Удаляем только если ВСЁ сообщение — короткий спам-призыв
                 SPAM_CHECK_PATTERN.matches(trimmed) -> {
                     droppedSpam++
-                    Log.w(TAG, "DROP [spam_short]: $preview")
+                    Log.d(TAG, "DROP [spam_short]: $preview")
                     false
                 }
                 else -> true
@@ -499,7 +499,7 @@ object TextProcessor {
         }
 
         if (texts.size != result.size) {
-            Log.e(TAG, "dropTrivial: ${texts.size} -> ${result.size} (short=$droppedShort trivial=$droppedTrivial subscribe=$droppedSubscribe spam=$droppedSpam)")
+            Log.i(TAG, "dropTrivial: ${texts.size} -> ${result.size} (short=$droppedShort trivial=$droppedTrivial subscribe=$droppedSubscribe spam=$droppedSpam)")
         }
 
         return result

@@ -85,7 +85,7 @@ class EdgeTtsProvider(
                 synthesizeLong(text, outputFile)
             }
         } ?: run {
-            Log.e(TAG, "synthesizeToWav overall timeout for: ${text.take(60)}")
+            Log.e(TAG, "synthesizeToWav overall timeout (length: ${text.length})")
             false
         }
     }
@@ -153,8 +153,7 @@ class EdgeTtsProvider(
                     "&Sec-MS-GEC-Version=$SEC_MS_GEC_VERSION" +
                     "&ConnectionId=$connectionId"
 
-            Log.d(TAG, "synthesizePart start, text='${text.take(40)}', voice=$voice")
-            Log.d(TAG, "WS URL: $wsUrl")
+            Log.d(TAG, "synthesizePart start, voice=$voice, length=${text.length}")
 
             val request = Request.Builder()
                 .url(wsUrl)
@@ -192,16 +191,14 @@ class EdgeTtsProvider(
                     Log.d(TAG, "WS opened (http=${response.code})")
                     val cfg  = buildConfigMsg(timestamp)
                     val ssml = buildSsmlMsg(requestId, timestamp, text)
-                    Log.d(TAG, "→ config:\n$cfg")
-                    Log.d(TAG, "→ ssml:\n$ssml")
                     webSocket.send(cfg)
                     webSocket.send(ssml)
                 }
 
                 // Текстовые фреймы — служебные (turn.start / turn.end / response)
                 override fun onMessage(webSocket: WebSocket, text: String) {
-                    Log.d(TAG, "← text frame:\n${text.take(400)}")
                     val path = extractPath(text)
+                    Log.d(TAG, "← text frame (path: $path)")
                     if (path == "turn.end") {
                         finish(webSocket, success = true, reason = "turn.end (text)")
                     }
