@@ -1,71 +1,44 @@
-# Очистка логирования и защита чувствительных данных
+# Оптимизация разрешений хранилища
 
-Задача направлена на удаление конфиденциальной информации из логов и приведение уровней логирования в соответствие с общепринятыми практиками (отделение служебных сообщений от ошибок, удаление отладочных логов в release-сборке).
+Задача направлена на удаление избыточных и опасных разрешений хранилища, которые не требуются для текущей функциональности приложения. Приложение использует `MediaStore` для работы с папкой Downloads на Android 10+ и внутреннее хранилище (`cacheDir`, `filesDir`) для временных файлов, что позволяет отказаться от «всемогущего» разрешения `MANAGE_EXTERNAL_STORAGE`.
 
 ## Proposed Changes
 
-### [Network & TTS]
+### [Manifest]
 
-#### [EdgeTtsProvider.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/tts/EdgeTtsProvider.kt)
+#### [AndroidManifest.xml](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/AndroidManifest.xml)
 
-- Удаление логирования `wsUrl` (содержит токен).
-- Удаление логирования `ssml` и `cfg` (содержат текст новостей и служебные данные).
-- Удаление текста новостей из логов `synthesizePart` и `synthesizeToWav` (timeout).
-- Удаление вывода содержимого текстовых фреймов WebSocket.
+- Удаление `android.permission.MANAGE_EXTERNAL_STORAGE`.
+- Удаление `android:requestLegacyExternalStorage="true"` (приложение уже корректно работает через `MediaStore`).
+- Опционально: Оставление `READ_EXTERNAL_STORAGE` и `WRITE_EXTERNAL_STORAGE` с `maxSdkVersion="32"` для поддержки импорта/экспорта бэкапов на старых устройствах (API < 33).
 
 ```diff
-- Log.d(TAG, "synthesizePart start, text='${text.take(40)}', voice=$voice")
-- Log.d(TAG, "WS URL: $wsUrl")
-+ Log.d(TAG, "synthesizePart start, voice=$voice, length=${text.length}")
+- <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 
-- Log.d(TAG, "→ config:\n$cfg")
-- Log.d(TAG, "→ ssml:\n$ssml")
-
-- Log.d(TAG, "← text frame:\n${text.take(400)}")
-+ Log.d(TAG, "← text frame (path: ${extractPath(text)})")
-
-- Log.e(TAG, "synthesizeToWav overall timeout for: ${text.take(60)}")
-+ Log.e(TAG, "synthesizeToWav overall timeout (length: ${text.length})")
+  <application
+      ...
+-     android:requestLegacyExternalStorage="true"
+      ...
+  >
 ```
 
 ---
 
-### [Utilities]
+### [Logic Check]
 
-#### [TextProcessor.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/TextProcessor.kt)
+#### [SettingsBackup.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/SettingsBackup.kt)
 
-- Исправление уровней логирования: служебные сообщения (старт/результат фильтрации) переведены с `Log.e` на `Log.i`.
-- Перевод логов с контентом (SPAM, DEDUP, OK) с `Log.w` на `Log.d`, чтобы они автоматически удалялись Proguard-ом в release-сборке.
-
-```diff
-- Log.e(TAG, "====== FILTER START: ${messages.size} messages ======")
-+ Log.i(TAG, "====== FILTER START: ${messages.size} messages ======")
-
-- Log.w(TAG, "SPAM [too_short]: $preview")
-+ Log.d(TAG, "SPAM [too_short]: $preview")
-
-- Log.e(TAG, "====== FILTER RESULT: ${messages.size} -> ${filtered.size} ======")
-+ Log.i(TAG, "====== FILTER RESULT: ${messages.size} -> ${filtered.size} ======")
-```
-
----
-
-### [Build & Obfuscation]
-
-#### [proguard-rules.pro](file:///C:/Telegram_cloude/TelegramNewsReader/app/proguard-rules.pro)
-
-- Проверка и подтверждение правила для удаления `Log.d` и `Log.v`.
-- Добавление `if (BuildConfig.DEBUG)` не требуется, так как `assumenosideeffects` эффективно удаляет вызовы `Log.d`.
+- Код в `SettingsBackup` уже разделен на ветки `Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q` (использование `MediaStore`) и `legacy` (прямой доступ к файлам).
+- На Android 10 (Q) и выше для записи в `Downloads` через `MediaStore` разрешения не требуются.
+- На Android 13+ (API 33) разрешения `READ/WRITE_EXTERNAL_STORAGE` игнорируются системой для файлов общего назначения, но в манифесте они ограничены `maxSdkVersion="32"`, что корректно.
 
 ## Verification Plan
 
 ### Automated Tests
-- Запуск сборки проекта для проверки отсутствия синтаксических ошибок:
+- Сборка проекта:
   `./gradlew :app:assembleDebug`
-- Запуск lint для проверки правил логирования (если есть специфичные правила):
-  `./gradlew :app:lintDebug`
 
 ### Manual Verification
-- Проверка логов в Logcat при работе приложения:
-  1. В Debug-сборке логи `TextProcessor` (SPAM, OK) и `EdgeTtsProvider` должны быть видны, но без токенов/полного текста SSML.
-  2. (Теоретически) В Release-сборке логи `Log.d` должны отсутствовать.
+1. **Проверка TTS**: Запустить прослушивание новостей (убедиться, что временные WAV файлы создаются и читаются без ошибок доступа, так как они в `cacheDir`).
+2. **Проверка Бэкапа (Export)**: Создать бэкап настроек. Проверить, что файл появляется в папке `Downloads` (на Android 10+ это должно работать без `MANAGE_EXTERNAL_STORAGE`).
+3. **Проверка Бэкапа (Import)**: Попробовать импортировать бэкап из списка доступных.
