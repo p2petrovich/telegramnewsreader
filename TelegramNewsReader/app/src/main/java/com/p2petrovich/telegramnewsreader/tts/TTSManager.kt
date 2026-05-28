@@ -14,6 +14,7 @@ import com.p2petrovich.telegramnewsreader.utils.AudioUtils
 import com.p2petrovich.telegramnewsreader.utils.NewsCache
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.TextProcessor
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
 import java.io.RandomAccessFile
@@ -47,6 +48,11 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     companion object {
         private const val TAG = "TTSManager"
+
+        // Количество попыток синтеза через Edge перед fallback на Android TTS.
+        // Сетевые сбои WebSocket — норма, обычно вторая попытка проходит.
+        private const val EDGE_RETRY_ATTEMPTS = 2
+        private const val EDGE_RETRY_DELAY_MS = 500L
     }
 
     private var tts: TextToSpeech? = null
@@ -239,6 +245,38 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         return text.replace("\u200B", "").replace("\u200C", "").trim()
     }
 
+    /**
+     * Синтезирует одну часть через Edge TTS с повторными попытками.
+     * Возвращает true если получилось, false если все попытки провалились.
+     */
+    private suspend fun trySynthesizeEdge(
+        edge: EdgeTtsProvider,
+        text: String,
+        outFile: File,
+        partIndex: Int
+    ): Boolean {
+        for (attempt in 1..EDGE_RETRY_ATTEMPTS) {
+            val ok = try {
+                edge.synthesizeToWav(text, outFile)
+            } catch (e: Exception) {
+                Log.w(TAG, "Edge attempt $attempt error for part $partIndex: ${e.message}")
+                false
+            }
+            if (ok && outFile.exists() && outFile.length() > 0) {
+                if (attempt > 1) {
+                    Log.d(TAG, "Edge succeeded on attempt $attempt for part $partIndex")
+                }
+                return true
+            }
+            Log.w(TAG, "Edge attempt $attempt failed for part $partIndex")
+            if (outFile.exists()) outFile.delete()
+            if (attempt < EDGE_RETRY_ATTEMPTS) {
+                delay(EDGE_RETRY_DELAY_MS)
+            }
+        }
+        return false
+    }
+
     suspend fun synthesizePlaylist(
         texts: List<String>,
         pauseMs: Int = 1000,
@@ -333,6 +371,10 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 val cachedFile = NewsCache.findCachedWav(context, hash)
 
                 var wav: File? = null
+                // Флаг для отслеживания, каким движком фактически синтезирована часть.
+                // Если ожидали Edge, но упали на Android — в кэш не пишем,
+                // иначе при следующем запуске эта фраза подтянется чужим голосом.
+                var actuallyUsedEdge = false
 
                 if (cachedFile != null) {
                     wav = cachedFile
@@ -341,12 +383,16 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                     val edge = edgeProvider
                     if (edge != null) {
                         val tmp = File(context.cacheDir, "${baseUtteranceId}_part_${partIndex}.wav")
-                        val ok = withTimeoutOrNull(20_000L) { edge.synthesizeToWav(partText, tmp) } ?: false
-                        if (ok && tmp.exists() && tmp.length() > 0) {
+                        // Внешнего withTimeoutOrNull больше нет — EdgeTtsProvider.synthesizeToWav
+                        // уже имеет внутренний таймаут 60с. Двойной таймаут резал длинные
+                        // фразы на полпути и отправлял их в Android-fallback (== другой голос).
+                        val ok = trySynthesizeEdge(edge, partText, tmp, partIndex)
+                        if (ok) {
                             wav = tmp
+                            actuallyUsedEdge = true
                         } else {
                             tmp.delete()
-                            Log.w(TAG, "Edge TTS failed for part $partIndex, falling back to Android TTS")
+                            Log.w(TAG, "Edge TTS failed for part $partIndex after $EDGE_RETRY_ATTEMPTS attempts, falling back to Android TTS")
                         }
                     }
 
@@ -364,7 +410,16 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                         progressCallback?.onCompleted()
                         return null
                     }
-                    NewsCache.saveWavToCache(context, hash, wav)
+
+                    // Кэшируем только если фактический движок совпал с ожидаемым.
+                    // Если ожидался Edge, но в итоге сработал Android-fallback — не сохраняем,
+                    // чтобы хэш "edge:..." не указывал на Android-озвучку.
+                    val expectedEdge = isEdgeActive
+                    if (expectedEdge == actuallyUsedEdge) {
+                        NewsCache.saveWavToCache(context, hash, wav)
+                    } else {
+                        Log.w(TAG, "Skip caching part $partIndex: expectedEdge=$expectedEdge, actualEdge=$actuallyUsedEdge")
+                    }
                 }
 
                 val meta = readWavMeta(wav)
