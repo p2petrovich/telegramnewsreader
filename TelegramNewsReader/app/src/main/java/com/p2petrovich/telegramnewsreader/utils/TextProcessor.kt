@@ -50,6 +50,18 @@ object TextProcessor {
         "^[\\p{So}\\p{Sk}]?\\s*(Читать РБК в Telegram|Следить за новостями РБК в Telegram|(Другие видео|Картина дня).*в телеграм-канале РБК).*$",
         setOf(RegexOption.MULTILINE, RegexOption.IGNORE_CASE)
     )
+
+    // ─── Дополнительные хвосты РБК (Макс, мобильные приложения) ────────────────
+    // Срабатывают на строки вида:
+    //   «Канал РБК в "Максе"»     /  «Канал РБК в «Максе»»  / «Канал РБК в Максе»
+    //   «Приложение РБК для iOS и Android»  /  «Приложение РБК для iOS / Android»
+    private val TTS_RBK_MAX_PATTERN = Regex(
+        "(?im)^\\s*[\\p{So}\\p{Sk}]?\\s*канал\\s+рбк\\s+в\\s+[\"«\"']?макс[а-я]*[\"»\"']?\\s*$"
+    )
+    private val TTS_RBK_APP_PATTERN = Regex(
+        "(?im)^\\s*[\\p{So}\\p{Sk}]?\\s*приложение\\s+рбк\\s+для\\s+(ios|android)(\\s*(и|/|\\|)\\s*(ios|android))?\\s*$"
+    )
+
     private val TTS_PHONE_PATTERN = Regex("\\+?\\d{1,3}[\\s-]?\\(?\\d{1,4}\\)?[\\s-]?\\d{1,4}[\\s-]?\\d{1,4}[\\s-]?\\d{1,4}")
     private val TTS_COLORED_SQUARES_PATTERN = Regex("[🟩🟨🟥🟦🟪🟫⬛⬜]")
     private val TTS_EMOJI_PATTERN = Regex("[\\p{So}\\p{Sk}]")
@@ -243,6 +255,8 @@ object TextProcessor {
         t = TTS_PROMO_PATTERN.replace(t, "")
         t = TTS_PHOTO_LINE_PATTERN.replace(t, "")
         t = TTS_RBK_PATTERN.replace(t, "")
+        t = TTS_RBK_MAX_PATTERN.replace(t, "")   // ← новое: «Канал РБК в Максе»
+        t = TTS_RBK_APP_PATTERN.replace(t, "")   // ← новое: «Приложение РБК для iOS и Android»
         t = TTS_PHONE_PATTERN.replace(t, "")
         t = TTS_COLORED_SQUARES_PATTERN.replace(t, "")
         t = TTS_EMOJI_PATTERN.replace(t, " ")
@@ -280,7 +294,7 @@ object TextProcessor {
         }
 
         t = t.replace(Regex("\\b(\\d+[\\d\\s]*)(?:₽|руб\\.?|р\\.)\\b", RegexOption.IGNORE_CASE), "$1 рублей")
-        
+
         // Валюты
         t = t.replace(Regex("\\$(\\d+)"), "$1 долларов")
         t = t.replace(Regex("€(\\d+)"), "$1 евро")
@@ -291,7 +305,29 @@ object TextProcessor {
         t = t.replace(Regex("(\\d+[,.]?\\d*)%-е")) { "${it.groupValues[1]}-процентные" }
         t = t.replace(Regex("\\b(\\d+[,.]?\\d*)\\s?%\\b")) { "${it.groupValues[1]} процентов" }
 
-        t = t.replace(Regex("([+-]?\\d+[,.]?\\d*)\\s?°C?\\b")) { "${it.groupValues[1]} градусов" }
+        // ─── Градусы и географические координаты ──────────────────────────────
+        // Порядок важен: сначала координаты «45° с. ш.», потом обычные «10°C»,
+        // в конце — одинокий «°» без буквы как fallback.
+
+        // Координаты: «45° с. ш.», «45°с.ш.», «45° ю. ш.», «60° в. д.», «120° з. д.»
+        t = t.replace(
+            Regex("([+-]?\\d+[,.]?\\d*)\\s?°\\s?с\\.?\\s?ш\\.?", RegexOption.IGNORE_CASE)
+        ) { "${it.groupValues[1]} градусов северной широты" }
+        t = t.replace(
+            Regex("([+-]?\\d+[,.]?\\d*)\\s?°\\s?ю\\.?\\s?ш\\.?", RegexOption.IGNORE_CASE)
+        ) { "${it.groupValues[1]} градусов южной широты" }
+        t = t.replace(
+            Regex("([+-]?\\d+[,.]?\\d*)\\s?°\\s?в\\.?\\s?д\\.?", RegexOption.IGNORE_CASE)
+        ) { "${it.groupValues[1]} градусов восточной долготы" }
+        t = t.replace(
+            Regex("([+-]?\\d+[,.]?\\d*)\\s?°\\s?з\\.?\\s?д\\.?", RegexOption.IGNORE_CASE)
+        ) { "${it.groupValues[1]} градусов западной долготы" }
+
+        // Температура с явной буквой: «10°C», «-5 °С» (латинская C или русская С)
+        t = t.replace(Regex("([+-]?\\d+[,.]?\\d*)\\s?°\\s?[CС]\\b")) { "${it.groupValues[1]} градусов" }
+
+        // Fallback: одинокий «°» без буквы — просто «градусов» (например, «45°»)
+        t = t.replace(Regex("([+-]?\\d+[,.]?\\d*)\\s?°")) { "${it.groupValues[1]} градусов" }
 
         return t
     }
@@ -333,16 +369,16 @@ object TextProcessor {
         t = t.replace(Regex("\\.\\.\\."), "…")
 
         t = t.replace(Regex(";\\s*(?=\\n{2,})"), ". ")
-        
+
         // Улучшение пауз между предложениями
         t = t.replace(Regex("(?<=[.!?…])\\s+"), "... ")
 
         return t.trim()
     }
-    
+
     fun expandAbbreviations(text: String): String {
         if (NewsService.isChannelHeader(text)) return text
-        
+
         var t = text
         val maps = mapOf(
             Regex("\\bг\\.\\b") to "город",
