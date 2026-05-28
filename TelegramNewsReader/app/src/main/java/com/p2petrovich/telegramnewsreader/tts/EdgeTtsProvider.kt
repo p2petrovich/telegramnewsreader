@@ -277,17 +277,10 @@ class EdgeTtsProvider(
      * Заголовки приходят в формате "Header:value\r\nHeader2:value2\r\n\r\n".
      */
     private fun extractPath(header: String): String? {
-        val marker = "Path:"
-        val idx = header.indexOf(marker)
-        if (idx < 0) return null
-        val start = idx + marker.length
-        var end = start
-        while (end < header.length) {
-            val c = header[end]
-            if (c == '\r' || c == '\n') break
-            end++
-        }
-        return header.substring(start, end).trim().ifEmpty { null }
+        return header.lines().firstOrNull { it.startsWith("Path:", ignoreCase = true) }
+            ?.substringAfter(":")
+            ?.trim()
+            ?.ifEmpty { null }
     }
 
     // ─── Построение WebSocket сообщений ──────────────────────────────────────

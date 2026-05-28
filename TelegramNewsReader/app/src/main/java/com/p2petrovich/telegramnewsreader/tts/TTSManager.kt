@@ -73,10 +73,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         val success = status == TextToSpeech.SUCCESS
         if (success) {
             ttsInitialized.set(true)
-            val result = tts?.setLanguage(Locale("ru"))
-            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                tts?.setLanguage(Locale.US)
-            }
+            tts?.setLanguage(Locale("ru"))
             applySavedVoice()
         } else {
             ttsInitialized.set(false)
@@ -384,7 +381,11 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                     }
                 }
 
-                val usedWav = ensureMatchingFormat(wav, meta, baselineFormat!!)
+                val currentBaseline = baselineFormat
+                val usedWav = if (currentBaseline != null) {
+                    ensureMatchingFormat(wav, meta, currentBaseline)
+                } else null
+
                 if (usedWav == null) {
                     cleanupChapterFiles(chapterFiles, cachedWavPaths)
                     progressCallback?.onCompleted()
@@ -403,8 +404,8 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 }
             }
 
-            if (idx != prepared.lastIndex && pauseMs > 0 && silenceFile != null) {
-                partWavs.add(silenceFile!!)
+            if (idx != prepared.lastIndex && pauseMs > 0) {
+                silenceFile?.let { partWavs.add(it) }
             }
 
             val chapterWav = File(context.cacheDir, "${baseUtteranceId}_ch${chapterIndex}.wav")

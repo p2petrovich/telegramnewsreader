@@ -9,6 +9,8 @@ import com.p2petrovich.telegramnewsreader.utils.TextProcessor
 import com.p2petrovich.telegramnewsreader.utils.AiProcessor
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 interface ProgressCallback {
     fun onUpdateProgress(status: String, progress: Int, total: Int) {}
@@ -202,24 +204,27 @@ class NewsService(
                 val finalMessages = if (isAiEnabled) {
                     progressCallback.onUpdateProgress("Сжатие через ИИ...", 0, totalToSynthesizeBeforeAi)
                     
-                    val results = mutableListOf<String>()
+                    val semaphore = Semaphore(3) // Ограничиваем 3 одновременными запросами
                     var processedCount = 0
                     
-                    // Обрабатываем последовательно с небольшой задержкой для избежания 429 (Rate Limit)
-                    // на бесплатных моделях OpenRouter
-                    for (msg in afterDropTrivial) {
-                        if (isChannelHeader(msg)) {
-                            results.add(msg)
-                        } else {
-                            val summarized = AiProcessor.summarizeNews(msg, context)
-                            results.add(summarized)
-                            processedCount++
-                            progressCallback.onUpdateProgress("Сжатие через ИИ...", processedCount, totalToSynthesizeBeforeAi)
-                            
-                            // Небольшая задержка между запросами для free-моделей
-                            delay(300) 
+                    val results = afterDropTrivial.map { msg ->
+                        async {
+                            if (isChannelHeader(msg)) {
+                                msg
+                            } else {
+                                semaphore.withPermit {
+                                    val summarized = AiProcessor.summarizeNews(msg, context)
+                                    synchronized(this@NewsService) {
+                                        processedCount++
+                                        progressCallback.onUpdateProgress("Сжатие через ИИ...", processedCount, totalToSynthesizeBeforeAi)
+                                    }
+                                    // Небольшая задержка между запросами для free-моделей
+                                    delay(200)
+                                    summarized
+                                }
+                            }
                         }
-                    }
+                    }.awaitAll()
                     
                     val filteredResults = results.filter { it.isNotBlank() }
                     

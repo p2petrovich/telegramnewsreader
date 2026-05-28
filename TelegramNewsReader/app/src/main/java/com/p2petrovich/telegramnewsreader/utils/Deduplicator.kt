@@ -9,7 +9,7 @@ class Deduplicator(
     private val timeWindowMinutes: Int = 60
 ) {
     private data class HistoryEntry(
-        val fingerprint: String,
+        val fingerprint: Set<String>,
         val timestamp: Long = System.currentTimeMillis()
     )
 
@@ -50,38 +50,20 @@ class Deduplicator(
         }
     }
 
-    private fun normalize(text: String): String {
+    private fun normalize(text: String): Set<String> {
         return text
             .lowercase()
             .replace(Regex("^\\d{2}:\\d{2}\\s*—\\s*"), "")
             .replace(Regex("[^\\p{L}\\s]"), " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
+            .split(Regex("\\s+"))
+            .filter { it.length > 3 }
+            .toSet()
     }
 
-    private fun similarity(s1: String, s2: String): Float {
-        if (s1 == s2) return 1.0f
+    private fun similarity(s1: Set<String>, s2: Set<String>): Float {
         if (s1.isEmpty() || s2.isEmpty()) return 0.0f
-
-        val maxLen = maxOf(s1.length, s2.length)
-        val distance = levenshteinDistance(s1, s2)
-        return (maxLen - distance).toFloat() / maxLen
-    }
-
-    private fun levenshteinDistance(s1: String, s2: String): Int {
-        val len1 = s1.length
-        val len2 = s2.length
-        val dp = Array(len1 + 1) { IntArray(len2 + 1) }
-
-        for (i in 0..len1) dp[i][0] = i
-        for (j in 0..len2) dp[0][j] = j
-
-        for (i in 1..len1) {
-            for (j in 1..len2) {
-                val cost = if (s1[i - 1] == s2[j - 1]) 0 else 1
-                dp[i][j] = minOf(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost)
-            }
-        }
-        return dp[len1][len2]
+        val intersect = s1.intersect(s2).size
+        val union = s1.union(s2).size
+        return intersect.toFloat() / union
     }
 }

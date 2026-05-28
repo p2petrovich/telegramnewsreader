@@ -1043,24 +1043,17 @@ class MainActivity : AppCompatActivity() {
     /** Вычисление длительности — вызывается ТОЛЬКО из Dispatchers.IO */
     private fun calcDurationMinutes(files: List<File>): Int {
         var totalMs = 0L
+        val retriever = android.media.MediaMetadataRetriever()
         files.forEach { file ->
-            var player: MediaPlayer? = null
             try {
-                player = MediaPlayer().apply {
-                    setDataSource(file.absolutePath)
-                    prepare()
-                }
-                totalMs += player.duration
+                retriever.setDataSource(file.absolutePath)
+                val durationStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                totalMs += durationStr?.toLongOrNull() ?: 0L
             } catch (e: Exception) {
                 Log.w("MainActivity", "Error getting duration of ${file.name}", e)
-            } finally {
-                try {
-                    player?.release()
-                } catch (e: Exception) {
-                    Log.w("MainActivity", "Error releasing MediaPlayer for ${file.name}", e)
-                }
             }
         }
+        try { retriever.release() } catch (_: Exception) {}
         return (totalMs / 1000 / 60).toInt()
     }
 
