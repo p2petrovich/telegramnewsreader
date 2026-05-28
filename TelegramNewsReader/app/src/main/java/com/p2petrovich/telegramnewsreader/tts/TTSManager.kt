@@ -1,6 +1,7 @@
 package com.p2petrovich.telegramnewsreader.tts
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
@@ -48,6 +49,9 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     companion object {
         private const val TAG = "TTSManager"
+
+        const val ACTION_TTS_ERROR = "com.p2petrovich.telegramnewsreader.TTS_ERROR"
+        const val EXTRA_ERROR_MESSAGE = "extra_error_message"
 
         // Количество попыток синтеза через Edge перед fallback на Android TTS.
         // Сетевые сбои WebSocket — норма, обычно вторая попытка проходит.
@@ -274,7 +278,22 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 delay(EDGE_RETRY_DELAY_MS)
             }
         }
+        
+        // Если все попытки провалены — уведомляем UI о необходимости fallback
+        sendTtsError("Edge TTS временно недоступен. Используется системный голос.")
         return false
+    }
+
+    private fun sendTtsError(message: String) {
+        try {
+            val intent = Intent(ACTION_TTS_ERROR).apply {
+                setPackage(context.packageName)
+                putExtra(EXTRA_ERROR_MESSAGE, message)
+            }
+            context.sendBroadcast(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to send TTS error broadcast", e)
+        }
     }
 
     suspend fun synthesizePlaylist(

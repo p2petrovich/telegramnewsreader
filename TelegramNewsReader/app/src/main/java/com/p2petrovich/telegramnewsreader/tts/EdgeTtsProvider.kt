@@ -3,6 +3,7 @@ package com.p2petrovich.telegramnewsreader.tts
 import android.util.Log
 import com.arthenica.ffmpegkit.FFmpegKit
 import com.arthenica.ffmpegkit.ReturnCode
+import com.p2petrovich.telegramnewsreader.ApiConfig
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
@@ -47,12 +48,12 @@ class EdgeTtsProvider(
         const val VOICE_DMITRY   = "ru-RU-DmitryNeural"
         const val VOICE_SVETLANA = "ru-RU-SvetlanaNeural"
 
-        private const val TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4"
-        private const val WS_BASE = "wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1"
+        private const val TOKEN = ApiConfig.EDGE_TOKEN
+        private const val WS_BASE = ApiConfig.EDGE_WS_BASE
 
         // Sec-MS-GEC — версия Chromium должна быть актуальной (синхронизировано с rany2/edge-tts)
-        private const val CHROMIUM_FULL_VERSION  = "143.0.3650.75"
-        private const val CHROMIUM_MAJOR_VERSION = "143"
+        private const val CHROMIUM_FULL_VERSION  = ApiConfig.EDGE_CHROMIUM_FULL_VERSION
+        private const val CHROMIUM_MAJOR_VERSION = ApiConfig.EDGE_CHROMIUM_MAJOR_VERSION
         private const val SEC_MS_GEC_VERSION     = "1-$CHROMIUM_FULL_VERSION"
         private const val WIN_EPOCH              = 11_644_473_600L
 

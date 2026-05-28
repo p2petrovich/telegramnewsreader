@@ -163,6 +163,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val ttsErrorReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == TTSManager.ACTION_TTS_ERROR) {
+                val message = intent.getStringExtra(TTSManager.EXTRA_ERROR_MESSAGE) ?: "Ошибка TTS"
+                runOnUiThread {
+                    Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+                    val currentStatus = binding.tvStatus.text.toString()
+                    binding.tvStatus.text = "$message\n$currentStatus"
+                }
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val themeResId = TelegramNewsApplication.getThemeResId(this)
         setTheme(themeResId)
@@ -1718,11 +1731,17 @@ class MainActivity : AppCompatActivity() {
             IntentFilter(AudioPlayerService.ACTION_PROGRESS),
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
+        ContextCompat.registerReceiver(
+            this, ttsErrorReceiver,
+            IntentFilter(TTSManager.ACTION_TTS_ERROR),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
     }
 
     override fun onStop() {
         super.onStop()
         try { unregisterReceiver(progressReceiver) } catch (_: Exception) {}
+        try { unregisterReceiver(ttsErrorReceiver) } catch (_: Exception) {}
         stopTimer()
     }
 }
