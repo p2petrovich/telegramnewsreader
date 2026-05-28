@@ -29,7 +29,7 @@ object AiProcessor {
      * Возвращает Pair(успех, сообщение)
      */
     suspend fun testModelAvailability(modelName: String, context: Context): Pair<Boolean, String> {
-        val apiKey = BuildConfig.GEMINI_API_KEY
+        val apiKey = BuildConfig.OPENROUTER_API_KEY
         if (apiKey.isBlank()) return false to "API ключ отсутствует"
 
         val json = JSONObject().apply {
@@ -68,7 +68,7 @@ object AiProcessor {
     }
 
     suspend fun summarizeNews(newsText: String, context: Context): String {
-        val apiKey = BuildConfig.GEMINI_API_KEY
+        val apiKey = BuildConfig.OPENROUTER_API_KEY
 
         if (apiKey.isBlank()) {
             Log.e(TAG, "OpenRouter API Key is missing!")

@@ -35,7 +35,7 @@ android {
         applicationId = "com.p2petrovich.telegramnewsreader"
         minSdk 24
         targetSdk 34
-        
+
         def commitCount = getGitCommitCount()
         versionCode commitCount
         versionName "3.0.${commitCount}"
@@ -59,11 +59,16 @@ android {
 
         def telegramApiId = System.getenv("TELEGRAM_API_ID") ?: localProperties.getProperty("telegram.api.id", "0")
         def telegramApiHash = System.getenv("TELEGRAM_API_HASH") ?: localProperties.getProperty("telegram.api.hash", "")
-        def geminiApiKey = System.getenv("GEMINI_API_KEY") ?: localProperties.getProperty("gemini.api.key", "")
+
+        // [FIX] P3-12: ключ OpenRouter. Имя env-переменной: OPENROUTER_API_KEY,
+        // имя property в local.properties: openrouter.api.key
+        def openRouterApiKey = System.getenv("OPENROUTER_API_KEY")
+                ?: localProperties.getProperty("openrouter.api.key", "")
 
         buildConfigField "Integer", "TELEGRAM_API_ID", telegramApiId
         buildConfigField "String", "TELEGRAM_API_HASH", "\"${telegramApiHash}\""
-        buildConfigField "String", "GEMINI_API_KEY", "\"${geminiApiKey}\""
+        // [FIX] P3-12: новое имя поля BuildConfig — используется в AiProcessor.kt
+        buildConfigField "String", "OPENROUTER_API_KEY", "\"${openRouterApiKey}\""
 
         manifestPlaceholders = [appName: "News Reader"]
     }
@@ -74,12 +79,17 @@ android {
             manifestPlaceholders = [appName: "News Reader (Debug)"]
         }
         release {
-            minifyEnabled false
+            // [FIX] P0-2: включены минификация и удаление неиспользуемых ресурсов.
+            // Требует наличия app/proguard-rules.pro с keep-правилами для TDLib/FFmpeg/Room/Gson.
+            minifyEnabled true
+            shrinkResources true
             manifestPlaceholders = [appName: "News Reader"]
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
     compileOptions {
+        // Откат P3-13: Java 8. Java 17 запускала JdkImageTransform/jlink, что падало
+        // на core-for-system-modules.jar в этом окружении. На Java 8 transform не вызывается.
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
