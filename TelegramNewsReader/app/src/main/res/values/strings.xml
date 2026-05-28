@@ -57,6 +57,9 @@
     <string name="eta_hours">Осталось: ~%1$d ч %2$d мин</string>
     <string name="eta_calculating">Осталось: расчёт…</string>
     <string name="eta_finishing">Осталось: завершение…</string>
+    <string name="elapsed_seconds">Прошло: %1$d сек</string>
+    <string name="elapsed_minutes">Прошло: %1$d мин %2$d сек</string>
+    <string name="collection_status_combined">%1$s • %2$s</string>
     <string name="synthesis_progress">Озвучено: %1$d из %2$d</string>
     <string name="news_not_collected">Новости ещё не собраны…</string>
     <string name="news_preview_bullet">• %1$s</string>

@@ -433,22 +433,31 @@ class MainActivity : AppCompatActivity() {
         val elapsedMs = System.currentTimeMillis() - startTime
         val elapsedSec = elapsedMs / 1000
 
+        val elapsedText = when {
+            elapsedSec < 60 -> getString(R.string.elapsed_seconds, elapsedSec.toInt())
+            else -> {
+                val min = (elapsedSec / 60).toInt()
+                val sec = (elapsedSec % 60).toInt()
+                getString(R.string.elapsed_minutes, min, sec)
+            }
+        }
+
         if (elapsedSec < 3 || currentProgressStep <= 0 || totalProgressSteps <= 0) {
-            binding.tvEta.text = getString(R.string.eta_calculating)
+            binding.tvEta.text = getString(R.string.collection_status_combined, elapsedText, getString(R.string.eta_calculating))
             return
         }
 
         val remainingSteps = totalProgressSteps - currentProgressStep
 
         if (remainingSteps <= 0) {
-            binding.tvEta.text = getString(R.string.eta_finishing)
+            binding.tvEta.text = getString(R.string.collection_status_combined, elapsedText, getString(R.string.eta_finishing))
             return
         }
 
         val msPerStep = elapsedMs.toDouble() / currentProgressStep
         val remainingSec = (msPerStep * remainingSteps / 1000).toLong()
 
-        binding.tvEta.text = when {
+        val etaText = when {
             remainingSec <= 0 -> getString(R.string.eta_finishing)
             remainingSec < 60 -> getString(R.string.eta_seconds, remainingSec.toInt())
             remainingSec < 3600 -> {
@@ -462,6 +471,8 @@ class MainActivity : AppCompatActivity() {
                 getString(R.string.eta_hours, hours, min)
             }
         }
+        
+        binding.tvEta.text = getString(R.string.collection_status_combined, elapsedText, etaText)
     }
 
     // ===================== Инициализация =====================
