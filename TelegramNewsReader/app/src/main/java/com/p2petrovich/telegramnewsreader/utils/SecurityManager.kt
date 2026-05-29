@@ -19,7 +19,7 @@ object SecurityManager {
      * Если ключ еще не создан, генерирует новый 32-байтный ключ и сохраняет его
      * в зашифрованном виде через EncryptedSharedPreferences.
      */
-    fun getDatabaseEncryptionKey(context: Context): ByteArray {
+    fun getDatabaseEncryptionKey(context: Context): ByteArray? {
         return try {
             val masterKey = MasterKey.Builder(context)
                 .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
@@ -44,11 +44,8 @@ object SecurityManager {
                 newKey
             }
         } catch (e: Exception) {
-            // В случае критической ошибки возвращаем пустой массив (база будет незашифрована)
-            // или выбрасываем исключение. Для TDLib лучше вернуть null или пустой ключ,
-            // но в норме Keystore должен работать.
-            android.util.Log.e("SecurityManager", "Failed to get/generate encryption key", e)
-            ByteArray(0)
+            android.util.Log.e("SecurityManager", "Критическая ошибка Android Keystore: шифрование БД невозможно", e)
+            null
         }
     }
 }

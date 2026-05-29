@@ -41,6 +41,17 @@ class AuthActivity : AppCompatActivity() {
             }
         }
 
+        telegramClient.onFatalError = { message ->
+            runOnUiThread {
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("Ошибка безопасности")
+                    .setMessage(message)
+                    .setCancelable(false)
+                    .setPositiveButton("Выход") { _, _ -> finish() }
+                    .show()
+            }
+        }
+
         setupClickListeners()
         
         // Настройка автозаполнения для Android 8.0+

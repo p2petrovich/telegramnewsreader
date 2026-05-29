@@ -41,6 +41,7 @@ class TelegramClient(private val context: Context) {
     var onChannelPhotoUpdated: ((channelId: Long, photoPath: String) -> Unit)? = null
     var onClientReady: (() -> Unit)? = null
     var onPasswordRequired: (() -> Unit)? = null
+    var onFatalError: ((message: String) -> Unit)? = null
     private var onLoggedOut: (() -> Unit)? = null
 
     companion object {
@@ -117,6 +118,11 @@ class TelegramClient(private val context: Context) {
 
     private fun setTdlibParameters() {
         val encryptionKey = SecurityManager.getDatabaseEncryptionKey(context)
+        if (encryptionKey == null) {
+            Log.e(TAG, "Database encryption key is null! Aborting.")
+            onFatalError?.invoke("Ошибка безопасности: Android Keystore недоступен. Запуск невозможен.")
+            return
+        }
         client?.send(TdApi.SetTdlibParameters(
             false, // useTestDc
             ApiConfig.tdlibDatabaseDir(context).absolutePath, // databaseDirectory
