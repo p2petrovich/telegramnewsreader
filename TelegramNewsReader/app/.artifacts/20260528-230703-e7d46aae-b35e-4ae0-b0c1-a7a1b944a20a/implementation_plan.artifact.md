@@ -1,43 +1,43 @@
-# Улучшение стабильности и конфигурации Edge TTS
+# Исключение зачитывания AI-ошибок вслух
 
-Задача направлена на повышение отказоустойчивости Edge TTS через прозрачный fallback на системный Android TTS и вынос хрупких настроек (токены, версии) в централизованный конфиг.
+Задача направлена на улучшение пользовательского опыта (UX) путём удаления технических меток ошибок ИИ (например, `[AI Error 429]`) из текста перед его отправкой в движок синтеза речи (TTS).
 
 ## Proposed Changes
 
-### [Configuration]
+### [Utilities]
 
-#### [ApiConfig.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/ApiConfig.kt)
+#### [AiProcessor.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/AiProcessor.kt)
 
-- Добавление констант для Edge TTS: `EDGE_TOKEN`, `EDGE_WS_BASE`, `EDGE_CHROMIUM_VERSION`.
-- Добавление комментариев о необходимости мониторинга этих значений.
+- Добавление константы `ERROR_PREFIX = "[AI "` для унификации поиска ошибок.
+- Реализация вспомогательного метода `stripErrorPrefix(text: String): String`, который удаляет технические пометки вида `[AI Error ...]` или `[AI Empty Response]`.
 
----
-
-### [TTS Provider]
-
-#### [EdgeTtsProvider.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/tts/EdgeTtsProvider.kt)
-
-- Использование констант из `ApiConfig`.
-- Удаление захардкоженных значений.
-
----
-
-### [TTS Management]
-
-#### [TTSManager.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/tts/TTSManager.kt)
-
-- Добавление `ACTION_TTS_ERROR` и `EXTRA_ERROR_MESSAGE` для уведомления UI о сбоях Edge TTS.
-- При сбое `trySynthesizeEdge` отправлять Broadcast-сообщение.
-- Уточнение логики Fallback: если Edge не сработал, системный TTS вызывается с явным логированием и уведомлением.
+```kotlin
+fun stripErrorPrefix(text: String): String {
+    if (text.startsWith("[AI ")) {
+        // Находим закрывающую скобку и возвращаем текст после неё
+        val closingBracketIndex = text.indexOf(']')
+        if (closingBracketIndex != -1) {
+            return text.substring(closingBracketIndex + 1).trim()
+        }
+    }
+    return text
+}
+```
 
 ---
 
-### [User Interface]
+### [Services]
 
-#### [MainActivity.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/activities/MainActivity.kt)
+#### [NewsService.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/services/NewsService.kt)
 
-- Добавление `ttsErrorReceiver` для прослушивания сообщений о сбоях Edge TTS.
-- Отображение `Toast` или обновление `tvStatus` при получении ошибки Edge, чтобы пользователь понимал, почему изменился голос.
+- Обновление логики обработки сообщений в `collectAndPrepareMessages`: вызов `AiProcessor.stripErrorPrefix(summarized)` сразу после получения ответа от ИИ.
+- Это гарантирует, что даже если ИИ вернул ошибку, пользователь услышит оригинальный текст новости (который приложен после метки), но без технических подробностей.
+
+```diff
+- val summarized = AiProcessor.summarizeNews(msg, context)
++ val rawResult = AiProcessor.summarizeNews(msg, context)
++ val summarized = AiProcessor.stripErrorPrefix(rawResult)
+```
 
 ## Verification Plan
 
@@ -46,9 +46,10 @@
   `./gradlew :app:assembleDebug`
 
 ### Manual Verification
-1. **Симуляция сбоя Edge**: Временно изменить `EDGE_WS_BASE` на неверный URL.
-2. **Проверка уведомления**: Запустить сбор новостей с выбранным Edge TTS.
-3. **Ожидаемый результат**:
-   - Приложение должно выдать уведомление (Toast) "Edge TTS временно недоступен, используется системный голос".
-   - Сбор новостей должен завершиться успешно (используя системный TTS).
-   - В логах должно быть четко видно сообщение о fallback.
+1. **Симуляция ошибки ИИ**:
+   - Временно изменить `AiProcessor.kt`, чтобы он всегда возвращал `"[AI Error 429] Тестовая новость"`.
+2. **Проверка TTS**:
+   - Запустить сбор новостей с включенным ИИ.
+   - Убедиться, что в логах `NewsService` или через TTS слышно только "Тестовая новость", а техническая приставка отброшена.
+3. **Проверка превью**:
+   - Убедиться, что в главном окне приложения в превью новостей также отсутствует техническая метка (так как `NewsService` обновляет превью из `finalMessages`).

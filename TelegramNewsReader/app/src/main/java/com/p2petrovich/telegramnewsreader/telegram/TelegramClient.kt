@@ -7,6 +7,7 @@ import org.drinkless.tdlib.TdApi
 import com.p2petrovich.telegramnewsreader.ApiConfig
 import com.p2petrovich.telegramnewsreader.models.Channel
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
+import com.p2petrovich.telegramnewsreader.utils.SecurityManager
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.CompletableDeferred
 import kotlin.coroutines.resume
@@ -114,11 +115,12 @@ class TelegramClient(private val context: Context) {
     }
 
     private fun setTdlibParameters() {
+        val encryptionKey = SecurityManager.getDatabaseEncryptionKey(context)
         client?.send(TdApi.SetTdlibParameters(
             false, // useTestDc
             context.getDir("tdlib", Context.MODE_PRIVATE).absolutePath, // databaseDirectory
             context.getDir("tdlib_files", Context.MODE_PRIVATE).absolutePath, // filesDirectory
-            null as ByteArray?, // databaseEncryptionKey
+            encryptionKey, // databaseEncryptionKey
             true, // useFileDatabase
             true, // useChatInfoDatabase
             true, // useMessageDatabase

@@ -164,50 +164,71 @@ object AiProcessor {
         }
 
         val mediaType = "application/json; charset=utf-8".toMediaType()
-        val body = json.toString().toRequestBody(mediaType)
-
-        val request = Request.Builder()
-            .url(API_URL)
-            .addHeader("Authorization", "Bearer $apiKey")
-            .addHeader("HTTP-Referer", "https://github.com/p2petrovich/TelegramNewsReader")
-            .addHeader("X-Title", "TelegramNewsReader")
-            .post(body)
-            .build()
-
         var lastAttemptResponse: String? = null
         
-        // Повторные попытки при 429 (Rate Limit)
-        for (attempt in 1..3) {
-            try {
-                val response = client.newCall(request).execute()
-                val responseBody = response.body?.string()
+        return withContext(Dispatchers.IO) {
+            // Повторные попытки при 429 (Rate Limit) и сетевых сбоях
+            for (attempt in 1..3) {
+                try {
+                    val body = json.toString().toRequestBody(mediaType)
+                    val request = Request.Builder()
+                        .url(API_URL)
+                        .addHeader("Authorization", "Bearer $apiKey")
+                        .addHeader("HTTP-Referer", "https://github.com/p2petrovich/TelegramNewsReader")
+                        .addHeader("X-Title", "TelegramNewsReader")
+                        .post(body)
+                        .build()
 
-                if (response.isSuccessful && responseBody != null) {
-                    val jsonResponse = JSONObject(responseBody)
-                    val choices = jsonResponse.getJSONArray("choices")
-                    if (choices.length() > 0) {
-                        val summarized = choices.getJSONObject(0)
-                            .getJSONObject("message")
-                            .getString("content")
-                            .trim()
+                    val response = client.newCall(request).execute()
+                    val responseBody = response.body?.string()
 
-                        return if (summarized.isBlank()) safeText else summarized
-                    } else return "[AI Empty Response] $safeText"
-                } else if (response.code == 429) {
-                    Log.w(TAG, "Rate limit hit (429), attempt $attempt/3. Waiting...")
-                    lastAttemptResponse = "[AI Error 429: Rate Limit] $safeText"
-                    delay(2000L * attempt) // Экспоненциальная задержка
-                    continue
-                } else {
-                    Log.e(TAG, "OpenRouter error: ${response.code}")
-                    return "[AI Error ${response.code}] $safeText"
+                    if (response.isSuccessful && responseBody != null) {
+                        val jsonResponse = JSONObject(responseBody)
+                        val choices = jsonResponse.getJSONArray("choices")
+                        if (choices.length() > 0) {
+                            val summarized = choices.getJSONObject(0)
+                                .getJSONObject("message")
+                                .getString("content")
+                                .trim()
+
+                            return@withContext if (summarized.isBlank()) safeText else summarized
+                        } else return@withContext "[AI Empty Response] $safeText"
+                    } else if (response.code == 429) {
+                        Log.w(TAG, "Rate limit hit (429), attempt $attempt/3. Waiting...")
+                        lastAttemptResponse = "[AI Error 429: Rate Limit] $safeText"
+                        if (attempt < 3) {
+                            delay(2000L * attempt) // Экспоненциальная задержка
+                            continue
+                        }
+                    } else {
+                        Log.e(TAG, "OpenRouter error: ${response.code}")
+                        return@withContext "[AI Error ${response.code}] $safeText"
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Network error on attempt $attempt: ${e.message}")
+                    lastAttemptResponse = "[AI Network Error] $safeText"
+                    if (attempt < 3) {
+                        delay(2000L * attempt)
+                        continue
+                    }
+                    return@withContext lastAttemptResponse ?: safeText
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Network error: ${e.message}")
-                return "[AI Network Error] $safeText"
+            }
+            lastAttemptResponse ?: safeText
+        }
+    }
+
+    /**
+     * Удаляет технические префиксы вида [AI Error ...] или [AI Empty Response],
+     * чтобы они не зачитывались вслух через TTS.
+     */
+    fun stripErrorPrefix(text: String): String {
+        if (text.startsWith("[AI ")) {
+            val closingBracketIndex = text.indexOf(']')
+            if (closingBracketIndex != -1) {
+                return text.substring(closingBracketIndex + 1).trim()
             }
         }
-        
-        return lastAttemptResponse ?: safeText
+        return text
     }
 }

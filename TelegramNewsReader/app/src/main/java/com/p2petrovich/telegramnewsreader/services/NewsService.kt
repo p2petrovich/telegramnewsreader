@@ -213,7 +213,8 @@ class NewsService(
                                 msg
                             } else {
                                 semaphore.withPermit {
-                                    val summarized = AiProcessor.summarizeNews(msg, context)
+                                    val rawResult = AiProcessor.summarizeNews(msg, context)
+                                    val summarized = AiProcessor.stripErrorPrefix(rawResult)
                                     synchronized(this@NewsService) {
                                         processedCount++
                                         progressCallback.onUpdateProgress("Сжатие через ИИ...", processedCount, totalToSynthesizeBeforeAi)
