@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
     <include domain="sharedpref" path="."/>
-    <exclude domain="sharedpref" path="device.xml"/>
+    <exclude domain="sharedpref" path="secret_prefs.xml"/>
+
     <include domain="database" path="."/>
     <exclude domain="database" path="news_database"/>
+
+    <include domain="root" path="."/>
+    <exclude domain="root" path="app_tdlib"/>
+    <exclude domain="root" path="app_tdlib_files"/>
 </full-backup-content>
