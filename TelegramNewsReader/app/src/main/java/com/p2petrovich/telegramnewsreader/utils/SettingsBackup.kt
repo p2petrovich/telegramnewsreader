@@ -3,7 +3,6 @@ package com.p2petrovich.telegramnewsreader.utils
 import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Context
-import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -20,104 +19,21 @@ import java.util.Date
 import java.util.Locale
 
 object SettingsBackup {
-    const val BACKUP_FILE_NAME = "telegram_news_backup.json"
+    private const val BACKUP_FILE_NAME = "telegram_news_backup.json"
+    private const val APP_SIGNATURE = "telegram_news_reader"
+    private const val BACKUP_VERSION = 1
 
     private fun getDatedFileName(): String {
         val sdf = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.getDefault())
         return "telegram_news_backup_${sdf.format(Date())}.json"
     }
-    // Модель для отображения в списке
-    data class BackupFile(
-        val name: String,
-        val uri: Uri?,
-        val date: Long,
-        val size: Long
-    )
-    private fun getBackupFile(context: Context): File {
-        return File(context.filesDir, BACKUP_FILE_NAME)
-    }
-    private fun getDownloadsFile(): File {
-        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        if (!downloadsDir.exists()) {
-            downloadsDir.mkdirs()
-        }
-        return File(downloadsDir, BACKUP_FILE_NAME)
-    }
-    fun backupFileExists(context: Context): Boolean {
-        if (getBackupFile(context).exists()) return true
-        return getAvailableBackups(context).isNotEmpty()
-    }
-    // Получение списка всех доступных файлов бэкапа
-    fun getAvailableBackups(context: Context): List<BackupFile> {
-        val result = mutableListOf<BackupFile>()
-        // 1. Проверка внутреннего хранилища
-        val internalFile = getBackupFile(context)
-        if (internalFile.exists()) {
-            result.add(BackupFile(
-                name = "Внутренняя копия (кэш)",
-                uri = null,
-                date = internalFile.lastModified(),
-                size = internalFile.length()
-            ))
-        }
-        // 2. Поиск во внешнем хранилище (Downloads)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
-            val projection = arrayOf(
-                MediaStore.Downloads._ID,
-                MediaStore.Downloads.DISPLAY_NAME,
-                MediaStore.Downloads.DATE_MODIFIED,
-                MediaStore.Downloads.SIZE
-            )
-            val baseName = BACKUP_FILE_NAME.substringBeforeLast(".")
-            val selection = "${MediaStore.Downloads.DISPLAY_NAME} LIKE ?"
-            val selectionArgs = arrayOf("$baseName%.json")
-            val sortOrder = "${MediaStore.Downloads.DATE_MODIFIED} DESC"
-            context.contentResolver.query(collection, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
-                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
-                val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Downloads.DISPLAY_NAME)
-                val dateCol = cursor.getColumnIndexOrThrow(MediaStore.Downloads.DATE_MODIFIED)
-                val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Downloads.SIZE)
-                while (cursor.moveToNext()) {
-                    val id = cursor.getLong(idCol)
-                    val name = cursor.getString(nameCol)
-                    val date = cursor.getLong(dateCol) * 1000L
-                    val size = cursor.getLong(sizeCol)
-                    val uri = Uri.withAppendedPath(collection, id.toString())
-                    result.add(BackupFile(name, uri, date, size))
-                }
-            }
-        } else {
-            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            if (downloadsDir.exists() && downloadsDir.isDirectory) {
-                val baseName = BACKUP_FILE_NAME.substringBeforeLast(".")
-                downloadsDir.listFiles { _, name -> name.startsWith(baseName) && name.endsWith(".json") }
-                    ?.forEach { file -> result.add(BackupFile(file.name, null, file.lastModified(), file.length())) }
-            }
-        }
-        return result.sortedByDescending { it.date }
-    }
-    // Импорт из конкретного выбранного файла
-    fun importFromBackup(context: Context, backup: BackupFile): Boolean {
-        return try {
-            val jsonString = if (backup.uri != null) {
-                context.contentResolver.openInputStream(backup.uri)?.use { it.bufferedReader().readText() }
-            } else {
-                val file = if (backup.name == "Внутренняя копия (кэш)") getBackupFile(context)
-                else File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), backup.name)
-                if (file.exists()) file.readText() else null
-            }
-            if (jsonString != null) importFromJson(context, jsonString) else false
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
-        }
-    }
 
     fun exportToJson(context: Context): String {
         val json = JSONObject()
+        json.put("app_signature", APP_SIGNATURE)
+        json.put("backup_version", BACKUP_VERSION)
 
-        // Сохраняем ВСЕ настройки из SharedPreferences (включая прокси, TTS для разных голосов и т.д.)
+        // Сохраняем ВСЕ настройки из SharedPreferences
         val prefs = context.getSharedPreferences("telegram_news_prefs", Context.MODE_PRIVATE)
         val allPrefs = prefs.all
         val prefsJson = JSONObject()
@@ -241,16 +157,6 @@ object SettingsBackup {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.Q)
-    private fun deleteFromMediaStore(context: Context) {
-        try {
-            val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
-            val selection = "${MediaStore.Downloads.DISPLAY_NAME} = ?"
-            val selectionArgs = arrayOf(BACKUP_FILE_NAME)
-            context.contentResolver.delete(collection, selection, selectionArgs)
-        } catch (_: Exception) {}
-    }
-
     private fun legacySaveToFile(data: ByteArray, fileName: String): Boolean {
         return try {
             val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
@@ -267,6 +173,10 @@ object SettingsBackup {
     fun importFromJson(context: Context, jsonString: String): Boolean {
         return try {
             val json = JSONObject(jsonString)
+            
+            // Валидация файла
+            if (json.optString("app_signature") != APP_SIGNATURE) return false
+            if (json.optInt("backup_version", 0) <= 0) return false
 
             if (json.has("all_preferences")) {
                 val prefsJson = json.getJSONObject("all_preferences")
@@ -279,10 +189,7 @@ object SettingsBackup {
                         is Boolean -> editor.putBoolean(key, value)
                         is Int -> editor.putInt(key, value)
                         is Long -> editor.putLong(key, value)
-                        is Double -> {
-                            // SharedPreferences не поддерживают Double, обычно это Float (Pitch/Rate)
-                            editor.putFloat(key, value.toFloat())
-                        }
+                        is Double -> editor.putFloat(key, value.toFloat())
                         is String -> editor.putString(key, value)
                         is JSONArray -> {
                             val set = mutableSetOf<String>()
@@ -298,7 +205,6 @@ object SettingsBackup {
 
             if (json.has("presets")) {
                 val presetsArray = json.getJSONArray("presets")
-                val presets = mutableListOf<ChannelPreset>()
                 for (i in 0 until presetsArray.length()) {
                     val obj = presetsArray.getJSONObject(i)
                     val idsArray = obj.getJSONArray("channelIds")
@@ -306,17 +212,14 @@ object SettingsBackup {
                     for (j in 0 until idsArray.length()) {
                         ids.add(idsArray.getLong(j))
                     }
-                    presets.add(
-                        ChannelPreset(
-                            id = obj.getString("id"),
-                            name = obj.getString("name"),
-                            channelIds = ids,
-                            timePeriodIndex = obj.optInt("timePeriodIndex", 2),
-                            createdAt = obj.optLong("createdAt", 0L)
-                        )
-                    )
+                    PresetManager.savePreset(context, ChannelPreset(
+                        id = obj.getString("id"),
+                        name = obj.getString("name"),
+                        channelIds = ids,
+                        timePeriodIndex = obj.optInt("timePeriodIndex", 2),
+                        createdAt = obj.optLong("createdAt", 0L)
+                    ))
                 }
-                presets.forEach { PresetManager.savePreset(context, it) }
             }
 
             if (json.has("active_preset_id")) {
@@ -329,9 +232,7 @@ object SettingsBackup {
                 for (i in 0 until arr.length()) {
                     arr.getString(i).toLongOrNull()?.let { ids.add(it) }
                 }
-                val timePeriodIndex = if (json.has("last_time_period_index")) {
-                    json.getInt("last_time_period_index")
-                } else 2
+                val timePeriodIndex = json.optInt("last_time_period_index", 2)
                 PresetManager.saveLastSelection(context, ids, timePeriodIndex)
             }
 
@@ -353,8 +254,7 @@ object SettingsBackup {
                 }
                 val db = AppDatabase.getInstance(context)
                 runBlocking {
-                    db.channelDao().deleteAll()
-                    db.channelDao().insertAll(channels)
+                    db.channelDao().replaceChannels(channels)
                 }
             }
 
@@ -363,114 +263,5 @@ object SettingsBackup {
             e.printStackTrace()
             false
         }
-    }
-
-    @SuppressLint("ObsoleteSdkInt")
-    fun loadBackupFromFile(context: Context): Boolean {
-        return try {
-            // 1. Сначала пробуем загрузить из внутреннего хранилища
-            val internalFile = getBackupFile(context)
-            if (internalFile.exists()) {
-                val jsonString = internalFile.readText()
-                return importFromJson(context, jsonString)
-            }
-
-            // 2. Затем пробуем из Downloads
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                loadFromMediaStore(context)
-            } else {
-                legacyLoadFromFile(context)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
-        }
-    }
-
-    @RequiresApi(Build.VERSION_CODES.Q)
-    private fun loadFromMediaStore(context: Context): Boolean {
-        val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
-        val projection = arrayOf(
-            MediaStore.Downloads._ID,
-            MediaStore.Downloads.DISPLAY_NAME,
-            MediaStore.Downloads.DATE_MODIFIED
-        )
-        // Сортируем по дате изменения: сначала самые новые
-        val sortOrder = "${MediaStore.Downloads.DATE_MODIFIED} DESC"
-
-        // 1. Сначала ищем точное совпадение имени
-        val selection = "${MediaStore.Downloads.DISPLAY_NAME} = ?"
-        val selectionArgs = arrayOf(BACKUP_FILE_NAME)
-
-        context.contentResolver.query(
-            collection, projection, selection, selectionArgs, sortOrder
-        )?.use { cursor ->
-            if (cursor.moveToFirst()) { // Берем только первый (самый новый)
-                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID))
-                val uri = Uri.withAppendedPath(collection, id.toString())
-
-                try {
-                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                        val jsonString = inputStream.bufferedReader().use { it.readText() }
-                        return importFromJson(context, jsonString)
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-        }
-
-        // 2. Если не нашли, ищем файлы с суффиксами (например, "backup (1).json")
-        val baseName = BACKUP_FILE_NAME.substringBeforeLast(".")
-        val extension = BACKUP_FILE_NAME.substringAfterLast(".")
-        val likeSelection = "${MediaStore.Downloads.DISPLAY_NAME} LIKE ?"
-        val likeArgs = arrayOf("$baseName%$extension")
-
-        context.contentResolver.query(
-            collection, projection, likeSelection, likeArgs, sortOrder
-        )?.use { cursor ->
-            if (cursor.moveToFirst()) { // Берем самый новый из похожих
-                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID))
-                val uri = Uri.withAppendedPath(collection, id.toString())
-
-                try {
-                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                        val jsonString = inputStream.bufferedReader().use { it.readText() }
-                        return importFromJson(context, jsonString)
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-        }
-
-        return false
-    }
-
-    private fun legacyLoadFromFile(context: Context): Boolean {
-        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        if (!downloadsDir.exists() || !downloadsDir.isDirectory) return false
-
-        val baseName = BACKUP_FILE_NAME.substringBeforeLast(".")
-        val files = downloadsDir.listFiles { _, name ->
-            name.startsWith(baseName) && name.endsWith(".json")
-        }
-
-        if (files.isNullOrEmpty()) return false
-
-        // Сортируем по дате последнего изменения и берем самый свежий
-        val latestFile = files.maxByOrNull { it.lastModified() } ?: return false
-
-        return try {
-            val jsonString = latestFile.readText()
-            importFromJson(context, jsonString)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
-        }
-    }
-
-    fun getBackupFilePath(context: Context): String {
-        return getBackupFile(context).absolutePath
     }
 }
