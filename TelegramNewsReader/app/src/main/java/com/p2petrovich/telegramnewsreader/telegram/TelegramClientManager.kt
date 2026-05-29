@@ -19,17 +19,45 @@ object TelegramClientManager {
             Handler(Looper.getMainLooper()).post { onDone?.invoke() }
             return
         }
-        c.logoutAndReset {
-            try { c.close() } catch (_: Exception) {}
+
+        // Устанавливаем слушатель на окончательное закрытие клиента
+        c.setOnLoggedOutListener {
+            Log.d("TelegramClientManager", "Client reported Closed. Waiting before deletion...")
             telegramClient = null
-            deleteTdlibDirs(context)
-            Handler(Looper.getMainLooper()).post { onDone?.invoke() }
+            
+            // Даем небольшую паузу, чтобы ОС успела освободить дескрипторы файлов
+            Handler(Looper.getMainLooper()).postDelayed({
+                deleteTdlibDirs(context)
+                onDone?.invoke()
+            }, 500)
+        }
+
+        // Запускаем процесс логаута. 
+        // TDLib пройдет через LogOut -> Close -> Closed (onLoggedOut)
+        c.logoutAndReset {
+            c.close()
         }
     }
 
     private fun deleteTdlibDirs(context: Context) {
-        try { File(context.filesDir, ApiConfig.DATABASE_DIRECTORY).deleteRecursively() } catch (_: Exception) {}
-        try { File(context.filesDir, ApiConfig.FILES_DIRECTORY).deleteRecursively() } catch (_: Exception) {}
+        val dbDir = ApiConfig.tdlibDatabaseDir(context)
+        val filesDir = ApiConfig.tdlibFilesDir(context)
+        
+        Log.d("TelegramClientManager", "Deleting TDLib dirs: ${dbDir.absolutePath} and ${filesDir.absolutePath}")
+        
+        try {
+            val dbDeleted = dbDir.deleteRecursively()
+            Log.d("TelegramClientManager", "DB dir deleted: $dbDeleted")
+        } catch (e: Exception) {
+            Log.e("TelegramClientManager", "Failed to delete DB dir", e)
+        }
+        
+        try {
+            val filesDeleted = filesDir.deleteRecursively()
+            Log.d("TelegramClientManager", "Files dir deleted: $filesDeleted")
+        } catch (e: Exception) {
+            Log.e("TelegramClientManager", "Failed to delete files dir", e)
+        }
     }
 
     fun getTelegramClient(context: Context): TelegramClient {

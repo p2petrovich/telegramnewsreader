@@ -90,6 +90,7 @@ class TelegramClient(private val context: Context) {
                             isInitialized = false
                             isAuthorized = false
                             isReady = false
+                            client = null
                             resetAuthDeferred()
                             onLoggedOut?.invoke()
                         }
@@ -118,8 +119,8 @@ class TelegramClient(private val context: Context) {
         val encryptionKey = SecurityManager.getDatabaseEncryptionKey(context)
         client?.send(TdApi.SetTdlibParameters(
             false, // useTestDc
-            context.getDir("tdlib", Context.MODE_PRIVATE).absolutePath, // databaseDirectory
-            context.getDir("tdlib_files", Context.MODE_PRIVATE).absolutePath, // filesDirectory
+            ApiConfig.tdlibDatabaseDir(context).absolutePath, // databaseDirectory
+            ApiConfig.tdlibFilesDir(context).absolutePath, // filesDirectory
             encryptionKey, // databaseEncryptionKey
             true, // useFileDatabase
             true, // useChatInfoDatabase
@@ -360,7 +361,6 @@ class TelegramClient(private val context: Context) {
 
     fun close() {
         client?.send(TdApi.Close()) { }
-        client = null
     }
 
     fun applyProxySettings() {
