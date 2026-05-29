@@ -1,11 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
+    <!-- Включаем общие настройки, но исключаем мастер-ключ шифрования БД -->
     <include domain="sharedpref" path="."/>
     <exclude domain="sharedpref" path="secret_prefs.xml"/>
 
+    <!-- Исключаем локальную базу новостей, так как она может быть большой и легко пересоздается -->
     <include domain="database" path="."/>
-    <exclude domain="database" path="news_database"/>
+    <exclude domain="database" path="telegram_news_db"/>
 
+    <!-- Полностью исключаем зашифрованные базы и кэш TDLib (защита от утечки в облако) -->
     <include domain="root" path="."/>
     <exclude domain="root" path="app_tdlib"/>
     <exclude domain="root" path="app_tdlib_files"/>

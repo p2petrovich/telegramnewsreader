@@ -22,6 +22,8 @@ object SettingsBackup {
     private const val BACKUP_FILE_NAME = "telegram_news_backup.json"
     private const val APP_SIGNATURE = "telegram_news_reader"
     private const val BACKUP_VERSION = 1
+    
+    private val SENSITIVE_KEYS = setOf("proxy_secret", "proxy_host", "proxy_port", "phone_number")
 
     private fun getDatedFileName(): String {
         val sdf = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.getDefault())
@@ -38,6 +40,7 @@ object SettingsBackup {
         val allPrefs = prefs.all
         val prefsJson = JSONObject()
         allPrefs.forEach { (key, value) ->
+            // if (key in SENSITIVE_KEYS) return@forEach // ВРЕМЕННО ОТКЛЮЧЕНО ДЛЯ ПРОВЕРКИ ПОЛЬЗОВАТЕЛЕМ
             if (value is Set<*>) {
                 val array = JSONArray()
                 value.forEach { array.put(it) }
