@@ -1,43 +1,37 @@
-# Исключение зачитывания AI-ошибок вслух
+# Оптимизация задержек AI-запросов
 
-Задача направлена на улучшение пользовательского опыта (UX) путём удаления технических меток ошибок ИИ (например, `[AI Error 429]`) из текста перед его отправкой в движок синтеза речи (TTS).
+Задача направлена на ускорение процесса саммаризации путём удаления безусловных задержек (`delay(200)`) из `NewsService` и переноса логики ожидания исключительно в механизм ретраев `AiProcessor` (только при возникновении ошибки 429).
 
 ## Proposed Changes
-
-### [Utilities]
-
-#### [AiProcessor.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/AiProcessor.kt)
-
-- Добавление константы `ERROR_PREFIX = "[AI "` для унификации поиска ошибок.
-- Реализация вспомогательного метода `stripErrorPrefix(text: String): String`, который удаляет технические пометки вида `[AI Error ...]` или `[AI Empty Response]`.
-
-```kotlin
-fun stripErrorPrefix(text: String): String {
-    if (text.startsWith("[AI ")) {
-        // Находим закрывающую скобку и возвращаем текст после неё
-        val closingBracketIndex = text.indexOf(']')
-        if (closingBracketIndex != -1) {
-            return text.substring(closingBracketIndex + 1).trim()
-        }
-    }
-    return text
-}
-```
-
----
 
 ### [Services]
 
 #### [NewsService.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/services/NewsService.kt)
 
-- Обновление логики обработки сообщений в `collectAndPrepareMessages`: вызов `AiProcessor.stripErrorPrefix(summarized)` сразу после получения ответа от ИИ.
-- Это гарантирует, что даже если ИИ вернул ошибку, пользователь услышит оригинальный текст новости (который приложен после метки), но без технических подробностей.
+- Удаление безусловного `delay(200)` внутри блока `semaphore.withPermit`. Это позволит выполнять запросы максимально быстро, если API не ограничивает скорость.
 
 ```diff
-- val summarized = AiProcessor.summarizeNews(msg, context)
-+ val rawResult = AiProcessor.summarizeNews(msg, context)
-+ val summarized = AiProcessor.stripErrorPrefix(rawResult)
+ semaphore.withPermit {
+     val rawResult = AiProcessor.summarizeNews(msg, context)
+     val summarized = AiProcessor.stripErrorPrefix(rawResult)
+     synchronized(this@NewsService) {
+         processedCount++
+         progressCallback.onUpdateProgress("Сжатие через ИИ...", processedCount, totalToSynthesizeBeforeAi)
+     }
+-    // Небольшая задержка между запросами для free-моделей
+-    delay(200)
+     summarized
+ }
 ```
+
+---
+
+### [Utilities]
+
+#### [AiProcessor.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/AiProcessor.kt)
+
+- Логика ожидания уже присутствует в цикле ретраев для ошибки 429: `delay(2000L * attempt)`.
+- Дополнительных изменений в `AiProcessor` не требуется, так как задержка теперь будет возникать только тогда, когда это действительно необходимо (при получении HTTP 429).
 
 ## Verification Plan
 
@@ -46,10 +40,5 @@ fun stripErrorPrefix(text: String): String {
   `./gradlew :app:assembleDebug`
 
 ### Manual Verification
-1. **Симуляция ошибки ИИ**:
-   - Временно изменить `AiProcessor.kt`, чтобы он всегда возвращал `"[AI Error 429] Тестовая новость"`.
-2. **Проверка TTS**:
-   - Запустить сбор новостей с включенным ИИ.
-   - Убедиться, что в логах `NewsService` или через TTS слышно только "Тестовая новость", а техническая приставка отброшена.
-3. **Проверка превью**:
-   - Убедиться, что в главном окне приложения в превью новостей также отсутствует техническая метка (так как `NewsService` обновляет превью из `finalMessages`).
+1. **Скорость работы**: Запустить саммаризацию большого количества новостей. Убедиться, что процесс идет быстрее, так как нет принудительной паузы в 200мс после каждого сообщения.
+2. **Обработка Rate Limit**: Если модель бесплатная и лимиты достигнуты, убедиться в логах, что `AiProcessor` по-прежнему корректно делает паузу (2с, 4с) после получения ошибки 429.

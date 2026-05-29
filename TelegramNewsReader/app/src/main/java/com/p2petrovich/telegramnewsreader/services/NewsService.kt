@@ -219,8 +219,6 @@ class NewsService(
                                         processedCount++
                                         progressCallback.onUpdateProgress("Сжатие через ИИ...", processedCount, totalToSynthesizeBeforeAi)
                                     }
-                                    // Небольшая задержка между запросами для free-моделей
-                                    delay(200)
                                     summarized
                                 }
                             }
