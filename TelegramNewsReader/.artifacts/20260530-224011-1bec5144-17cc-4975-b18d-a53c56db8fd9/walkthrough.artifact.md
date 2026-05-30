@@ -1,4 +1,4 @@
-# Walkthrough - Fixing Critical Issues
+# Walkthrough - Fixing Critical and Serious Issues
 
 ## 1. Infinite Waiting in `loadChannels`
 Implemented a watchdog mechanism to prevent infinite loading screens when TDLib requests hang.
@@ -6,9 +6,9 @@ Implemented a watchdog mechanism to prevent infinite loading screens when TDLib 
 - Used `AtomicBoolean` for single callback execution.
 
 ## 2. TDLib Encryption Key Loss & Recovery
-Implemented a robust mechanism to handle Android Keystore invalidation and prevent app "bricking".
-- **State Awareness**: Introduced a `KeyResult` sealed class and a plain-text marker to detect if a key existed before a failure.
-- **Automatic Recovery**: The client now deletes corrupted TDLib files and regenerates a new key if unrecoverable loss is detected.
+Implemented a robust mechanism to handle Android Keystore invalidation.
+- **State Awareness**: Introduced a `KeyResult` sealed class and a plain-text marker.
+- **Automatic Recovery**: Deletes corrupted TDLib files and regenerates a new key if needed.
 
 ## 3. Explicit News Truncation & Transparency
 Fixed the "silent" loss of news due to a hardcoded limit.
@@ -17,21 +17,26 @@ Fixed the "silent" loss of news due to a hardcoded limit.
 
 ## 4. Dynamic Edge TTS Versioning
 Solved the issue of Edge TTS failing with 403 Forbidden errors.
-- **Automatic Refresh**: Fetches the latest stable Chromium version from Google API once every 24 hours.
+- **Automatic Refresh**: Fetches the latest stable Chromium version from Google API.
 
 ## 5. Privacy Protection (Logs Cleanup)
-Prevented sensitive news content from leaking into system logs (logcat) in production builds.
+Prevented sensitive news content from leaking into system logs (logcat).
+- **Logx Utility**: Gated logging ensures debug messages don't exist in release.
+- **Content Removal**: Replaced all logs containing fragments of news with technical metrics.
 
-### Changes in [Logx.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/Logx.kt)
-- **Gated Logging**: Implemented a wrapper that uses `inline` functions and `lambda` blocks. In release builds (`BuildConfig.DEBUG == false`), the logging strings are not even constructed, which improves performance and security.
+## 6. Resource Management (HTTP Clients)
+Fixed a resource leak by centralizing `OkHttpClient` management.
 
-### Changes in [TextProcessor.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/TextProcessor.kt) and [Deduplicator.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/Deduplicator.kt)
-- **Content Removal**: Replaced all logs containing fragments of news text (message previews) with technical metrics, such as text length.
-- **Log Migration**: Migrated all debug and info logs to use `Logx`, ensuring they are stripped from release versions.
+### Changes in [HttpClients.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/HttpClients.kt)
+- **Shared Instance**: Implemented a centralized `HttpClients.shared` instance. This is a recommended practice in OkHttp to reuse connection pools and dispatcher threads efficiently.
+- **Lifecycle Cleanup**: Added a `shutdown()` method that explicitly closes the executor service, connection pool, and any active cache.
 
-### Changes in [proguard-rules.pro](file:///C:/Telegram_cloude/TelegramNewsReader/app/proguard-rules.pro)
-- **Stricter Removal**: Added rules to explicitly remove `Log.d`, `Log.v`, and `Log.i` calls from the final APK.
+### Changes in [EdgeTtsProvider.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/tts/EdgeTtsProvider.kt), [AiProcessor.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/AiProcessor.kt), and [EdgeConfig.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/EdgeConfig.kt)
+- **Migration**: Replaced all local `OkHttpClient` builders with the shared `HttpClients.shared` instance. This reduces memory footprint and avoids thread leakage.
+
+### Changes in [TTSManager.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/tts/TTSManager.kt)
+- **Safe Shutdown**: Updated `TTSManagerSingleton.clearInstance()` to call `HttpClients.shutdown()`. This ensures that when the TTS system is released, all background network threads are properly terminated.
 
 ## Verification Results
 - **Compilation**: Successfully built the project with `:app:assembleDebug`.
-- **Privacy Audit**: Verified that no variables containing user messages are passed to any logging methods.
+- **Resource Audit**: Verified that all modules now share the same HTTP pool and that the shutdown hook is properly placed.

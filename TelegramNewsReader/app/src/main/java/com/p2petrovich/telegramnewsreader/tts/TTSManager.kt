@@ -15,6 +15,7 @@ import com.p2petrovich.telegramnewsreader.utils.AudioUtils
 import com.p2petrovich.telegramnewsreader.utils.NewsCache
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.TextProcessor
+import com.p2petrovich.telegramnewsreader.utils.HttpClients
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.Dispatchers
@@ -50,6 +51,7 @@ object TTSManagerSingleton {
         synchronized(this) {
             INSTANCE?.shutdown()
             INSTANCE = null
+            HttpClients.shutdown()
         }
     }
 }

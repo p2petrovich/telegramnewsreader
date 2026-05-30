@@ -3,7 +3,6 @@ package com.p2petrovich.telegramnewsreader.utils
 import android.content.Context
 import android.util.Log
 import com.p2petrovich.telegramnewsreader.ApiConfig
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
@@ -20,10 +19,7 @@ object EdgeConfig {
     private const val VERSION_ENDPOINT =
         "https://versionhistory.googleapis.com/v1/chrome/platforms/win/channels/stable/versions"
 
-    private val http = OkHttpClient.Builder()
-        .connectTimeout(8, TimeUnit.SECONDS)
-        .readTimeout(8, TimeUnit.SECONDS)
-        .build()
+    private val http = HttpClients.shared
 
     fun fullVersion(context: Context): String =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

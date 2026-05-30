@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import com.p2petrovich.telegramnewsreader.BuildConfig
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
@@ -18,11 +17,7 @@ object AiProcessor {
     private const val TAG = "AiProcessor"
     private const val API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .build()
+    private val client = HttpClients.shared
 
     /**
      * Проверяет доступность выбранной модели, отправляя пустой запрос.

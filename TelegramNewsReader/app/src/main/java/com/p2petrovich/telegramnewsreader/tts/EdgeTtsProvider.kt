@@ -6,6 +6,7 @@ import com.arthenica.ffmpegkit.FFmpegKit
 import com.arthenica.ffmpegkit.ReturnCode
 import com.p2petrovich.telegramnewsreader.ApiConfig
 import com.p2petrovich.telegramnewsreader.utils.EdgeConfig
+import com.p2petrovich.telegramnewsreader.utils.HttpClients
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
@@ -58,11 +59,7 @@ class EdgeTtsProvider(
 
         private const val MAX_CHARS = 3000
 
-        private val sharedClient = OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .writeTimeout(15, TimeUnit.SECONDS)
-            .build()
+        private val sharedClient = HttpClients.shared
 
         fun formatRatePct(rate: Int): String = if (rate >= 0) "+${rate}%" else "${rate}%"
         fun formatPitchHz(pitch: Int): String = if (pitch >= 0) "+${pitch}Hz" else "${pitch}Hz"

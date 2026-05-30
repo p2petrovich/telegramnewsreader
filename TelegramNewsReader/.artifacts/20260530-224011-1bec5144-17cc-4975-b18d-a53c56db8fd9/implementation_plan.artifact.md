@@ -1,34 +1,36 @@
-# Fix Privacy Leaks in Logs
+# Fix Unclosed OkHttpClient Singletons
 
-This plan addresses the issue where sensitive news content is leaked into system logs (logcat) in production builds, which violates user privacy and can be accessed by other apps or through bug reports.
+This plan addresses a resource leak issue where `OkHttpClient` instances in `EdgeTtsProvider` and `AiProcessor` are never shut down, potentially leaking file descriptors and threads.
 
 ## Proposed Changes
 
-### Logging Utility
+### Centralized HTTP Management
 
-#### [NEW] [Logx.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/Logx.kt)
+#### [NEW] [HttpClients.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/HttpClients.kt)
 
-- Implements a gated logger that only executes debug and verbose log string construction if `BuildConfig.DEBUG` is true.
-- Provides standard `w` and `e` methods for non-sensitive warnings and errors.
+- Implements an `object HttpClients` with a shared `OkHttpClient` instance.
+- Default timeouts set to 30 seconds (connect, read, write) to accommodate AI and TTS needs.
+- Includes a `shutdown()` method to close the executor service, connection pool, and cache.
 
-### Security and Obfuscation
+### TTS and AI Components
 
-#### [proguard-rules.pro](file:///C:/Telegram_cloude/TelegramNewsReader/app/proguard-rules.pro)
+#### [EdgeTtsProvider.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/tts/EdgeTtsProvider.kt)
 
-- Add stricter rules to remove `android.util.Log` calls (`d`, `v`, `i`) in release builds.
-- Ensure `isLoggable` is also handled.
+- Replace local `sharedClient` with `HttpClients.shared`.
 
-### Content Privacy Cleanup
+#### [AiProcessor.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/AiProcessor.kt)
 
-#### [TextProcessor.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/TextProcessor.kt)
+- Replace local `client` with `HttpClients.shared`.
 
-- Replace all `Log.d` calls that include message previews (e.g., `SPAM [too_short]: $preview`) with metrics-only logs (e.g., `drop[too_short] len=${trimmed.length}`).
-- Use `Logx.d` for these calls to ensure they are stripped from release.
+#### [EdgeConfig.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/EdgeConfig.kt)
 
-#### [Deduplicator.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/Deduplicator.kt)
+- Replace local `http` with `HttpClients.shared`.
 
-- Replace `android.util.Log.d` calls containing message text with metrics-only logs.
-- Use `Logx.d` for gated logging.
+### Lifecycle Management
+
+#### [TTSManager.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/tts/TTSManager.kt)
+
+- Update `TTSManagerSingleton.clearInstance()` to call `HttpClients.shutdown()`.
 
 ## Verification Plan
 
@@ -37,6 +39,6 @@ This plan addresses the issue where sensitive news content is leaked into system
 
 ### Manual Verification
 - Code review to ensure:
-    - No news content strings are passed to any logging methods.
-    - `Logx.d` is used for all debug-level logs.
-    - The ProGuard rules match the recommendations to strip `Log.i` as well, as it can also leak data.
+    - `HttpClients.shared` is used in all identified places.
+    - `HttpClients.shutdown()` is called exactly once when the TTS system is shut down.
+    - `newBuilder()` is used if any component specifically needs different timeouts while still sharing the pool.
