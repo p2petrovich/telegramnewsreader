@@ -101,9 +101,11 @@
 
 # ============================================================
 #  P0-задача: вырезать debug-логи из release-сборки
-#  (Log.d / Log.v не имеют побочных эффектов → R8 удалит вызовы)
+#  (Log.d / Log.v / Log.i не имеют побочных эффектов → R8 удалит вызовы)
 # ============================================================
 -assumenosideeffects class android.util.Log {
-    public static int d(...);
     public static int v(...);
+    public static int d(...);
+    public static int i(...);
+    public static boolean isLoggable(java.lang.String, int);
 }

@@ -1,35 +1,34 @@
-# Fix Hardcoded Edge TTS Version
+# Fix Privacy Leaks in Logs
 
-This plan addresses the issue where a hardcoded Chromium version in Edge TTS requests causes 403 Forbidden errors when Microsoft raises the minimum version requirement.
+This plan addresses the issue where sensitive news content is leaked into system logs (logcat) in production builds, which violates user privacy and can be accessed by other apps or through bug reports.
 
 ## Proposed Changes
 
-### Configuration Component
+### Logging Utility
 
-#### [NEW] [EdgeConfig.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/EdgeConfig.kt)
+#### [NEW] [Logx.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/Logx.kt)
 
-- Implements dynamic Chromium version fetching from Google's version history API.
-- Caches the version in `SharedPreferences` for 24 hours.
-- Provides `fullVersion(context)` and `majorVersion(context)` for TTS providers.
-- Includes `invalidate(context)` to force a refresh on 403 errors.
+- Implements a gated logger that only executes debug and verbose log string construction if `BuildConfig.DEBUG` is true.
+- Provides standard `w` and `e` methods for non-sensitive warnings and errors.
 
-### TTS Component
+### Security and Obfuscation
 
-#### [EdgeTtsProvider.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/tts/EdgeTtsProvider.kt)
+#### [proguard-rules.pro](file:///C:/Telegram_cloude/TelegramNewsReader/app/proguard-rules.pro)
 
-- Accept `Context` in constructor to access `EdgeConfig`.
-- Use `EdgeConfig` to populate `Sec-MS-GEC-Version` and `User-Agent` headers.
-- Update `onFailure` to detect 403 errors and trigger `EdgeConfig.invalidate()`.
+- Add stricter rules to remove `android.util.Log` calls (`d`, `v`, `i`) in release builds.
+- Ensure `isLoggable` is also handled.
 
-#### [TTSManager.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/tts/TTSManager.kt)
+### Content Privacy Cleanup
 
-- Update `refreshEdgeProvider()` to pass `context` to the `EdgeTtsProvider` constructor.
+#### [TextProcessor.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/TextProcessor.kt)
 
-### Service Component
+- Replace all `Log.d` calls that include message previews (e.g., `SPAM [too_short]: $preview`) with metrics-only logs (e.g., `drop[too_short] len=${trimmed.length}`).
+- Use `Logx.d` for these calls to ensure they are stripped from release.
 
-#### [NewsService.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/services/NewsService.kt)
+#### [Deduplicator.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/Deduplicator.kt)
 
-- In `collectAndPrepareMessages`, call `EdgeConfig.refreshIfNeeded(context)` before starting synthesis if Edge TTS is enabled.
+- Replace `android.util.Log.d` calls containing message text with metrics-only logs.
+- Use `Logx.d` for gated logging.
 
 ## Verification Plan
 
@@ -38,6 +37,6 @@ This plan addresses the issue where a hardcoded Chromium version in Edge TTS req
 
 ### Manual Verification
 - Code review to ensure:
-    - Version refresh logic doesn't block the main thread (uses `Dispatchers.IO`).
-    - 403 error handling correctly triggers an invalidation for the next run.
-    - Default values from `ApiConfig` are used as fallback if API fetch fails.
+    - No news content strings are passed to any logging methods.
+    - `Logx.d` is used for all debug-level logs.
+    - The ProGuard rules match the recommendations to strip `Log.i` as well, as it can also leak data.

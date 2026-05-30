@@ -4,7 +4,6 @@
 Implemented a watchdog mechanism to prevent infinite loading screens when TDLib requests hang.
 - Added a 12-second timeout.
 - Used `AtomicBoolean` for single callback execution.
-- Robust counting with `AtomicInteger` and `finally` blocks.
 
 ## 2. TDLib Encryption Key Loss & Recovery
 Implemented a robust mechanism to handle Android Keystore invalidation and prevent app "bricking".
@@ -12,27 +11,27 @@ Implemented a robust mechanism to handle Android Keystore invalidation and preve
 - **Automatic Recovery**: The client now deletes corrupted TDLib files and regenerates a new key if unrecoverable loss is detected.
 
 ## 3. Explicit News Truncation & Transparency
-Fixed the "silent" loss of news due to a hardcoded limit and improved how news volume is handled.
-- **Increased Limit**: Raised from 200 to 500 news items.
-- **Fair Accounting**: Channel headers no longer consume the news budget.
+Fixed the "silent" loss of news due to a hardcoded limit.
+- **Increased Limit**: Raised to 500 news items.
 - **User Notification**: Implemented a Toast notification informing the user when news is truncated.
 
 ## 4. Dynamic Edge TTS Versioning
-Solved the issue of Edge TTS failing with a 403 Forbidden error when Microsoft raises the minimum Chromium version requirement.
+Solved the issue of Edge TTS failing with 403 Forbidden errors.
+- **Automatic Refresh**: Fetches the latest stable Chromium version from Google API once every 24 hours.
 
-### Changes in [EdgeConfig.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/EdgeConfig.kt)
-- **Automatic Version Fetching**: Implemented a background refresh that fetches the latest stable Chromium version from Google's version history API once every 24 hours.
-- **Caching**: The fetched version is stored in `SharedPreferences` to avoid redundant network calls.
-- **Smart Invalidation**: If a 403 error occurs during synthesis, the cached version is invalidated, forcing a refresh on the next run.
+## 5. Privacy Protection (Logs Cleanup)
+Prevented sensitive news content from leaking into system logs (logcat) in production builds.
 
-### Changes in [EdgeTtsProvider.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/tts/EdgeTtsProvider.kt)
-- **Dynamic Headers**: The `Sec-MS-GEC-Version` and `User-Agent` headers now use the version provided by `EdgeConfig`.
-- **403 Detection**: Added logic to detect 403 errors and trigger version invalidation.
+### Changes in [Logx.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/Logx.kt)
+- **Gated Logging**: Implemented a wrapper that uses `inline` functions and `lambda` blocks. In release builds (`BuildConfig.DEBUG == false`), the logging strings are not even constructed, which improves performance and security.
 
-### Changes in [NewsService.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/services/NewsService.kt)
-- **Pre-emptive Refresh**: The service now triggers `EdgeConfig.refreshIfNeeded()` before starting any Edge TTS synthesis session.
+### Changes in [TextProcessor.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/TextProcessor.kt) and [Deduplicator.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/Deduplicator.kt)
+- **Content Removal**: Replaced all logs containing fragments of news text (message previews) with technical metrics, such as text length.
+- **Log Migration**: Migrated all debug and info logs to use `Logx`, ensuring they are stripped from release versions.
+
+### Changes in [proguard-rules.pro](file:///C:/Telegram_cloude/TelegramNewsReader/app/proguard-rules.pro)
+- **Stricter Removal**: Added rules to explicitly remove `Log.d`, `Log.v`, and `Log.i` calls from the final APK.
 
 ## Verification Results
 - **Compilation**: Successfully built the project with `:app:assembleDebug`.
-- **API Response**: Verified the logic for parsing Google's version history JSON.
-- **Fallback**: Confirmed that the system falls back to the hardcoded `ApiConfig` version if the network is unavailable.
+- **Privacy Audit**: Verified that no variables containing user messages are passed to any logging methods.

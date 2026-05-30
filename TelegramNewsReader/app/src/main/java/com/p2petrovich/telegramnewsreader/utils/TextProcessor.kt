@@ -2,6 +2,7 @@ package com.p2petrovich.telegramnewsreader.utils
 
 import android.util.Log
 import com.p2petrovich.telegramnewsreader.services.NewsService
+import com.p2petrovich.telegramnewsreader.utils.Logx
 
 object TextProcessor {
 
@@ -95,7 +96,7 @@ object TextProcessor {
         onFilterProgress: ((originalCount: Int, filteredCount: Int) -> Unit)? = null,
         onTruncated: ((kept: Int, dropped: Int) -> Unit)? = null
     ): List<String> {
-        Log.i(TAG, "====== FILTER START: ${messages.size} messages ======")
+        Logx.i(TAG) { "====== FILTER START: ${messages.size} messages ======" }
 
         var droppedTooShort = 0
         var droppedUrlOnly = 0
@@ -109,36 +110,35 @@ object TextProcessor {
             if (NewsService.isChannelHeader(original)) return@mapNotNull original
 
             val trimmed = original.trim()
-            val preview = trimmed.take(120).replace("\n", " | ")
 
             if (trimmed.length <= 3) {
                 droppedTooShort++
-                Log.d(TAG, "SPAM [too_short]: $preview")
+                Logx.d(TAG) { "SPAM [too_short] len=${trimmed.length}" }
                 return@mapNotNull null
             }
 
             if (trimmed.matches(Regex("^https?://.*$"))) {
                 droppedUrlOnly++
-                Log.d(TAG, "SPAM [url_only]: $preview")
+                Logx.d(TAG) { "SPAM [url_only] len=${trimmed.length}" }
                 return@mapNotNull null
             }
 
             if (trimmed.matches(Regex("^[\\p{So}\\p{Sk}\\s]+$"))) {
                 droppedEmojiOnly++
-                Log.d(TAG, "SPAM [emoji_only]: $preview")
+                Logx.d(TAG) { "SPAM [emoji_only] len=${trimmed.length}" }
                 return@mapNotNull null
             }
 
             if (trimmed.matches(Regex("^\\d{2}:\\d{2}\\s*—\\s*\\[.*]$"))) {
                 droppedBracketTime++
-                Log.d(TAG, "SPAM [media_no_text]: $preview")
+                Logx.d(TAG) { "SPAM [media_no_text] len=${trimmed.length}" }
                 return@mapNotNull null
             }
 
             val matchedPromo = PROMO_PATTERNS.firstOrNull { it.containsMatchIn(trimmed) }
             if (matchedPromo != null) {
                 droppedPromo++
-                Log.d(TAG, "SPAM [promo: ${matchedPromo.pattern.take(30)}]: $preview")
+                Logx.d(TAG) { "SPAM [promo: ${matchedPromo.pattern.take(30)}] len=${trimmed.length}" }
                 return@mapNotNull null
             }
 
@@ -158,17 +158,17 @@ object TextProcessor {
 
             if (cleaned.isBlank() || cleaned.length <= 5) {
                 droppedAfterClean++
-                Log.d(TAG, "SPAM [empty_after_clean]: $preview")
+                Logx.d(TAG) { "SPAM [empty_after_clean] len=${trimmed.length}" }
                 return@mapNotNull null
             }
 
             val finalMessage = if (cleaned.length > 5000) {
                 droppedTooLong++
-                Log.d(TAG, "TRIMMED [>5000]: $preview")
+                Logx.d(TAG) { "TRIMMED [>5000] len=${trimmed.length}" }
                 cleaned.take(4970) + "..."
             } else cleaned
 
-            Log.d(TAG, "OK: ${finalMessage.take(80).replace("\n", " | ")}")
+            Logx.d(TAG) { "OK: len=${finalMessage.length}" }
             finalMessage
         }.distinct()
 
@@ -190,15 +190,15 @@ object TextProcessor {
                 }
             }
             if (droppedNews > 0) {
-                Log.w(TAG, "filterMessages: truncated $droppedNews news (kept $newsCount / limit $maxNews)")
+                Logx.w(TAG, "filterMessages: truncated $droppedNews news (kept $newsCount / limit $maxNews)")
                 onTruncated?.invoke(newsCount, droppedNews)
             }
         }
 
         val newsKept = limited.count { !NewsService.isChannelHeader(it) }
-        Log.i(TAG, "====== FILTER RESULT: ${messages.size} -> ${limited.size} (news: $newsKept) ======")
-        Log.i(TAG, "  too_short=$droppedTooShort url=$droppedUrlOnly emoji=$droppedEmojiOnly")
-        Log.i(TAG, "  media=$droppedBracketTime promo=$droppedPromo empty_clean=$droppedAfterClean trim=$droppedTooLong")
+        Logx.i(TAG) { "====== FILTER RESULT: ${messages.size} -> ${limited.size} (news: $newsKept) ======" }
+        Logx.i(TAG) { "  too_short=$droppedTooShort url=$droppedUrlOnly emoji=$droppedEmojiOnly" }
+        Logx.i(TAG) { "  media=$droppedBracketTime promo=$droppedPromo empty_clean=$droppedAfterClean trim=$droppedTooLong" }
 
         onFilterProgress?.invoke(messages.size, limited.size)
         return limited
@@ -241,12 +241,11 @@ object TextProcessor {
                 fingerprints.add(fp)
             } else {
                 removedCount++
-                val preview = msg.take(100).replace("\n", " | ")
-                Log.d(TAG, "DEDUP [jaccard>0.55]: $preview")
+                Logx.d(TAG) { "DEDUP [jaccard>0.55] len=${msg.length}" }
             }
         }
 
-        Log.i(TAG, "dedup: ${messages.size} -> ${result.size} (removed $removedCount)")
+        Logx.i(TAG) { "dedup: ${messages.size} -> ${result.size} (removed $removedCount)" }
         return result
     }
 
@@ -502,24 +501,24 @@ object TextProcessor {
             when {
                 withoutTimePrefix.length < 8 -> {
                     droppedShort++
-                    Log.d(TAG, "DROP [<8chars]: $preview")
+                    Logx.d(TAG) { "DROP [<8chars] len=${withoutTimePrefix.length}" }
                     false
                 }
                 TRIVIAL_PATTERN.containsMatchIn(withoutTimePrefix) -> {
                     droppedTrivial++
-                    Log.d(TAG, "DROP [trivial]: $preview")
+                    Logx.d(TAG) { "DROP [trivial] len=${withoutTimePrefix.length}" }
                     false
                 }
                 // Удаляем только если ВСЁ сообщение — короткий призыв подписаться
                 SUBSCRIBE_CHECK_PATTERN.matches(trimmed) -> {
                     droppedSubscribe++
-                    Log.d(TAG, "DROP [subscribe_short]: $preview")
+                    Logx.d(TAG) { "DROP [subscribe_short] len=${trimmed.length}" }
                     false
                 }
                 // Удаляем только если ВСЁ сообщение — короткий спам-призыв
                 SPAM_CHECK_PATTERN.matches(trimmed) -> {
                     droppedSpam++
-                    Log.d(TAG, "DROP [spam_short]: $preview")
+                    Logx.d(TAG) { "DROP [spam_short] len=${trimmed.length}" }
                     false
                 }
                 else -> true
@@ -527,7 +526,7 @@ object TextProcessor {
         }
 
         if (texts.size != result.size) {
-            Log.i(TAG, "dropTrivial: ${texts.size} -> ${result.size} (short=$droppedShort trivial=$droppedTrivial subscribe=$droppedSubscribe spam=$droppedSpam)")
+            Logx.i(TAG) { "dropTrivial: ${texts.size} -> ${result.size} (short=$droppedShort trivial=$droppedTrivial subscribe=$droppedSubscribe spam=$droppedSpam)" }
         }
 
         return result
