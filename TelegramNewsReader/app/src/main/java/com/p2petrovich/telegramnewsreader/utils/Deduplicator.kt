@@ -22,13 +22,16 @@ class Deduplicator(
         val fingerprint = normalize(text)
 
         if (history.any { it.fingerprint == fingerprint }) {
+            android.util.Log.d("Deduplicator", "EXACT match found for: ${text.take(30)}...")
             skippedCount++
             return true
         }
 
         if (matchThreshold < 1.0f) {
             val threshold = matchThreshold
-            if (history.any { similarity(it.fingerprint, fingerprint) >= threshold }) {
+            val match = history.find { similarity(it.fingerprint, fingerprint) >= threshold }
+            if (match != null) {
+                android.util.Log.d("Deduplicator", "FUZZY match found (${similarity(match.fingerprint, fingerprint)}) for: ${text.take(30)}...")
                 skippedCount++
                 return true
             }
@@ -40,7 +43,11 @@ class Deduplicator(
     }
 
     fun getSkippedCount(): Int = skippedCount
-    fun reset() { history.clear(); skippedCount = 0 }
+    fun reset() { 
+        android.util.Log.d("Deduplicator", "History reset requested. Current size: ${history.size}")
+        history.clear()
+        skippedCount = 0 
+    }
     fun getHistorySize(): Int = history.size
 
     private fun cleanOldEntries() {

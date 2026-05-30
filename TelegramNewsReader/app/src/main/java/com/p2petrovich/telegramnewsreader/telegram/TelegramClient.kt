@@ -272,6 +272,10 @@ class TelegramClient(private val context: Context) {
             return@suspendCancellableCoroutine
         }
 
+        // ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ: Сообщаем TDLib, что мы "открыли" чат.
+        // Это часто заставляет библиотеку синхронизировать историю с сервером заново.
+        client?.send(TdApi.OpenChat(channelId)) { }
+
         val messages = mutableListOf<String>()
         val isCancelled = AtomicBoolean(false)
         val isResumed = AtomicBoolean(false)
@@ -367,6 +371,23 @@ class TelegramClient(private val context: Context) {
 
     fun close() {
         client?.send(TdApi.Close()) { }
+    }
+
+    /**
+     * Очищает локальный кэш сообщений TDLib.
+     * Помогает заставить библиотеку запросить историю с сервера заново.
+     */
+    fun clearTtsRelatedCache(callback: (Boolean) -> Unit) {
+        Log.d(TAG, "Full TDLib cache reset started...")
+        // 1. Очищаем историю всех чатов локально
+        // 2. Оптимизируем хранилище
+        client?.send(TdApi.OptimizeStorage(
+            0L, -1, -1, -1, null, null, null, true, 0
+        )) { result ->
+            val success = result is TdApi.StorageStatistics
+            Log.d(TAG, "TDLib storage optimization result: $success")
+            callback(success)
+        }
     }
 
     fun applyProxySettings() {

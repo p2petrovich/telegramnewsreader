@@ -24,6 +24,7 @@ interface ProgressCallback {
     fun onSynthesisStarted(messageCount: Int) {}
     fun onSynthesisProgress(current: Int, total: Int) {}
     fun onSynthesisCompleted() {}
+    fun onOverallProgress(status: String, percentage: Int) {}
 }
 
 class NewsService(
@@ -45,7 +46,8 @@ class NewsService(
         val preparedMessages: List<String>,
         val totalCollected: Int,
         val totalToSynthesize: Int,
-        val realNewsCount: Int = 0
+        val realNewsCount: Int = 0,
+        val wasAiEnabled: Boolean = false
     )
 
     data class AudioPlaylist(
@@ -96,6 +98,17 @@ class NewsService(
                 }
                 override fun onProgress(current: Int, total: Int) {
                     progressCallback.onSynthesisProgress(current, total)
+                    
+                    // Общий прогресс
+                    val overallPercentage = if (list.wasAiEnabled) {
+                        // Если ИИ был, то синтез — это 50..100%
+                        50 + if (total > 0) (current * 50 / total).coerceIn(0, 50) else 0
+                    } else {
+                        // Если ИИ не было, то синтез — это 0..100%
+                        if (total > 0) (current * 100 / total).coerceIn(0, 100) else 0
+                    }
+                    progressCallback.onOverallProgress("Синтез речи...", overallPercentage)
+
                     val synthesizedNews = if (total > 0) {
                         (current.toLong() * actualTtsNewsCount / total).toInt().coerceIn(0, actualTtsNewsCount)
                     } else 0
@@ -104,10 +117,12 @@ class NewsService(
                 override fun onStarted(messageCount: Int) { progressCallback.onSynthesisStarted(messageCount) }
                 override fun onCompleted() {
                     progressCallback.onUpdateCounters(list.totalCollected, actualTtsNewsCount, actualTtsNewsCount)
+                    progressCallback.onOverallProgress("Синтез завершен", 100)
                     progressCallback.onSynthesisCompleted()
                 }
             }
-        ) ?: return@withContext null
+        )
+?: return@withContext null
 
         AudioPlaylist(playlist.files, actualTtsNewsCount, playlist.newsFileIndices)
     }
@@ -147,6 +162,7 @@ class NewsService(
                 val newsPreview = mutableListOf<String>()
 
                 channelResults.forEach { (channel, messages) ->
+                    Log.d(TAG, "Channel ${channel.title}: received ${messages.size} messages from Telegram")
                     if (messages.isNotEmpty()) {
                         allMessages.add(makeChannelHeader(channel.title))
                         allMessages.addAll(messages)
@@ -159,6 +175,7 @@ class NewsService(
                 progressCallback.onUpdateNewsPreview(newsPreview)
 
                 if (allMessages.isEmpty()) {
+                    Log.w(TAG, "Total messages from all channels is ZERO")
                     progressCallback.onUpdateProgress("Нет новостей", 100, 100)
                     return@withTimeout Prepared(emptyList(), 0, 0, 0)
                 }
@@ -168,6 +185,7 @@ class NewsService(
                 progressCallback.onUpdateProgress("Дедупликация...", 0, 100)
                 val deduplicated = TextProcessor.deduplicateAcrossChannels(allMessages)
                 val dedupNewsCount = deduplicated.count { !isChannelHeader(it) }
+                Log.d(TAG, "After across-channel dedup: ${deduplicated.size} (news: $dedupNewsCount)")
                 progressCallback.onDeduplicationComplete(totalCollected, dedupNewsCount)
 
                 ensureActive()
@@ -190,6 +208,7 @@ class NewsService(
                             filtered.add(msg)
                         }
                     }
+                    Log.d(TAG, "After Deduplicator: ${filtered.size}")
                     filtered
                 } else {
                     preparedMessages
@@ -218,6 +237,12 @@ class NewsService(
                                     synchronized(this@NewsService) {
                                         processedCount++
                                         progressCallback.onUpdateProgress("Сжатие через ИИ...", processedCount, totalToSynthesizeBeforeAi)
+                                        
+                                        // Общий прогресс (первая фаза: 0..50%)
+                                        val overallPercentage = if (totalToSynthesizeBeforeAi > 0) {
+                                            (processedCount * 50 / totalToSynthesizeBeforeAi).coerceIn(0, 50)
+                                        } else 0
+                                        progressCallback.onOverallProgress("Сжатие через ИИ...", overallPercentage)
                                     }
                                     summarized
                                 }
@@ -244,7 +269,7 @@ class NewsService(
                 progressCallback.onUpdateCounters(totalCollected, finalToSynthesize, 0)
                 progressCallback.onUpdateProgress("Подготовлено к озвучке", 100, 100)
 
-                Prepared(finalMessages, totalCollected, finalToSynthesize, realNewsCount)
+                Prepared(finalMessages, totalCollected, finalToSynthesize, realNewsCount, isAiEnabled)
             }
         } catch (e: TimeoutCancellationException) {
             progressCallback.onUpdateProgress("Превышено время ожидания", 0, 100)

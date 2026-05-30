@@ -219,6 +219,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun resetDeduplicator() {
+        android.util.Log.d("MainActivity", "resetDeduplicator called")
         deduplicator?.reset()
         deduplicator = null
     }
@@ -1016,6 +1017,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val timeHours = timeValues[currentTimePeriodIndex]
+        startTime = System.currentTimeMillis()
         resetCollectionState()
         showProgressPanels()
         selectedChannels.forEach { it.newMessagesCount = -1 }
@@ -1144,12 +1146,19 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            override fun onOverallProgress(status: String, percentage: Int) {
+                runOnUiThread {
+                    updateDetailedProgress(status, percentage, 100)
+                    updateElapsedTime()
+                    updateETA()
+                }
+            }
+
             override fun onSynthesisStarted(messageCount: Int) {
                 runOnUiThread {
-                    updateDetailedProgress("Начинаем синтез речи...", 0, 100)
+                    updateDetailedProgress("Начинаем синтез речи...", 50, 100)
                     totalProgressSteps = messageCount
                     currentProgressStep = 0
-                    startTime = System.currentTimeMillis()
                 }
             }
 
@@ -1233,6 +1242,30 @@ class MainActivity : AppCompatActivity() {
         binding.tvProgressPercentage.text = getString(R.string.percentage, percentage)
     }
 
+    private fun updateElapsedTime() {
+        if (startTime == 0L) return
+        val elapsedMs = System.currentTimeMillis() - startTime
+        val seconds = (elapsedMs / 1000) % 60
+        val minutes = (elapsedMs / (1000 * 60)) % 60
+        val hours = elapsedMs / (1000 * 60 * 60)
+        
+        val timeStr = if (hours > 0) {
+            String.format("%02d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            String.format("%02d:%02d", minutes, seconds)
+        }
+        
+        // Можем добавить это время к статусу или в отдельное поле, если оно есть.
+        // Пока добавим в tvProgressPercentage рядом с процентами.
+        val currentText = binding.tvProgressPercentage.text.toString()
+        if (!currentText.contains("⏱")) {
+            binding.tvProgressPercentage.text = "$currentText  ⏱ $timeStr"
+        } else {
+            val base = currentText.substringBefore("  ⏱")
+            binding.tvProgressPercentage.text = "$base  ⏱ $timeStr"
+        }
+    }
+
     private fun updateChannelStats() {
         val total = channelAdapter.getAllChannels().size
         val selected = channelAdapter.getSelectedChannels().size
@@ -1310,7 +1343,14 @@ class MainActivity : AppCompatActivity() {
                 .setMessage(getString(R.string.cache_info, count, sizeMb.toInt()))
                 .setPositiveButton("Очистить") { _, _ ->
                     NewsCache.clearAll(this)
-                    Toast.makeText(this, "Кэш очищен", Toast.LENGTH_SHORT).show()
+                    resetDeduplicator()
+                    // Очищаем кэш сообщений в самом Telegram клиенте
+                    telegramClient.clearTtsRelatedCache { success ->
+                        runOnUiThread {
+                            val msg = if (success) "Кэш и история полностью очищены" else "Кэш очищен, история Telegram осталась"
+                            Toast.makeText(this@MainActivity, msg, Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
                 .setNegativeButton("Отмена", null)
                 .show()

@@ -17,12 +17,21 @@ import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.TextProcessor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import java.io.File
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.resume
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.withTimeoutOrNull
@@ -70,6 +79,9 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     private var voiceParametersApplied = false
     private var currentAppliedPitch: Float? = null
     private var currentAppliedRate: Float? = null
+
+    private val androidTtsMutex = Mutex()
+    private val progressLock = Any()
 
     // Edge TTS провайдер (null = используем Android TTS)
     @Volatile private var edgeProvider: EdgeTtsProvider? = null
@@ -245,6 +257,22 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         val newsFileIndices: Set<Int> = emptySet()
     )
 
+    private data class PartJob(
+        val chapterIdx: Int,
+        val partInChapter: Int,
+        val partText: String,
+        val partIndex: Int,
+        val hash: String
+    )
+
+    private data class PartResult(
+        val job: PartJob,
+        val wav: File,
+        val meta: WavMeta,
+        val actuallyUsedEdge: Boolean,
+        val isFromCache: Boolean
+    )
+
     private fun stripHeaderMarker(text: String): String {
         return text.replace("\u200B", "").replace("\u200C", "").trim()
     }
@@ -296,6 +324,60 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
+    private suspend fun synthesizeOnePart(
+        job: PartJob,
+        baseUtteranceId: String,
+        voiceName: String,
+        cachePitch: Float,
+        cacheRate: Float,
+        isEdgeActive: Boolean,
+        cachedWavPaths: MutableSet<String>
+    ): PartResult? {
+        val cachedFile = NewsCache.findCachedWav(context, job.hash)
+        if (cachedFile != null) {
+            val meta = readWavMeta(cachedFile) ?: return null
+            synchronized(cachedWavPaths) { cachedWavPaths.add(cachedFile.absolutePath) }
+            return PartResult(job, cachedFile, meta, actuallyUsedEdge = isEdgeActive, isFromCache = true)
+        }
+
+        var wav: File? = null
+        var actuallyUsedEdge = false
+
+        val edge = edgeProvider
+        if (edge != null) {
+            val tmp = File(context.cacheDir, "${baseUtteranceId}_part_${job.partIndex}.wav")
+            if (trySynthesizeEdge(edge, job.partText, tmp, job.partIndex)) {
+                wav = tmp
+                actuallyUsedEdge = true
+            }
+        }
+
+        if (wav == null) {
+            // Android Fallback - MUST BE SERIALIZED
+            wav = androidTtsMutex.withLock {
+                if (voiceName != "default") {
+                    setVoiceByName(voiceName)
+                }
+                synthesizePartToWav(job.partText, job.partIndex, baseUtteranceId)
+            }
+        }
+
+        val finalWav = wav ?: return null
+        if (!finalWav.exists() || finalWav.length() == 0L) return null
+
+        val meta = readWavMeta(finalWav) ?: return null
+
+        // Кэшируем только если фактический движок совпал с ожидаемым.
+        val expectedEdge = isEdgeActive
+        if (expectedEdge == actuallyUsedEdge) {
+            NewsCache.saveWavToCache(context, job.hash, finalWav)
+        } else {
+            Log.w(TAG, "Skip caching part ${job.partIndex}: expectedEdge=$expectedEdge, actualEdge=$actuallyUsedEdge")
+        }
+
+        return PartResult(job, finalWav, meta, actuallyUsedEdge, isFromCache = false)
+    }
+
     suspend fun synthesizePlaylist(
         texts: List<String>,
         pauseMs: Int = 1000,
@@ -314,6 +396,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         val voiceName = PreferenceManager.getTtsVoiceName(context) ?: "default"
         val cachePitch = currentAppliedPitch ?: PreferenceManager.getTtsPitch(context)
         val cacheRate = currentAppliedRate ?: PreferenceManager.getTtsRate(context)
+        val isEdgeActive = edgeProvider != null
 
         data class PreparedNews(
             val originalIndex: Int,
@@ -349,104 +432,89 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
 
         val actualNewsCount = prepared.count { !it.isHeader }
-        val totalParts = prepared.sumOf { TextProcessor.splitByParagraphs(it.textForSplitting, 2800).size }
-
-        progressCallback?.onActualCounts(actualNewsCount, totalParts)
-        Log.d(TAG, "Playlist: news=$actualNewsCount, parts=$totalParts, chapters=${prepared.size}")
-
-        var processedParts = 0
-        val baseUtteranceId = "tts_${System.currentTimeMillis()}"
-        val cachedWavPaths = mutableSetOf<String>()
-        var silenceFile: File? = null
-        var baselineFormat: WavMeta? = null
-
-        val chapterFiles = mutableListOf<File>()
-        val newsFileIndices = mutableSetOf<Int>()
-
-        prepared.forEachIndexed { idx, item ->
-            val chapterIndex = chapterFiles.size
-
-            if (!item.isHeader) {
-                newsFileIndices.add(chapterIndex)
-            }
-
+        
+        // ФАЗА 1: Подготовка списка задач
+        val jobs = mutableListOf<PartJob>()
+        prepared.forEachIndexed { chIdx, item ->
             val parts = TextProcessor.splitByParagraphs(item.textForSplitting, 2800)
-            val partWavs = mutableListOf<File>()
-
-            for (i in parts.indices) {
-                val partText = parts[i]
-                val partIndex = ((item.originalIndex + 1) * 1000 + (i + 1))
-
-                val isEdgeActive = edgeProvider != null
+            parts.forEachIndexed { pIdx, text ->
+                val partIndex = ((item.originalIndex + 1) * 1000 + (pIdx + 1))
                 val hash = if (isEdgeActive) {
                     val ev = PreferenceManager.getEdgeVoice(context)
                     val er = PreferenceManager.getEdgeRate(context)
                     val ep = PreferenceManager.getEdgePitch(context)
-                    NewsCache.messageHash(partText, "edge:$ev", ep.toFloat(), er.toFloat())
+                    NewsCache.messageHash(text, "edge:$ev", ep.toFloat(), er.toFloat())
                 } else {
-                    NewsCache.messageHash(partText, voiceName, cachePitch, cacheRate)
+                    NewsCache.messageHash(text, voiceName, cachePitch, cacheRate)
                 }
+                jobs.add(PartJob(chIdx, pIdx, text, partIndex, hash))
+            }
+        }
+        
+        val totalParts = jobs.size
+        progressCallback?.onActualCounts(actualNewsCount, totalParts)
+        Log.d(TAG, "Playlist: news=$actualNewsCount, parts=$totalParts, chapters=${prepared.size}")
 
-                val cachedFile = NewsCache.findCachedWav(context, hash)
-
-                var wav: File? = null
-                // Флаг для отслеживания, каким движком фактически синтезирована часть.
-                // Если ожидали Edge, но упали на Android — в кэш не пишем,
-                // иначе при следующем запуске эта фраза подтянется чужим голосом.
-                var actuallyUsedEdge = false
-
-                if (cachedFile != null) {
-                    wav = cachedFile
-                    cachedWavPaths.add(cachedFile.absolutePath)
-                } else {
-                    val edge = edgeProvider
-                    if (edge != null) {
-                        val tmp = File(context.cacheDir, "${baseUtteranceId}_part_${partIndex}.wav")
-                        // Внешнего withTimeoutOrNull больше нет — EdgeTtsProvider.synthesizeToWav
-                        // уже имеет внутренний таймаут 60с. Двойной таймаут резал длинные
-                        // фразы на полпути и отправлял их в Android-fallback (== другой голос).
-                        val ok = trySynthesizeEdge(edge, partText, tmp, partIndex)
-                        if (ok) {
-                            wav = tmp
-                            actuallyUsedEdge = true
-                        } else {
-                            tmp.delete()
-                            Log.w(TAG, "Edge TTS failed for part $partIndex after $EDGE_RETRY_ATTEMPTS attempts, falling back to Android TTS")
+        val baseUtteranceId = "tts_${System.currentTimeMillis()}"
+        val cachedWavPaths = mutableSetOf<String>()
+        
+        // ФАЗА 2: Синтез частей (Параллельно для Edge)
+        val partResults: List<PartResult?> = coroutineScope {
+            if (isEdgeActive) {
+                val sem = Semaphore(4)
+                val doneCount = AtomicInteger(0)
+                jobs.map { job ->
+                    async(Dispatchers.IO) {
+                        sem.withPermit {
+                            val res = synthesizeOnePart(job, baseUtteranceId, voiceName, cachePitch, cacheRate, true, cachedWavPaths)
+                            val n = doneCount.incrementAndGet()
+                            synchronized(progressLock) {
+                                progressCallback?.onProgress(n, totalParts)
+                            }
+                            res
                         }
                     }
-
-                    if (wav == null) {
-                        // Гарантируем, что для Android TTS установлен правильный голос перед синтезом части
-                        if (voiceName != "default") {
-                            setVoiceByName(voiceName)
-                        }
-                        wav = synthesizePartToWav(partText, partIndex, baseUtteranceId)
-                    }
-
-                    if (wav == null || !wav.exists() || wav.length() == 0L) {
-                        Log.e(TAG, "Failed to synthesize part $i of chapter ${idx + 1}")
-                        cleanupChapterFiles(chapterFiles, cachedWavPaths)
-                        progressCallback?.onCompleted()
-                        return null
-                    }
-
-                    // Кэшируем только если фактический движок совпал с ожидаемым.
-                    // Если ожидался Edge, но в итоге сработал Android-fallback — не сохраняем,
-                    // чтобы хэш "edge:..." не указывал на Android-озвучку.
-                    val expectedEdge = isEdgeActive
-                    if (expectedEdge == actuallyUsedEdge) {
-                        NewsCache.saveWavToCache(context, hash, wav)
-                    } else {
-                        Log.w(TAG, "Skip caching part $partIndex: expectedEdge=$expectedEdge, actualEdge=$actuallyUsedEdge")
-                    }
+                }.awaitAll()
+            } else {
+                jobs.mapIndexed { n, job ->
+                    val res = synthesizeOnePart(job, baseUtteranceId, voiceName, cachePitch, cacheRate, false, cachedWavPaths)
+                    progressCallback?.onProgress(n + 1, totalParts)
+                    res
                 }
+            }
+        }
 
-                val meta = readWavMeta(wav)
-                if (meta == null) {
-                    cleanupChapterFiles(chapterFiles, cachedWavPaths)
-                    progressCallback?.onCompleted()
-                    return null
-                }
+        if (partResults.any { it == null }) {
+            Log.e(TAG, "Some parts failed to synthesize")
+            cleanupChapterFiles(emptyList(), cachedWavPaths)
+            progressCallback?.onCompleted()
+            return null
+        }
+
+        // ФАЗА 3: Сборка глав (Последовательно)
+        var silenceFile: File? = null
+        var baselineFormat: WavMeta? = null
+        val chapterFiles = mutableListOf<File>()
+        val newsFileIndices = mutableSetOf<Int>()
+        
+        val resultsByChapter = partResults.filterNotNull().groupBy { it.job.chapterIdx }
+
+        prepared.forEachIndexed { idx, item ->
+            val chapterIndex = chapterFiles.size
+            if (!item.isHeader) {
+                newsFileIndices.add(chapterIndex)
+            }
+
+            val chapterPartResults = resultsByChapter[idx]?.sortedBy { it.job.partInChapter } ?: run {
+                cleanupChapterFiles(chapterFiles, cachedWavPaths)
+                return null
+            }
+            
+            val partWavs = mutableListOf<File>()
+
+            for (res in chapterPartResults) {
+                val wav = res.wav
+                val meta = res.meta
 
                 if (baselineFormat == null) {
                     baselineFormat = meta
@@ -467,15 +535,10 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 }
 
                 if (usedWav.absolutePath != wav.absolutePath && cachedWavPaths.contains(wav.absolutePath)) {
-                    cachedWavPaths.add(usedWav.absolutePath)
+                    synchronized(cachedWavPaths) { cachedWavPaths.add(usedWav.absolutePath) }
                 }
 
                 partWavs.add(usedWav)
-
-                processedParts++
-                if (totalParts > 0) {
-                    progressCallback?.onProgress(processedParts, totalParts)
-                }
             }
 
             if (idx != prepared.lastIndex && pauseMs > 0) {
