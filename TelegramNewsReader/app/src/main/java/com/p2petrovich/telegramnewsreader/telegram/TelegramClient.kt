@@ -1,6 +1,8 @@
 package com.p2petrovich.telegramnewsreader.telegram
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import org.drinkless.tdlib.Client
 import org.drinkless.tdlib.TdApi
@@ -13,6 +15,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlin.coroutines.resume
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 import org.threeten.bp.Instant
 import org.threeten.bp.ZoneId
@@ -117,12 +120,35 @@ class TelegramClient(private val context: Context) {
     }
 
     private fun setTdlibParameters() {
-        val encryptionKey = SecurityManager.getDatabaseEncryptionKey(context)
-        if (encryptionKey == null) {
-            Log.e(TAG, "Database encryption key is null! Aborting.")
-            onFatalError?.invoke("Ошибка безопасности: Android Keystore недоступен. Запуск невозможен.")
-            return
+        val keyResult = SecurityManager.getDatabaseEncryptionKeyChecked(context)
+
+        val encryptionKey: ByteArray = when (keyResult) {
+            is SecurityManager.KeyResult.Ok -> keyResult.key
+            is SecurityManager.KeyResult.LostNeedsWipe -> {
+                // Ключ утерян: старая БД нечитаема. Сбрасываем каталоги и стартуем заново.
+                Log.w(TAG, "DB key lost — wiping TDLib dirs and re-initializing")
+                ApiConfig.tdlibDatabaseDir(context).deleteRecursively()
+                ApiConfig.tdlibFilesDir(context).deleteRecursively()
+                // Сообщаем пользователю, что потребуется повторный вход.
+                onFatalError?.invoke(
+                    "Ключ шифрования базы был сброшен системой. Данные очищены — " +
+                            "потребуется повторный вход в Telegram."
+                )
+                // Генерируем свежий ключ для чистой БД.
+                when (val retry = SecurityManager.getDatabaseEncryptionKeyChecked(context)) {
+                    is SecurityManager.KeyResult.Ok -> retry.key
+                    else -> {
+                        onFatalError?.invoke("Ошибка безопасности: Android Keystore недоступен.")
+                        return
+                    }
+                }
+            }
+            is SecurityManager.KeyResult.Unavailable -> {
+                onFatalError?.invoke("Ошибка безопасности: Android Keystore недоступен. Запуск невозможен.")
+                return
+            }
         }
+
         client?.send(TdApi.SetTdlibParameters(
             false, // useTestDc
             ApiConfig.tdlibDatabaseDir(context).absolutePath, // databaseDirectory
@@ -178,63 +204,81 @@ class TelegramClient(private val context: Context) {
             if (!waitForReady(15)) { callback(emptyList()); return@Thread }
             if (!isAuthorized) { callback(emptyList()); return@Thread }
 
+            val callbackFired = AtomicBoolean(false)
+            val handler = Handler(Looper.getMainLooper())
+
             client?.send(TdApi.GetChats(TdApi.ChatListMain(), 200)) { result ->
                 when (result) {
                     is TdApi.Chats -> {
                         if (result.chatIds.isEmpty()) {
-                            callback(emptyList())
+                            if (callbackFired.compareAndSet(false, true)) callback(emptyList())
                             return@send
                         }
 
                         val channels: Array<Channel?> = arrayOfNulls(result.chatIds.size)
-                        var processed = 0
+                        val processed = AtomicInteger(0)
                         val total = result.chatIds.size
+
+                        fun finishOnce() {
+                            if (callbackFired.compareAndSet(false, true)) {
+                                handler.removeCallbacksAndMessages(null)
+                                val list = synchronized(channels) { channels.filterNotNull() }
+                                callback(list)
+                            }
+                        }
+
+                        // Watchdog timeout
+                        handler.postDelayed({
+                            Log.w(TAG, "loadChannels watchdog fired: ${processed.get()}/$total processed, returning partial result")
+                            finishOnce()
+                        }, 12_000L)
 
                         for ((index, chatId) in result.chatIds.withIndex()) {
                             client?.send(TdApi.GetChat(chatId)) { chatResult ->
-                                if (chatResult is TdApi.Chat) {
-                                    val type = chatResult.type
-                                    if (type is TdApi.ChatTypeSupergroup && type.isChannel) {
-                                        val small = chatResult.photo?.small
-                                        if (small != null) {
-                                            chatIdToSmallId[chatId] = small.id
-                                            fileIdToChatId[small.id] = chatId
+                                try {
+                                    if (chatResult is TdApi.Chat) {
+                                        val type = chatResult.type
+                                        if (type is TdApi.ChatTypeSupergroup && type.isChannel) {
+                                            val small = chatResult.photo?.small
+                                            if (small != null) {
+                                                chatIdToSmallId[chatId] = small.id
+                                                fileIdToChatId[small.id] = chatId
 
-                                            client?.send(TdApi.GetFile(small.id)) { getObj ->
-                                                val file = getObj as? TdApi.File
-                                                if (file?.local?.isDownloadingCompleted == true && !file.local.path.isNullOrBlank()) {
-                                                    chatIdToChannel[chatId]?.photoPath = file.local.path
-                                                    onChannelPhotoUpdated?.invoke(chatId, file.local.path)
-                                                } else {
-                                                    client?.send(TdApi.DownloadFile(small.id, 32, 0, 0, true)) {}
+                                                client?.send(TdApi.GetFile(small.id)) { getObj ->
+                                                    val file = getObj as? TdApi.File
+                                                    if (file?.local?.isDownloadingCompleted == true && !file.local.path.isNullOrBlank()) {
+                                                        chatIdToChannel[chatId]?.photoPath = file.local.path
+                                                        onChannelPhotoUpdated?.invoke(chatId, file.local.path)
+                                                    } else {
+                                                        client?.send(TdApi.DownloadFile(small.id, 32, 0, 0, true)) {}
+                                                    }
+                                                }
+                                            }
+
+                                            val channel = Channel(
+                                                id = chatId, accessHash = 0,
+                                                title = chatResult.title, username = "",
+                                                isSelected = false, newMessagesCount = 0, photoPath = null
+                                            )
+                                            chatIdToChannel[chatId] = channel
+                                            synchronized(channels) {
+                                                if (index < channels.size) {
+                                                    channels[index] = channel
                                                 }
                                             }
                                         }
-
-                                        val channel = Channel(
-                                            id = chatId, accessHash = 0,
-                                            title = chatResult.title, username = "",
-                                            isSelected = false, newMessagesCount = 0, photoPath = null
-                                        )
-                                        chatIdToChannel[chatId] = channel
-                                        synchronized(channels) {
-                                            if (index < channels.size) {
-                                                channels[index] = channel
-                                            }
-                                        }
                                     }
-                                }
-
-                                synchronized(channels) {
-                                    processed++
-                                    if (processed == total) {
-                                        callback(channels.filterNotNull())
+                                } finally {
+                                    if (processed.incrementAndGet() >= total) {
+                                        finishOnce()
                                     }
                                 }
                             }
                         }
                     }
-                    else -> callback(emptyList())
+                    else -> {
+                        if (callbackFired.compareAndSet(false, true)) callback(emptyList())
+                    }
                 }
             }
         }.start()
