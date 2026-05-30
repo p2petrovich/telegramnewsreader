@@ -62,19 +62,23 @@ class NewsService(
         channels: List<Channel>,
         timeHours: Double
     ): Map<Long, Int> = withContext(Dispatchers.IO) {
-        val result = mutableMapOf<Long, Int>()
         val currentTimeSeconds = System.currentTimeMillis() / 1000
         val fromDate = currentTimeSeconds - (timeHours * 3600).toLong()
-        channels.forEach { channel ->
-            try {
-                val messages = telegramClient.getChannelMessagesPaginated(channel.id, fromDate)
-                result[channel.id] = messages.size
-            } catch (e: Exception) {
-                Log.e(TAG, "Error getting news count for channel ${channel.id}", e)
-                result[channel.id] = 0
-            }
+
+        coroutineScope {
+            channels.map { channel ->
+                async {
+                    channel.id to try {
+                        withTimeout(CHANNEL_TIMEOUT_MS) {
+                            telegramClient.getChannelMessagesPaginated(channel.id, fromDate).size
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "count failed for channel ${channel.id}: ${e.message}")
+                        0
+                    }
+                }
+            }.awaitAll().toMap()
         }
-        result
     }
 
     suspend fun collectAndSynthesizePlaylist(

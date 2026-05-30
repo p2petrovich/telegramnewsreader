@@ -1,36 +1,41 @@
-# Fix Unclosed OkHttpClient Singletons
+# Optimize getAllChannelsNewsCount Performance
 
-This plan addresses a resource leak issue where `OkHttpClient` instances in `EdgeTtsProvider` and `AiProcessor` are never shut down, potentially leaking file descriptors and threads.
+This plan addresses the performance issue where message counting across multiple channels is done sequentially and without proper timeouts, leading to long wait times and excessive resource usage.
 
 ## Proposed Changes
 
-### Centralized HTTP Management
+### Service Component
 
-#### [NEW] [HttpClients.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/HttpClients.kt)
+#### [NewsService.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/services/NewsService.kt)
 
-- Implements an `object HttpClients` with a shared `OkHttpClient` instance.
-- Default timeouts set to 30 seconds (connect, read, write) to accommodate AI and TTS needs.
-- Includes a `shutdown()` method to close the executor service, connection pool, and cache.
+- Refactor `getAllChannelsNewsCount` to use `coroutineScope` and `async/awaitAll` for parallel processing of channels.
+- Implement per-channel timeout using `withTimeout(CHANNEL_TIMEOUT_MS)`.
+- Ensure proper error handling per channel to prevent one failed request from failing the entire counting process.
 
-### TTS and AI Components
+```kotlin
+    suspend fun getAllChannelsNewsCount(
+        channels: List<Channel>,
+        timeHours: Double
+    ): Map<Long, Int> = withContext(Dispatchers.IO) {
+        val currentTimeSeconds = System.currentTimeMillis() / 1000
+        val fromDate = currentTimeSeconds - (timeHours * 3600).toLong()
 
-#### [EdgeTtsProvider.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/tts/EdgeTtsProvider.kt)
-
-- Replace local `sharedClient` with `HttpClients.shared`.
-
-#### [AiProcessor.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/AiProcessor.kt)
-
-- Replace local `client` with `HttpClients.shared`.
-
-#### [EdgeConfig.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/EdgeConfig.kt)
-
-- Replace local `http` with `HttpClients.shared`.
-
-### Lifecycle Management
-
-#### [TTSManager.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/tts/TTSManager.kt)
-
-- Update `TTSManagerSingleton.clearInstance()` to call `HttpClients.shutdown()`.
+        coroutineScope {
+            channels.map { channel ->
+                async {
+                    channel.id to try {
+                        withTimeout(CHANNEL_TIMEOUT_MS) {
+                            telegramClient.getChannelMessagesPaginated(channel.id, fromDate).size
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "count failed for channel ${channel.id}: ${e.message}")
+                        0
+                    }
+                }
+            }.awaitAll().toMap()
+        }
+    }
+```
 
 ## Verification Plan
 
@@ -39,6 +44,7 @@ This plan addresses a resource leak issue where `OkHttpClient` instances in `Edg
 
 ### Manual Verification
 - Code review to ensure:
-    - `HttpClients.shared` is used in all identified places.
-    - `HttpClients.shutdown()` is called exactly once when the TTS system is shut down.
-    - `newBuilder()` is used if any component specifically needs different timeouts while still sharing the pool.
+    - Channels are processed in parallel using `async`.
+    - `CHANNEL_TIMEOUT_MS` (15s) is applied to each channel request.
+    - Exceptions are caught and logged, returning 0 as a safe fallback.
+    - `withContext(Dispatchers.IO)` and `coroutineScope` are correctly nested.

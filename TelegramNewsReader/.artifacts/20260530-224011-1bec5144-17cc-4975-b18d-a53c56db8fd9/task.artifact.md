@@ -6,14 +6,11 @@
 - [x] Fix hardcoded Edge TTS version
 - [x] Fix privacy leaks in logs
 - [x] Fix unclosed OkHttpClient singletons
+- [x] Optimize getAllChannelsNewsCount performance
 	- [x] Research and Planning
-		- [x] Analyze `AiProcessor.kt`, `EdgeTtsProvider.kt` and `TTSManager.kt`
+		- [x] Analyze `NewsService.kt` and `TelegramClient.kt`
 	- [x] Implementation
-		- [x] Create `HttpClients.kt` for centralized management
-		- [x] Update `EdgeTtsProvider.kt` to use shared client
-		- [x] Update `AiProcessor.kt` to use shared client
-		- [x] Update `EdgeConfig.kt` to use shared client
-		- [x] Update `TTSManager.kt` to shut down clients on clearInstance
+		- [x] Update `NewsService.kt` with parallel counting and timeouts
 	- [x] Verification
 		- [x] Run `gradle_build` to check for compilation errors
 		- [x] Verify logic via code review

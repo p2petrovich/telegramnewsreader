@@ -26,17 +26,17 @@ Prevented sensitive news content from leaking into system logs (logcat).
 
 ## 6. Resource Management (HTTP Clients)
 Fixed a resource leak by centralizing `OkHttpClient` management.
+- **Shared Instance**: Centralized `HttpClients.shared` instance.
+- **Lifecycle Cleanup**: Added a `shutdown()` method to close connection pools and executors.
 
-### Changes in [HttpClients.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/HttpClients.kt)
-- **Shared Instance**: Implemented a centralized `HttpClients.shared` instance. This is a recommended practice in OkHttp to reuse connection pools and dispatcher threads efficiently.
-- **Lifecycle Cleanup**: Added a `shutdown()` method that explicitly closes the executor service, connection pool, and any active cache.
+## 7. Performance Optimization (News Counting)
+Optimized the process of counting news items across multiple channels.
 
-### Changes in [EdgeTtsProvider.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/tts/EdgeTtsProvider.kt), [AiProcessor.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/AiProcessor.kt), and [EdgeConfig.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/EdgeConfig.kt)
-- **Migration**: Replaced all local `OkHttpClient` builders with the shared `HttpClients.shared` instance. This reduces memory footprint and avoids thread leakage.
-
-### Changes in [TTSManager.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/tts/TTSManager.kt)
-- **Safe Shutdown**: Updated `TTSManagerSingleton.clearInstance()` to call `HttpClients.shutdown()`. This ensures that when the TTS system is released, all background network threads are properly terminated.
+### Changes in [NewsService.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/services/NewsService.kt)
+- **Parallel Processing**: Switched from sequential `forEach` to parallel `async/awaitAll`. This significantly reduces the total time required to update counts for a large number of channels.
+- **Granular Timeouts**: Applied `withTimeout(CHANNEL_TIMEOUT_MS)` (15 seconds) to each individual channel request. This ensures that one "stuck" channel doesn't block the entire process.
+- **Improved Error Handling**: Individual channel failures are now caught and logged as warnings, returning 0 instead of failing the whole operation.
 
 ## Verification Results
 - **Compilation**: Successfully built the project with `:app:assembleDebug`.
-- **Resource Audit**: Verified that all modules now share the same HTTP pool and that the shutdown hook is properly placed.
+- **Performance Audit**: Verified that `coroutineScope` and `async` are used correctly to enable concurrent execution on `Dispatchers.IO`.
