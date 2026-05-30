@@ -3,6 +3,7 @@
     <!-- Включаем общие настройки, но исключаем мастер-ключ шифрования БД -->
     <include domain="sharedpref" path="."/>
     <exclude domain="sharedpref" path="secret_prefs.xml"/>
+    <exclude domain="sharedpref" path="auth_status.xml"/>
 
     <!-- Исключаем локальную базу новостей, так как она может быть большой и легко пересоздается -->
     <include domain="database" path="."/>

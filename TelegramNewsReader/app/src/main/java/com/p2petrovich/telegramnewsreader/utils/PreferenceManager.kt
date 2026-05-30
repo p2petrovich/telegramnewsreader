@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 
 object PreferenceManager {
     private const val PREFS_NAME = "telegram_news_prefs"
+    private const val AUTH_PREFS_NAME = "auth_status"
     private const val KEY_IS_AUTHORIZED = "is_authorized"
     private const val KEY_PHONE_NUMBER = "phone_number"
     private const val KEY_TTS_VOICE_NAME = "tts_voice_name"
@@ -48,6 +49,10 @@ object PreferenceManager {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
+    private fun getAuthPreferences(context: Context): SharedPreferences {
+        return context.getSharedPreferences(AUTH_PREFS_NAME, Context.MODE_PRIVATE)
+    }
+
     fun isAiSummaryEnabled(context: Context): Boolean =
         getPreferences(context).getBoolean(KEY_AI_SUMMARY_ENABLED, false)
 
@@ -70,21 +75,21 @@ object PreferenceManager {
     }
 
     fun isAuthorized(context: Context): Boolean =
-        getPreferences(context).getBoolean(KEY_IS_AUTHORIZED, false)
+        getAuthPreferences(context).getBoolean(KEY_IS_AUTHORIZED, false)
 
     fun setAuthorized(context: Context, isAuthorized: Boolean) {
-        getPreferences(context).edit().putBoolean(KEY_IS_AUTHORIZED, isAuthorized).apply()
+        getAuthPreferences(context).edit().putBoolean(KEY_IS_AUTHORIZED, isAuthorized).apply()
     }
 
     fun savePhoneNumber(context: Context, phoneNumber: String) {
-        getPreferences(context).edit().putString(KEY_PHONE_NUMBER, phoneNumber).apply()
+        getAuthPreferences(context).edit().putString(KEY_PHONE_NUMBER, phoneNumber).apply()
     }
 
     fun getPhoneNumber(context: Context): String? =
-        getPreferences(context).getString(KEY_PHONE_NUMBER, null)
+        getAuthPreferences(context).getString(KEY_PHONE_NUMBER, null)
 
     fun resetAuthorization(context: Context) {
-        getPreferences(context).edit()
+        getAuthPreferences(context).edit()
             .putBoolean(KEY_IS_AUTHORIZED, false)
             .remove(KEY_PHONE_NUMBER)
             .apply()
