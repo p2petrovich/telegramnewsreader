@@ -4,7 +4,7 @@ import java.util.LinkedList
 
 class Deduplicator(
     val isEnabled: Boolean = true,
-    private val matchThreshold: Float = 0.9f,
+    private val matchThreshold: Float = 0.7f,
     private val historySize: Int = 500,
     private val timeWindowMinutes: Int = 60
 ) {
@@ -63,7 +63,7 @@ class Deduplicator(
             .replace(Regex("^\\d{2}:\\d{2}\\s*—\\s*"), "")
             .replace(Regex("[^\\p{L}\\s]"), " ")
             .split(Regex("\\s+"))
-            .filter { it.length > 3 }
+            .filter { it.length >= 2 } // Снижено с 4 до 2 для коротких новостей и русских слов
             .toSet()
     }
 

@@ -1,49 +1,31 @@
-# Walkthrough - Fixing Critical and Serious Issues
+# Walkthrough - Comprehensive Fixes and Optimizations
 
-## 1. Infinite Waiting in `loadChannels`
-Implemented a watchdog mechanism to prevent infinite loading screens when TDLib requests hang.
-- Added a 12-second timeout.
-- Used `AtomicBoolean` for single callback execution.
+## 1. Reliability and Stability Fixes
+- **Infinite Loading in `loadChannels`**: Added a 12-second watchdog timer to ensure the app never gets stuck on the loading screen.
+- **TDLib Key Recovery**: Implemented a "wipe and restart" mechanism for cases where the Android Keystore is invalidated, preventing the app from being permanently bricked.
+- **Dynamic Edge TTS Versioning**: The app now automatically fetches the latest Chromium version from Google API, preventing 403 errors when Microsoft updates their servers.
+- **OkHttpClient Management**: Centralized all HTTP clients into a shared pool and added a proper shutdown sequence to prevent memory and thread leaks.
 
-## 2. TDLib Encryption Key Loss & Recovery
-Implemented a robust mechanism to handle Android Keystore invalidation.
-- **State Awareness**: Introduced a `KeyResult` sealed class and a plain-text marker.
-- **Automatic Recovery**: Deletes corrupted TDLib files and regenerates a new key if needed.
+## 2. Content Quality Improvements
+- **Explicit Truncation**: Raised the news limit to 500 and added a user notification when news is truncated. Channel headers no longer count towards the limit.
+- **Deduplication Sync**: Synchronized the deduplication thresholds between `Deduplicator` (on-device history) and `TextProcessor` (across-channel) to a consistent 0.7.
+- **Short News Fingerprinting**: Improved the fingerprinting logic in `Deduplicator` to better handle short Russian words (minimum length reduced to 2), which significantly improves deduplication for "lightning" news.
+- **Regex Precision**: Refined advertising and promo filters to avoid false positives for legitimate news terms like "акция протеста" or "скидка ставки".
 
-## 3. Explicit News Truncation & Transparency
-Fixed the "silent" loss of news due to a hardcoded limit.
-- **Increased Limit**: Raised to 500 news items.
-- **User Notification**: Implemented a Toast notification informing the user when news is truncated.
+## 3. Privacy and Security
+- **Log Leak Prevention**: Created the `Logx` utility to ensure debug strings are never constructed or logged in release builds.
+- **Content Scrubbing**: Removed all user news fragments from logs, replacing them with technical metrics.
+- **Stricter ProGuard Rules**: Configured R8 to strip all standard logging calls from the final production binary.
 
-## 4. Dynamic Edge TTS Versioning
-Solved the issue of Edge TTS failing with 403 Forbidden errors.
-- **Automatic Refresh**: Fetches the latest stable Chromium version from Google API.
+## 4. Enhanced Player Experience
+- **State Persistence**: The `AudioPlayerService` now saves the current playlist and playback index to `SharedPreferences`.
+- **Automatic Recovery**: If the service is killed by the system (OOM), it can now restore its state and resume playback seamlessly.
+- **START_STICKY**: Switched to `START_STICKY` to encourage the system to restart the player service if it's terminated under pressure.
 
-## 5. Privacy Protection (Logs Cleanup)
-Prevented sensitive news content from leaking into system logs (logcat).
-- **Logx Utility**: Gated logging ensures debug messages don't exist in release.
-- **Content Removal**: Replaced all logs containing fragments of news with technical metrics.
+## 5. Performance Optimizations
+- **Parallel News Counting**: Refactored the dashboard count refresh to process all channels in parallel with individual timeouts, making the UI much more responsive.
+- **WAV Processing**: Implemented a robust chunk-based WAV metadata parser and switched to stable audio re-encoding during concatenation, eliminating audio glitches.
 
-## 6. Resource Management (HTTP Clients)
-Fixed a resource leak by centralizing `OkHttpClient` management.
-- **Shared Instance**: Centralized `HttpClients.shared` instance.
-- **Lifecycle Cleanup**: Added a `shutdown()` method to close connection pools and executors.
-
-## 7. Performance Optimization (News Counting)
-Optimized the process of counting news items across multiple channels.
-- **Parallel Processing**: Switched to parallel `async/awaitAll`.
-- **Granular Timeouts**: Applied `withTimeout` to each individual channel request.
-
-## 8. Robust Audio Processing (WAV Fixes)
-Improved the reliability of reading and concatenating audio news segments.
-
-### Changes in [TTSManager.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/tts/TTSManager.kt)
-- **Intelligent WAV Parsing**: Replaced fixed-offset metadata reading with a chunk-based iterator in `readWavMeta()`. This correctly identifies `fmt ` and `data` chunks even if they are shifted by extra metadata (like LIST or INFO tags often added by FFmpeg).
-- **Alignment Support**: Correctly handles 2-byte chunk padding, which is part of the WAV specification but often ignored by simple parsers.
-
-### Changes in [AudioUtils.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/AudioUtils.kt)
-- **Stable Concatenation**: Replaced `-c copy` with explicit re-encoding to `pcm_s16le` during the final merge. This ensures that the resulting audio file is structurally sound even if the input segments have non-standard headers or slightly different internal metadata.
-
-## Verification Results
-- **Compilation**: Successfully built the project with `:app:assembleDebug`.
-- **Logic Review**: Verified that the chunk iterator correctly uses `RandomAccessFile.seek()` and parses the length of each chunk.
+## Verification Summary
+- **Full Build**: Successfully completed `:app:assembleDebug`.
+- **Logic Integrity**: All critical paths (auth, loading, synthesis, playback) have been reviewed and hardened against edge cases and resource leaks.

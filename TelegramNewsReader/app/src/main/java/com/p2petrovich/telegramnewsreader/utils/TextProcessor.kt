@@ -44,8 +44,8 @@ object TextProcessor {
     private val TTS_EDIT_PATTERN = Regex("(?im)^ред\\.?\\s*:?\\s*\\d{1,2}:\\d{2}.*$")
     private val TTS_SUBSCRIBE_PATTERN = Regex("(?im)^\\s*(?:[\\p{So}\\p{Sk}❗️!❤️💚💙💛💜🖤🤍🤎]\\s*)*подписывай(ся|тесь)?\\b.*$")
     private val TTS_SUBSCRIPTION_PATTERN = Regex("(?im)^\\s*подписка\\b.*$")
-    private val TTS_AD_PATTERN = Regex("(?im)^.*(реклама|промокод|скидк[аи])\\b.*$")
-    private val TTS_PROMO_PATTERN = Regex("(?im)^.*(акци[яи]|распродажа|купи)\\b.*$")
+    private val TTS_AD_PATTERN = Regex("(?im)^.*\\b(реклама|промокод)\\b.*$")
+    private val TTS_PROMO_PATTERN = Regex("(?im)^.*\\b(распродажа|купи)\\b.*$")
     private val TTS_PHOTO_LINE_PATTERN = Regex("^Фото:.*$", RegexOption.MULTILINE)
     private val TTS_RBK_PATTERN = Regex(
         "^[\\p{So}\\p{Sk}]?\\s*(Читать РБК в Telegram|Следить за новостями РБК в Telegram|(Другие видео|Картина дня).*в телеграм-канале РБК).*$",
@@ -232,7 +232,7 @@ object TextProcessor {
                     val intersection = fp.intersect(existing).size
                     val union = fp.union(existing).size
                     if (union == 0) false
-                    else (intersection.toDouble() / union) > 0.55
+                    else (intersection.toDouble() / union) > 0.7 // Повышено с 0.55 до 0.7 для согласованности с Deduplicator
                 }
             }
 

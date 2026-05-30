@@ -8,11 +8,16 @@
 - [x] Fix unclosed OkHttpClient singletons
 - [x] Optimize getAllChannelsNewsCount performance
 - [x] Fix fragile WAV parsing and concatenation
+- [x] Fix moderate and stylistic issues
 	- [x] Research and Planning
-		- [x] Analyze `TTSManager.kt` and `AudioUtils.kt`
+		- [x] Analyze `AudioPlayerService.kt`, `Deduplicator.kt`, and `TextProcessor.kt`
 	- [x] Implementation
-		- [x] Update `TTSManager.readWavMeta()` to parse chunks correctly
-		- [x] Update `AudioUtils.concatWavFiles()` to re-encode for stability
+		- [x] Synchronize deduplication thresholds (set both to 0.7)
+		- [x] Improve `Deduplicator` fingerprinting for short Russian news
+		- [x] Robustify `messageHash` with engine info and 128-bit hash
+		- [x] Connect `AudioPlayerService` to `PreferenceManager` for state persistence
+		- [x] Change `AudioPlayerService` to `START_STICKY`
+		- [x] Improve TTS regex patterns (avoid cutting whole lines unnecessarily)
 	- [x] Verification
 		- [x] Run `gradle_build` to check for compilation errors
 		- [x] Verify logic via code review

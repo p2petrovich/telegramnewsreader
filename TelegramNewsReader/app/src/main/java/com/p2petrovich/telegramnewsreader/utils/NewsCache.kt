@@ -22,7 +22,7 @@ object NewsCache {
         val content = "${voiceName ?: "default"}|$pitch|$rate|$text"
         val digest = MessageDigest.getInstance("SHA-256")
         val bytes = digest.digest(content.toByteArray(Charsets.UTF_8))
-        return bytes.joinToString("") { "%02x".format(it) }.take(20)
+        return bytes.joinToString("") { "%02x".format(it) } // Используем полный хэш (256 бит) вместо 20 символов
     }
 
     fun findCachedWav(context: Context, hash: String): File? {

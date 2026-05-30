@@ -18,6 +18,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.p2petrovich.telegramnewsreader.R
 import com.p2petrovich.telegramnewsreader.activities.MainActivity
+import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import java.io.File
 import java.io.FileInputStream
 
@@ -68,7 +69,21 @@ class AudioPlayerService : Service() {
         }
     }
 
-    override fun onCreate() { super.onCreate(); createChannel() }
+    override fun onCreate() { 
+        super.onCreate()
+        createChannel()
+        restoreState()
+    }
+
+    private fun restoreState() {
+        val paths = PreferenceManager.getPlaylistPaths(this)
+        if (paths.isNotEmpty()) {
+            playlist = paths
+            currentIndex = PreferenceManager.getPlayerIndex(this).coerceIn(0, (playlist.size - 1).coerceAtLeast(0))
+            Log.d(TAG, "restoreState: restored ${playlist.size} files, index $currentIndex")
+            prepareCurrentSilently()
+        }
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         try {
@@ -80,16 +95,35 @@ class AudioPlayerService : Service() {
                     val realNews = intent.getIntExtra(EXTRA_REAL_NEWS_COUNT, 0)
                     val newsIndices = intent.getIntArrayExtra(EXTRA_NEWS_FILE_INDICES)?.toSet() ?: emptySet()
                     setPlaylist(paths, start, realNews, newsIndices)
+                    
+                    // Сохраняем состояние для восстановления
+                    PreferenceManager.savePlaylistPaths(this, paths)
+                    PreferenceManager.savePlayerIndex(this, start)
                 }
-                ACTION_PLAY -> { if (throttle()) return START_NOT_STICKY; play() }
-                ACTION_PAUSE -> { if (throttle()) return START_NOT_STICKY; pause() }
-                ACTION_STOP -> { stopServiceSafely(); return START_NOT_STICKY }
-                ACTION_NEXT -> { if (throttle()) return START_NOT_STICKY; playNext() }
+                ACTION_PLAY -> { 
+                    if (throttle()) return START_STICKY
+                    play() 
+                    PreferenceManager.savePlayerIsPlaying(this, true)
+                }
+                ACTION_PAUSE -> { 
+                    if (throttle()) return START_STICKY
+                    pause() 
+                    PreferenceManager.savePlayerIsPlaying(this, false)
+                }
+                ACTION_STOP -> { 
+                    stopServiceSafely()
+                    PreferenceManager.clearPlayerState(this)
+                    return START_STICKY 
+                }
+                ACTION_NEXT -> { 
+                    if (throttle()) return START_STICKY
+                    playNext() 
+                }
                 ACTION_REQUEST_STATUS -> { sendProgress(computeProgress().first, computeProgress().second, isActuallyPlaying()) }
             }
             startForeground(NOTIFICATION_ID, buildNotification())
         } catch (e: Exception) { Log.e(TAG, "onStartCommand exception", e) }
-        return START_NOT_STICKY
+        return START_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -205,9 +239,11 @@ class AudioPlayerService : Service() {
         if (currentIndex < playlist.lastIndex) {
             currentIndex++
             Log.d(TAG, "playNext: -> file $currentIndex/${playlist.size}")
+            PreferenceManager.savePlayerIndex(this, currentIndex)
             prepareAndPlay()
         } else {
             Log.d(TAG, "playNext: end of playlist")
+            PreferenceManager.clearPlayerState(this)
             stopServiceSafely()
         }
     }
