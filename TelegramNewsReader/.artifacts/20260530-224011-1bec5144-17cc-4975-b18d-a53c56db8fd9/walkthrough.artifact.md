@@ -31,12 +31,19 @@ Fixed a resource leak by centralizing `OkHttpClient` management.
 
 ## 7. Performance Optimization (News Counting)
 Optimized the process of counting news items across multiple channels.
+- **Parallel Processing**: Switched to parallel `async/awaitAll`.
+- **Granular Timeouts**: Applied `withTimeout` to each individual channel request.
 
-### Changes in [NewsService.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/services/NewsService.kt)
-- **Parallel Processing**: Switched from sequential `forEach` to parallel `async/awaitAll`. This significantly reduces the total time required to update counts for a large number of channels.
-- **Granular Timeouts**: Applied `withTimeout(CHANNEL_TIMEOUT_MS)` (15 seconds) to each individual channel request. This ensures that one "stuck" channel doesn't block the entire process.
-- **Improved Error Handling**: Individual channel failures are now caught and logged as warnings, returning 0 instead of failing the whole operation.
+## 8. Robust Audio Processing (WAV Fixes)
+Improved the reliability of reading and concatenating audio news segments.
+
+### Changes in [TTSManager.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/tts/TTSManager.kt)
+- **Intelligent WAV Parsing**: Replaced fixed-offset metadata reading with a chunk-based iterator in `readWavMeta()`. This correctly identifies `fmt ` and `data` chunks even if they are shifted by extra metadata (like LIST or INFO tags often added by FFmpeg).
+- **Alignment Support**: Correctly handles 2-byte chunk padding, which is part of the WAV specification but often ignored by simple parsers.
+
+### Changes in [AudioUtils.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/AudioUtils.kt)
+- **Stable Concatenation**: Replaced `-c copy` with explicit re-encoding to `pcm_s16le` during the final merge. This ensures that the resulting audio file is structurally sound even if the input segments have non-standard headers or slightly different internal metadata.
 
 ## Verification Results
 - **Compilation**: Successfully built the project with `:app:assembleDebug`.
-- **Performance Audit**: Verified that `coroutineScope` and `async` are used correctly to enable concurrent execution on `Dispatchers.IO`.
+- **Logic Review**: Verified that the chunk iterator correctly uses `RandomAccessFile.seek()` and parses the length of each chunk.

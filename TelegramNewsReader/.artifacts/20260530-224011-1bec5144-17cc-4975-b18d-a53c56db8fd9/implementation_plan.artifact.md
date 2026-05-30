@@ -1,41 +1,26 @@
-# Optimize getAllChannelsNewsCount Performance
+# Fix Fragile WAV Parsing and Concatenation
 
-This plan addresses the performance issue where message counting across multiple channels is done sequentially and without proper timeouts, leading to long wait times and excessive resource usage.
+This plan addresses reliability issues when reading WAV file metadata and concatenating multiple audio segments.
 
 ## Proposed Changes
 
-### Service Component
+### TTS Component
 
-#### [NewsService.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/services/NewsService.kt)
+#### [TTSManager.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/tts/TTSManager.kt)
 
-- Refactor `getAllChannelsNewsCount` to use `coroutineScope` and `async/awaitAll` for parallel processing of channels.
-- Implement per-channel timeout using `withTimeout(CHANNEL_TIMEOUT_MS)`.
-- Ensure proper error handling per channel to prevent one failed request from failing the entire counting process.
+- Refactor `readWavMeta()`:
+    - Replace fixed-offset parsing with a chunk-based iterator.
+    - Correctly find `fmt ` and `data` chunks, regardless of their position or the presence of other metadata chunks (LIST, INFO, etc.).
+    - Account for 2-byte chunk alignment.
 
-```kotlin
-    suspend fun getAllChannelsNewsCount(
-        channels: List<Channel>,
-        timeHours: Double
-    ): Map<Long, Int> = withContext(Dispatchers.IO) {
-        val currentTimeSeconds = System.currentTimeMillis() / 1000
-        val fromDate = currentTimeSeconds - (timeHours * 3600).toLong()
+### Audio Utilities Component
 
-        coroutineScope {
-            channels.map { channel ->
-                async {
-                    channel.id to try {
-                        withTimeout(CHANNEL_TIMEOUT_MS) {
-                            telegramClient.getChannelMessagesPaginated(channel.id, fromDate).size
-                        }
-                    } catch (e: Exception) {
-                        Log.w(TAG, "count failed for channel ${channel.id}: ${e.message}")
-                        0
-                    }
-                }
-            }.awaitAll().toMap()
-        }
-    }
-```
+#### [AudioUtils.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/AudioUtils.kt)
+
+- Refactor `concatWavFiles()`:
+    - Replace `-c copy` with explicit re-encoding to `pcm_s16le`.
+    - Set consistent sample rate (`-ar 24000`) and channels (`-ac 1`).
+    - This ensures that output files are valid even if input segments have slightly different header structures or metadata.
 
 ## Verification Plan
 
@@ -44,7 +29,6 @@ This plan addresses the performance issue where message counting across multiple
 
 ### Manual Verification
 - Code review to ensure:
-    - Channels are processed in parallel using `async`.
-    - `CHANNEL_TIMEOUT_MS` (15s) is applied to each channel request.
-    - Exceptions are caught and logged, returning 0 as a safe fallback.
-    - `withContext(Dispatchers.IO)` and `coroutineScope` are correctly nested.
+    - Chunk iterator correctly handles large `sz` values and alignment.
+    - FFmpeg command arguments are correct for re-encoding.
+    - Resource closing (RandomAccessFile) is preserved.

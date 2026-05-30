@@ -16,10 +16,12 @@ object AudioUtils {
             val concatFile = File(output.parentFile, "concat_input.txt")
             concatFile.writeText(parts.joinToString("\n") { "file '${it.absolutePath}'" })
 
+            // Используем перекодирование pcm_s16le вместо прямого копирования байтов.
+            // Это гарантирует стабильность при разных структурах заголовков WAV.
             val cmd = arrayOf(
                 "-y", "-f", "concat", "-safe", "0",
                 "-i", concatFile.absolutePath,
-                "-c", "copy",
+                "-c:a", "pcm_s16le", "-ar", "24000", "-ac", "1",
                 output.absolutePath
             )
 

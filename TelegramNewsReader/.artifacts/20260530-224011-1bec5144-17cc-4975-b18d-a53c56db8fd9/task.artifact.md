@@ -7,10 +7,12 @@
 - [x] Fix privacy leaks in logs
 - [x] Fix unclosed OkHttpClient singletons
 - [x] Optimize getAllChannelsNewsCount performance
+- [x] Fix fragile WAV parsing and concatenation
 	- [x] Research and Planning
-		- [x] Analyze `NewsService.kt` and `TelegramClient.kt`
+		- [x] Analyze `TTSManager.kt` and `AudioUtils.kt`
 	- [x] Implementation
-		- [x] Update `NewsService.kt` with parallel counting and timeouts
+		- [x] Update `TTSManager.readWavMeta()` to parse chunks correctly
+		- [x] Update `AudioUtils.concatWavFiles()` to re-encode for stability
 	- [x] Verification
 		- [x] Run `gradle_build` to check for compilation errors
 		- [x] Verify logic via code review

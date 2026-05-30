@@ -674,19 +674,56 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     private fun readWavMeta(file: File): WavMeta? {
         return try {
             RandomAccessFile(file, "r").use { raf ->
-                val header = ByteArray(44)
-                raf.readFully(header)
-                val buf = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN)
-                if (String(header.copyOfRange(0, 4)) != "RIFF" || String(header.copyOfRange(8, 12)) != "WAVE") return null
-                val channels = buf.getShort(22).toInt()
-                val sampleRate = buf.getInt(24)
-                val bitsPerSample = buf.getShort(34).toInt()
-                val byteRate = sampleRate * channels * bitsPerSample / 8
-                val dataSize = buf.getInt(40)
-                val durMs = if (byteRate > 0) ((dataSize.toDouble() / byteRate) * 1000).toLong() else 0L
-                WavMeta(sampleRate, channels, bitsPerSample, durMs)
+                val head = ByteArray(12)
+                raf.readFully(head)
+                if (String(head, 0, 4) != "RIFF" || String(head, 8, 4) != "WAVE") return null
+
+                var sampleRate = 0
+                var channels = 0
+                var bits = 0
+                var dataSize = 0L
+                var pos = 12L
+                val len = raf.length()
+                val chunkHeader = ByteArray(8)
+                val buffer = ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN)
+
+                while (pos + 8 <= len) {
+                    raf.seek(pos)
+                    raf.readFully(chunkHeader)
+                    val id = String(chunkHeader, 0, 4, Charsets.US_ASCII)
+                    
+                    buffer.clear()
+                    buffer.put(chunkHeader, 4, 4)
+                    buffer.flip()
+                    val sz = buffer.int.toLong() and 0xFFFFFFFFL
+                    
+                    when (id) {
+                        "fmt " -> {
+                            val fmt = ByteArray(16)
+                            raf.seek(pos + 8)
+                            raf.readFully(fmt)
+                            val b = ByteBuffer.wrap(fmt).order(ByteOrder.LITTLE_ENDIAN)
+                            channels = b.getShort(2).toInt()
+                            sampleRate = b.getInt(4)
+                            bits = b.getShort(14).toInt()
+                        }
+                        "data" -> {
+                            dataSize = sz
+                        }
+                    }
+                    if (id == "data") break
+                    pos += 8 + sz + (sz and 1L) // Чанки выровнены по 2 байта
+                }
+
+                if (sampleRate == 0 || channels == 0 || bits == 0) return null
+                val byteRate = sampleRate * channels * bits / 8
+                val durMs = if (byteRate > 0) (dataSize * 1000 / byteRate) else 0L
+                WavMeta(sampleRate, channels, bits, durMs)
             }
-        } catch (e: Exception) { null }
+        } catch (e: Exception) {
+            Log.e(TAG, "readWavMeta failed for ${file.name}: ${e.message}")
+            null
+        }
     }
 
     private fun createSilenceWav(durationMs: Int, sampleRate: Int = 22050, channels: Int = 1, bitsPerSample: Int = 16): File {
