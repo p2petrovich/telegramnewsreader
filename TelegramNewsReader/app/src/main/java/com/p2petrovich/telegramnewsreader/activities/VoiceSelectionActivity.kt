@@ -196,7 +196,7 @@ class VoiceSelectionActivity : AppCompatActivity() {
         val pitch = sbEdgePitch.progress - 200
 
         CoroutineScope(Dispatchers.IO).launch {
-            val provider = EdgeTtsProvider(voice = voice, ratePct = rate, pitchHz = pitch)
+            val provider = EdgeTtsProvider(context = this@VoiceSelectionActivity, voice = voice, ratePct = rate, pitchHz = pitch)
             val outFile  = File(cacheDir, "edge_test_preview.wav")
             val ok = provider.synthesizeToWav(
                 "Привет! Это голос Edge TTS. Качество звучания Microsoft Neural.", outFile

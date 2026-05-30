@@ -8,6 +8,7 @@ import com.p2petrovich.telegramnewsreader.utils.Deduplicator
 import com.p2petrovich.telegramnewsreader.utils.TextProcessor
 import com.p2petrovich.telegramnewsreader.utils.AiProcessor
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
+import com.p2petrovich.telegramnewsreader.utils.EdgeConfig
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -82,6 +83,10 @@ class NewsService(
         progressCallback: ProgressCallback = object : ProgressCallback {},
         deduplicator: Deduplicator? = null
     ): AudioPlaylist? = withContext(Dispatchers.IO) {
+        val context = ttsManager.getContext()
+        if (PreferenceManager.getTtsEngine(context) == "edge") {
+            EdgeConfig.refreshIfNeeded(context)
+        }
 
         val list = collectAndPrepareMessages(channels, timeHours, progressCallback, deduplicator)
             ?: return@withContext null

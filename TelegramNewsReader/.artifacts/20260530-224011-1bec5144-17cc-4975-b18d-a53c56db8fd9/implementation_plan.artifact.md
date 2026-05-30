@@ -1,31 +1,35 @@
-# Fix Silent News Truncation
+# Fix Hardcoded Edge TTS Version
 
-This plan addresses the issue where news items are silently truncated at a hardcoded limit of 200, potentially losing important content without notifying the user.
+This plan addresses the issue where a hardcoded Chromium version in Edge TTS requests causes 403 Forbidden errors when Microsoft raises the minimum version requirement.
 
 ## Proposed Changes
 
-### Core Logic Component
+### Configuration Component
 
-#### [TextProcessor.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/TextProcessor.kt)
+#### [NEW] [EdgeConfig.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/EdgeConfig.kt)
 
-- Introduce `MAX_NEWS_DEFAULT = 500`.
-- Update `filterMessages` signature to include `maxNews` and `onTruncated` callback.
-- Modify truncation logic:
-    - Only count actual news items towards the limit (exclude channel headers).
-    - Use a `droppedNews` counter and trigger `onTruncated` if any items are removed.
-    - Remove the hardcoded `.take(200)`.
+- Implements dynamic Chromium version fetching from Google's version history API.
+- Caches the version in `SharedPreferences` for 24 hours.
+- Provides `fullVersion(context)` and `majorVersion(context)` for TTS providers.
+- Includes `invalidate(context)` to force a refresh on 403 errors.
+
+### TTS Component
+
+#### [EdgeTtsProvider.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/tts/EdgeTtsProvider.kt)
+
+- Accept `Context` in constructor to access `EdgeConfig`.
+- Use `EdgeConfig` to populate `Sec-MS-GEC-Version` and `User-Agent` headers.
+- Update `onFailure` to detect 403 errors and trigger `EdgeConfig.invalidate()`.
+
+#### [TTSManager.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/tts/TTSManager.kt)
+
+- Update `refreshEdgeProvider()` to pass `context` to the `EdgeTtsProvider` constructor.
+
+### Service Component
 
 #### [NewsService.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/services/NewsService.kt)
 
-- Add `onNewsTruncated(kept: Int, dropped: Int)` to the `ProgressCallback` interface.
-- In `collectAndPrepareMessages`, pass the `onTruncated` signal from `TextProcessor` to the `progressCallback`.
-
-### UI Component
-
-#### [MainActivity.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/activities/MainActivity.kt)
-
-- Implement `onNewsTruncated` in the `ProgressCallback` listener.
-- Show a non-intrusive notification (e.g., a Toast or a UI status update) when news is truncated, suggesting the user reduce the time period or number of channels.
+- In `collectAndPrepareMessages`, call `EdgeConfig.refreshIfNeeded(context)` before starting synthesis if Edge TTS is enabled.
 
 ## Verification Plan
 
@@ -34,6 +38,6 @@ This plan addresses the issue where news items are silently truncated at a hardc
 
 ### Manual Verification
 - Code review to ensure:
-    - Channel headers are correctly identified and excluded from the count.
-    - The `onTruncated` signal is correctly propagated from `TextProcessor` to `MainActivity`.
-    - `MAX_NEWS_DEFAULT` is used as the default value but can be overridden.
+    - Version refresh logic doesn't block the main thread (uses `Dispatchers.IO`).
+    - 403 error handling correctly triggers an invalidation for the next run.
+    - Default values from `ApiConfig` are used as fallback if API fetch fails.

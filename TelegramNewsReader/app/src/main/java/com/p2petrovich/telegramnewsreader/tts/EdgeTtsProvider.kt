@@ -1,9 +1,11 @@
 package com.p2petrovich.telegramnewsreader.tts
 
+import android.content.Context
 import android.util.Log
 import com.arthenica.ffmpegkit.FFmpegKit
 import com.arthenica.ffmpegkit.ReturnCode
 import com.p2petrovich.telegramnewsreader.ApiConfig
+import com.p2petrovich.telegramnewsreader.utils.EdgeConfig
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
@@ -37,6 +39,7 @@ import kotlin.coroutines.resume
  * (с заголовком Path:turn.end), а не как текстовый. Бинарный обработчик это учитывает.
  */
 class EdgeTtsProvider(
+    private val context: Context,
     val voice: String = VOICE_DMITRY,
     val ratePct: Int = 0,   // скорость: -50..+100 (%)
     val pitchHz: Int = 0    // тон: -200..+200 (Hz)
@@ -51,10 +54,6 @@ class EdgeTtsProvider(
         private const val TOKEN = ApiConfig.EDGE_TOKEN
         private const val WS_BASE = ApiConfig.EDGE_WS_BASE
 
-        // Sec-MS-GEC — версия Chromium должна быть актуальной (синхронизировано с rany2/edge-tts)
-        private const val CHROMIUM_FULL_VERSION  = ApiConfig.EDGE_CHROMIUM_FULL_VERSION
-        private const val CHROMIUM_MAJOR_VERSION = ApiConfig.EDGE_CHROMIUM_MAJOR_VERSION
-        private const val SEC_MS_GEC_VERSION     = "1-$CHROMIUM_FULL_VERSION"
         private const val WIN_EPOCH              = 11_644_473_600L
 
         private const val MAX_CHARS = 3000
@@ -147,11 +146,14 @@ class EdgeTtsProvider(
             val requestId    = uuid()
             val timestamp    = isoTimestamp()
             val secMsGec     = generateSecMsGec()
+            
+            val fullVer = EdgeConfig.fullVersion(context)
+            val majorVer = EdgeConfig.majorVersion(context)
 
             val wsUrl = "$WS_BASE" +
                     "?TrustedClientToken=$TOKEN" +
                     "&Sec-MS-GEC=$secMsGec" +
-                    "&Sec-MS-GEC-Version=$SEC_MS_GEC_VERSION" +
+                    "&Sec-MS-GEC-Version=1-$fullVer" +
                     "&ConnectionId=$connectionId"
 
             Log.d(TAG, "synthesizePart start, voice=$voice, length=${text.length}")
@@ -166,8 +168,8 @@ class EdgeTtsProvider(
                 .header("User-Agent",
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
                     "AppleWebKit/537.36 (KHTML, like Gecko) " +
-                    "Chrome/$CHROMIUM_MAJOR_VERSION.0.0.0 Safari/537.36 " +
-                    "Edg/$CHROMIUM_MAJOR_VERSION.0.0.0")
+                    "Chrome/$majorVer.0.0.0 Safari/537.36 " +
+                    "Edg/$majorVer.0.0.0")
                 .build()
 
             val audioBuf = ByteArrayOutputStream()
@@ -237,7 +239,12 @@ class EdgeTtsProvider(
                 }
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                    Log.e(TAG, "WS failure code=${response?.code} msg=${response?.message}", t)
+                    val code = response?.code
+                    Log.e(TAG, "WS failure code=$code msg=${response?.message}", t)
+                    if (code == 403) {
+                        Log.w(TAG, "403 Forbidden received. Invalidating Chromium version.")
+                        EdgeConfig.invalidate(context)
+                    }
                     if (!resumed) {
                         resumed = true
                         if (continuation.isActive) continuation.resume(false)

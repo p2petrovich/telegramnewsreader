@@ -206,6 +206,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     fun refreshEdgeProvider() {
         edgeProvider = if (PreferenceManager.getTtsEngine(context) == "edge") {
             EdgeTtsProvider(
+                context = context,
                 voice   = PreferenceManager.getEdgeVoice(context),
                 ratePct = PreferenceManager.getEdgeRate(context),
                 pitchHz = PreferenceManager.getEdgePitch(context)
