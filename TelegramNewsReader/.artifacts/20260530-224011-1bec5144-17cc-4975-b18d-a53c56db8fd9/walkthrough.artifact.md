@@ -8,22 +8,26 @@ Implemented a watchdog mechanism to prevent infinite loading screens when TDLib 
 
 ## 2. TDLib Encryption Key Loss & Recovery
 Implemented a robust mechanism to handle Android Keystore invalidation and prevent app "bricking".
+- **State Awareness**: Introduced a `KeyResult` sealed class and a plain-text marker to detect if a key existed before a failure.
+- **Automatic Recovery**: The client now deletes corrupted TDLib files and regenerates a new key if unrecoverable loss is detected.
 
-### Changes in [SecurityManager.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/SecurityManager.kt)
-- **State Awareness**: Introduced a `KeyResult` sealed class and a plain-text marker (`db_key_was_created`) to detect if a key existed before a failure.
-- **Error Differentiation**: Distinguishes between "First Launch" (normal), "Key Lost" (Keystore failure/migration), and "Unavailable" (fatal hardware/OS error).
-- **Safe Persistence**: Switched to `commit()` for critical security flags to ensure state is saved immediately.
+## 3. Explicit News Truncation & Transparency
+Fixed the "silent" loss of news due to a hardcoded limit and improved how news volume is handled.
 
-### Changes in [TelegramClient.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/telegram/TelegramClient.kt)
-- **Automatic Recovery**: If `LostNeedsWipe` is detected, the client now:
-    1. Deletes corrupted TDLib database and files.
-    2. Notifies the user about the reset.
-    3. Regenerates a new key and starts fresh.
-- This prevents the app from being stuck in a permanent error state after OS updates or password changes.
+### Changes in [TextProcessor.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/TextProcessor.kt)
+- **Increased Limit**: The default news limit has been raised from 200 to 500 (`MAX_NEWS_DEFAULT`).
+- **Fair Accounting**: Channel headers no longer count towards the limit. Only actual news items consume the "budget".
+- **Explicit Truncation**: Replaced the silent `.take(200)` with a explicit filtering logic that triggers a callback when items are dropped.
+
+### Changes in [NewsService.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/services/NewsService.kt)
+- **Signal Propagation**: Added `onNewsTruncated` to the `ProgressCallback` interface to propagate truncation events from the processing layer to the UI.
+
+### Changes in [MainActivity.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/activities/MainActivity.kt)
+- **User Notification**: Implemented the `onNewsTruncated` listener to show a long-duration Toast informing the user exactly how many news items were excluded and suggesting how to fix it (e.g., reducing the time period).
 
 ## Verification Results
 - **Compilation**: Successfully built the project with `:app:assembleDebug`.
 - **Logic Review**:
-    - Verified `commit()` ensures immediate disk write.
-    - Verified `deleteRecursively()` targets the correct directories from `ApiConfig`.
-    - Verified that `onFatalError` provides a clear, localized message to the user.
+    - Confirmed that `NewsService.isChannelHeader` items are correctly skipped during counting.
+    - Verified that `onTruncated` is only called if `droppedNews > 0`.
+    - Verified the Toast message provides clear and helpful guidance.

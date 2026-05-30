@@ -20,6 +20,7 @@ interface ProgressCallback {
     fun onChannelProcessed(channel: Channel, messagesCount: Int) {}
     fun onDeduplicationComplete(beforeCount: Int, afterCount: Int) {}
     fun onMessageFiltered(originalCount: Int, filteredCount: Int) {}
+    fun onNewsTruncated(kept: Int, dropped: Int) {}
     fun onAiProcessingComplete(beforeCount: Int, afterCount: Int) {}
     fun onSynthesisStarted(messageCount: Int) {}
     fun onSynthesisProgress(current: Int, total: Int) {}
@@ -191,7 +192,15 @@ class NewsService(
                 ensureActive()
 
                 progressCallback.onUpdateProgress("Фильтрация...", 0, 100)
-                val preparedMessages = TextProcessor.filterMessages(deduplicated) { _, _ -> }
+                val preparedMessages = TextProcessor.filterMessages(
+                    deduplicated,
+                    maxNews = TextProcessor.MAX_NEWS_DEFAULT,
+                    onFilterProgress = { _, _ -> },
+                    onTruncated = { kept, dropped ->
+                        progressCallback.onNewsTruncated(kept, dropped)
+                        Log.w(TAG, "Усечено $dropped новостей сверх лимита (оставлено $kept)")
+                    }
+                )
                 val filteredNewsCount = preparedMessages.count { !isChannelHeader(it) }
                 progressCallback.onMessageFiltered(dedupNewsCount, filteredNewsCount)
 

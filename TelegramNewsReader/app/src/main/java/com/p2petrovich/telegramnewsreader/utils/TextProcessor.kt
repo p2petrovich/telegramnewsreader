@@ -87,9 +87,13 @@ object TextProcessor {
 
     // ============ Фильтрация ============
 
+    const val MAX_NEWS_DEFAULT = 500
+
     fun filterMessages(
         messages: List<String>,
-        onFilterProgress: ((originalCount: Int, filteredCount: Int) -> Unit)? = null
+        maxNews: Int = MAX_NEWS_DEFAULT,
+        onFilterProgress: ((originalCount: Int, filteredCount: Int) -> Unit)? = null,
+        onTruncated: ((kept: Int, dropped: Int) -> Unit)? = null
     ): List<String> {
         Log.i(TAG, "====== FILTER START: ${messages.size} messages ======")
 
@@ -101,7 +105,7 @@ object TextProcessor {
         var droppedAfterClean = 0
         var droppedTooLong = 0
 
-        val filtered = messages.mapNotNull { original ->
+        val cleanedList = messages.mapNotNull { original ->
             if (NewsService.isChannelHeader(original)) return@mapNotNull original
 
             val trimmed = original.trim()
@@ -166,14 +170,38 @@ object TextProcessor {
 
             Log.d(TAG, "OK: ${finalMessage.take(80).replace("\n", " | ")}")
             finalMessage
-        }.distinct().take(200)
+        }.distinct()
 
-        Log.i(TAG, "====== FILTER RESULT: ${messages.size} -> ${filtered.size} ======")
+        val limited: List<String>
+        if (maxNews <= 0) {
+            limited = cleanedList
+        } else {
+            var newsCount = 0
+            var droppedNews = 0
+            limited = cleanedList.filter { item ->
+                if (NewsService.isChannelHeader(item)) {
+                    true
+                } else if (newsCount < maxNews) {
+                    newsCount++
+                    true
+                } else {
+                    droppedNews++
+                    false
+                }
+            }
+            if (droppedNews > 0) {
+                Log.w(TAG, "filterMessages: truncated $droppedNews news (kept $newsCount / limit $maxNews)")
+                onTruncated?.invoke(newsCount, droppedNews)
+            }
+        }
+
+        val newsKept = limited.count { !NewsService.isChannelHeader(it) }
+        Log.i(TAG, "====== FILTER RESULT: ${messages.size} -> ${limited.size} (news: $newsKept) ======")
         Log.i(TAG, "  too_short=$droppedTooShort url=$droppedUrlOnly emoji=$droppedEmojiOnly")
         Log.i(TAG, "  media=$droppedBracketTime promo=$droppedPromo empty_clean=$droppedAfterClean trim=$droppedTooLong")
 
-        onFilterProgress?.invoke(messages.size, filtered.size)
-        return filtered
+        onFilterProgress?.invoke(messages.size, limited.size)
+        return limited
     }
 
     // ============ Дедупликация между каналами ============

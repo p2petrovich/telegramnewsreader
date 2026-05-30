@@ -1,51 +1,31 @@
-# Fix TDLib Encryption Key Loss
+# Fix Silent News Truncation
 
-This plan addresses the risk of "bricking" the app if the Android Keystore master key is invalidated (e.g., due to screen lock change or device migration).
+This plan addresses the issue where news items are silently truncated at a hardcoded limit of 200, potentially losing important content without notifying the user.
 
 ## Proposed Changes
 
-### Security Component
+### Core Logic Component
 
-#### [SecurityManager.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/SecurityManager.kt)
+#### [TextProcessor.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/utils/TextProcessor.kt)
 
-- Introduce `KeyResult` sealed class to distinguish between successful key retrieval, unrecoverable key loss (requiring wipe), and general unavailability.
-- Use a plain `SharedPreferences` marker (`db_key_was_created`) to detect if a key existed before the Keystore failure.
-- Implement `getDatabaseEncryptionKeyChecked` with robust error handling for `EncryptedSharedPreferences`.
-- Use `commit()` instead of `apply()` for critical security state persistence.
+- Introduce `MAX_NEWS_DEFAULT = 500`.
+- Update `filterMessages` signature to include `maxNews` and `onTruncated` callback.
+- Modify truncation logic:
+    - Only count actual news items towards the limit (exclude channel headers).
+    - Use a `droppedNews` counter and trigger `onTruncated` if any items are removed.
+    - Remove the hardcoded `.take(200)`.
 
-### Telegram Component
+#### [NewsService.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/services/NewsService.kt)
 
-#### [TelegramClient.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/telegram/TelegramClient.kt)
+- Add `onNewsTruncated(kept: Int, dropped: Int)` to the `ProgressCallback` interface.
+- In `collectAndPrepareMessages`, pass the `onTruncated` signal from `TextProcessor` to the `progressCallback`.
 
-- Update `setTdlibParameters` to handle the new `KeyResult`.
-- Implement a "wipe and recovery" logic: if the key is lost, delete TDLib database and files directories, notify the user, and regenerate a new key for a fresh start.
+### UI Component
 
-```kotlin
-    private fun setTdlibParameters() {
-        val keyResult = SecurityManager.getDatabaseEncryptionKeyChecked(context)
+#### [MainActivity.kt](file:///C:/Telegram_cloude/TelegramNewsReader/app/src/main/java/com/p2petrovich/telegramnewsreader/activities/MainActivity.kt)
 
-        val encryptionKey: ByteArray = when (keyResult) {
-            is SecurityManager.KeyResult.Ok -> keyResult.key
-            is SecurityManager.KeyResult.LostNeedsWipe -> {
-                Log.w(TAG, "DB key lost — wiping TDLib dirs and re-initializing")
-                ApiConfig.tdlibDatabaseDir(context).deleteRecursively()
-                ApiConfig.tdlibFilesDir(context).deleteRecursively()
-                onFatalError?.invoke(
-                    "Ключ шифрования базы был сброшен системой. Данные очищены — потребуется повторный вход в Telegram."
-                )
-                when (val retry = SecurityManager.getDatabaseEncryptionKeyChecked(context)) {
-                    is SecurityManager.KeyResult.Ok -> retry.key
-                    else -> { onFatalError?.invoke("Ошибка безопасности: Android Keystore недоступен."); return }
-                }
-            }
-            is SecurityManager.KeyResult.Unavailable -> {
-                onFatalError?.invoke("Ошибка безопасности: Android Keystore недоступен. Запуск невозможен.")
-                return
-            }
-        }
-        // ... send SetTdlibParameters ...
-    }
-```
+- Implement `onNewsTruncated` in the `ProgressCallback` listener.
+- Show a non-intrusive notification (e.g., a Toast or a UI status update) when news is truncated, suggesting the user reduce the time period or number of channels.
 
 ## Verification Plan
 
@@ -53,6 +33,7 @@ This plan addresses the risk of "bricking" the app if the Android Keystore maste
 - `gradle_build` to verify compilation.
 
 ### Manual Verification
-- Code review of `SecurityManager.kt` logic to ensure all catch blocks correctly handle the "key was created before" flag.
-- Verify `commit()` usage to prevent data loss during crashes.
-- Verify `deleteRecursively()` usage on correct TDLib directories.
+- Code review to ensure:
+    - Channel headers are correctly identified and excluded from the count.
+    - The `onTruncated` signal is correctly propagated from `TextProcessor` to `MainActivity`.
+    - `MAX_NEWS_DEFAULT` is used as the default value but can be overridden.

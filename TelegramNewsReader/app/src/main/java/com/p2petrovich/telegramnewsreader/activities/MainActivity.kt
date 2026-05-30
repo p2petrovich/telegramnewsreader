@@ -1138,6 +1138,16 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            override fun onNewsTruncated(kept: Int, dropped: Int) {
+                runOnUiThread {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Показаны $kept из ${kept + dropped} новостей. Сократите период или число каналов.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+
             override fun onAiProcessingComplete(beforeCount: Int, afterCount: Int) {
                 runOnUiThread {
                     lastToSynthesize = beforeCount
