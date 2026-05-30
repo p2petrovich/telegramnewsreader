@@ -4,6 +4,7 @@
     <include domain="sharedpref" path="."/>
     <exclude domain="sharedpref" path="secret_prefs.xml"/>
     <exclude domain="sharedpref" path="auth_status.xml"/>
+    <exclude domain="sharedpref" path="channel_presets.xml"/>
 
     <!-- Исключаем локальную базу новостей, так как она может быть большой и легко пересоздается -->
     <include domain="database" path="."/>

@@ -4,6 +4,7 @@
         <include domain="sharedpref" path="."/>
         <exclude domain="sharedpref" path="secret_prefs.xml"/>
         <exclude domain="sharedpref" path="auth_status.xml"/>
+        <exclude domain="sharedpref" path="channel_presets.xml"/>
 
         <include domain="database" path="."/>
         <exclude domain="database" path="telegram_news_db"/>
@@ -16,6 +17,7 @@
         <include domain="sharedpref" path="."/>
         <exclude domain="sharedpref" path="secret_prefs.xml"/>
         <exclude domain="sharedpref" path="auth_status.xml"/>
+        <exclude domain="sharedpref" path="channel_presets.xml"/>
 
         <include domain="database" path="."/>
         <exclude domain="database" path="telegram_news_db"/>
