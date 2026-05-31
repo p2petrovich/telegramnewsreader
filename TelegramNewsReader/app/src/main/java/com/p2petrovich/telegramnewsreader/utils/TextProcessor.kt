@@ -7,6 +7,7 @@ import com.p2petrovich.telegramnewsreader.utils.Logx
 object TextProcessor {
 
     private const val TAG = "TextProcessor"
+    private const val CROSS_CHANNEL_JACCARD_THRESHOLD = 0.7
 
     private val PROMO_PATTERNS = listOf(
         Regex("^[🔹🔸🐚].*", RegexOption.IGNORE_CASE),
@@ -232,7 +233,7 @@ object TextProcessor {
                     val intersection = fp.intersect(existing).size
                     val union = fp.union(existing).size
                     if (union == 0) false
-                    else (intersection.toDouble() / union) > 0.7 // Повышено с 0.55 до 0.7 для согласованности с Deduplicator
+                    else (intersection.toDouble() / union) > CROSS_CHANNEL_JACCARD_THRESHOLD
                 }
             }
 
@@ -241,7 +242,7 @@ object TextProcessor {
                 fingerprints.add(fp)
             } else {
                 removedCount++
-                Logx.d(TAG) { "DEDUP [jaccard>0.55] len=${msg.length}" }
+                Logx.d(TAG) { "DEDUP [jaccard>$CROSS_CHANNEL_JACCARD_THRESHOLD] len=${msg.length}" }
             }
         }
 

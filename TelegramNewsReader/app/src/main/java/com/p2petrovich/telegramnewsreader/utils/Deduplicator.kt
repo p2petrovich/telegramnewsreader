@@ -4,7 +4,7 @@ import java.util.LinkedList
 
 class Deduplicator(
     val isEnabled: Boolean = true,
-    private val matchThreshold: Float = 0.7f,
+    private val matchThreshold: Float = 0.9f,
     private val historySize: Int = 500,
     private val timeWindowMinutes: Int = 60
 ) {
