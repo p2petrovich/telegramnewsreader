@@ -325,7 +325,7 @@ object TextProcessor {
 
         // Валюты с масштабом (порядок важен: сначала составные, потом одиночные)
         t = t.replace(
-            Regex("\\$(\\d+[\\d\\s,.]*)\\s*(млн|млрд)\\b", RegexOption.IGNORE_CASE)
+            Regex("\\$\\s?(\\d[\\d\\s,.]*)\\s*(млн|млрд)\\b", RegexOption.IGNORE_CASE)
         ) { m ->
             val num = m.groupValues[1].trim()
             val scale = if (m.groupValues[2].lowercase() == "млн") "миллионов" else "миллиардов"
@@ -346,7 +346,7 @@ object TextProcessor {
             "$num $scale фунтов"
         }
         // Валюты без масштаба
-        t = t.replace(Regex("\\$(\\d+)"), "$1 долларов")
+        t = t.replace(Regex("\\$\\s?(\\d+)"), "$1 долларов")
         t = t.replace(Regex("€(\\d+)"), "$1 евро")
         t = t.replace(Regex("£(\\d+)"), "$1 фунтов")
 
@@ -471,24 +471,49 @@ object TextProcessor {
         }
 
         // Римские числительные перед словом "век"
-        val romanNumerals = mapOf(
-            "I" to "первого", "II" to "второго", "III" to "третьего",
-            "IV" to "четвёртого", "V" to "пятого", "VI" to "шестого",
-            "VII" to "седьмого", "VIII" to "восьмого", "IX" to "девятого",
-            "X" to "десятого", "XI" to "одиннадцатого", "XII" to "двенадцатого",
-            "XIII" to "тринадцатого", "XIV" to "четырнадцатого", "XV" to "пятнадцатого",
-            "XVI" to "шестнадцатого", "XVII" to "семнадцатого", "XVIII" to "восемнадцатого",
-            "XIX" to "девятнадцатого", "XX" to "двадцатого", "XXI" to "двадцать первого",
-            "XXII" to "двадцать второго"
+        // Два прохода: сначала латинские буквы, затем кириллические омоглифы (Х вместо X)
+        // linkedMapOf гарантирует порядок — длинные идут раньше коротких
+        val centuryMap = linkedMapOf(
+            "XXII"  to "двадцать второго",
+            "XXI"   to "двадцать первого",
+            "XX"    to "двадцатого",
+            "XIX"   to "девятнадцатого",
+            "XVIII" to "восемнадцатого",
+            "XVII"  to "семнадцатого",
+            "XVI"   to "шестнадцатого",
+            "XV"    to "пятнадцатого",
+            "XIV"   to "четырнадцатого",
+            "XIII"  to "тринадцатого",
+            "XII"   to "двенадцатого",
+            "XI"    to "одиннадцатого",
+            "X"     to "десятого",
+            "IX"    to "девятого",
+            "VIII"  to "восьмого",
+            "VII"   to "седьмого",
+            "VI"    to "шестого",
+            "V"     to "пятого",
+            "IV"    to "четвёртого",
+            "III"   to "третьего",
+            "II"    to "второго",
+            "I"     to "первого",
+            // Кириллические омоглифы: Х = Х, І = І
+            "ХХІ"   to "двадцать первого",
+            "ХХ"         to "двадцатого",
+            "ХІХ"   to "девятнадцатого",
+            "ХVIII"           to "восемнадцатого",
+            "ХVII"            to "семнадцатого",
+            "ХVI"             to "шестнадцатого",
+            "ХV"              to "пятнадцатого",
+            "ХIV"             to "четырнадцатого",
+            "ХIII"            to "тринадцатого",
+            "ХII"             to "двенадцатого",
+            "ХI"              to "одиннадцатого",
+            "Х"               to "десятого"
         )
-        // Сортируем по убыванию длины, чтобы XXI матчился раньше XX и X
-        val romanPattern = romanNumerals.keys.sortedByDescending { it.length }.joinToString("|")
-        t = t.replace(
-            Regex("\\b($romanPattern)\\s+(век[аеу]?)\\b")
-        ) { m ->
-            val roman = m.groupValues[1]
-            val centuryWord = m.groupValues[2]
-            "${romanNumerals[roman] ?: roman} $centuryWord"
+        centuryMap.forEach { (roman, ordinal) ->
+            t = t.replace(
+                Regex("\\b${Regex.escape(roman)}\\s+(век[аеу]?)\\b")
+            ) { m -> "$ordinal ${m.groupValues[1]}" }
         }
 
         return t
