@@ -1,8 +1,10 @@
 package com.p2petrovich.telegramnewsreader.utils
 
 import android.annotation.SuppressLint
+import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -18,6 +20,9 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+/** Один сохранённый бэкап: отображаемое имя + Uri для чтения + дата. */
+data class BackupItem(val displayName: String, val uri: Uri, val dateMillis: Long)
 
 object SettingsBackup {
     private const val BACKUP_FILE_NAME = "telegram_news_backup.json"
@@ -168,6 +173,62 @@ object SettingsBackup {
             val backupFile = File(downloadsDir, fileName)
             backupFile.writeBytes(data)
             true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    /** Список бэкапов из Downloads (новые сверху). */
+    suspend fun listBackups(context: Context): List<BackupItem> = withContext(Dispatchers.IO) {
+        val items = mutableListOf<BackupItem>()
+        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI
+        } else {
+            MediaStore.Files.getContentUri("external")
+        }
+
+        val projection = arrayOf(
+            MediaStore.MediaColumns._ID,
+            MediaStore.MediaColumns.DISPLAY_NAME,
+            MediaStore.MediaColumns.DATE_ADDED
+        )
+
+        val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ?"
+        val args = arrayOf("telegram_news_backup_%.json")
+        val sort = "${MediaStore.MediaColumns.DATE_ADDED} DESC"
+
+        try {
+            context.contentResolver.query(collection, projection, selection, args, sort)?.use { c ->
+                val idCol = c.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+                val nameCol = c.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
+                val dateCol = c.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_ADDED)
+                while (c.moveToNext()) {
+                    val id = c.getLong(idCol)
+                    val uri = ContentUris.withAppendedId(collection, id)
+                    items.add(
+                        BackupItem(
+                            displayName = c.getString(nameCol),
+                            uri = uri,
+                            dateMillis = c.getLong(dateCol) * 1000L
+                        )
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        items
+    }
+
+    /** Восстановление из выбранного бэкапа. */
+    suspend fun restoreFromUri(context: Context, uri: Uri): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val jsonString = context.contentResolver.openInputStream(uri)
+                ?.bufferedReader(Charsets.UTF_8)
+                ?.use { it.readText() }
+                ?: return@withContext false
+            importFromJson(context, jsonString)
         } catch (e: Exception) {
             e.printStackTrace()
             false

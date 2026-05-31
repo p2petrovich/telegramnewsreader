@@ -1382,7 +1382,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showBackupMenuDialog() {
-        val options = arrayOf("Экспортировать настройки (Экспорт)", "Импортировать настройки (Импорт)")
+        val options = arrayOf(
+            "Создать резервную копию",
+            "Восстановить из копии (выбрать дату)",
+            "Выбрать файл вручную"
+        )
 
         AlertDialog.Builder(this)
             .setTitle("Резервное копирование")
@@ -1399,13 +1403,51 @@ class MainActivity : AppCompatActivity() {
                             ).show()
                         }
                     }
-                    1 -> {
-                        importLauncher.launch(arrayOf("application/json"))
-                    }
+                    1 -> showRestoreByDateDialog()
+                    2 -> importLauncher.launch(arrayOf("application/json"))
                 }
             }
             .setNegativeButton("Назад") { _, _ -> showSettingsDialog() }
             .show()
+    }
+
+    private fun showRestoreByDateDialog() {
+        lifecycleScope.launch {
+            val backups = SettingsBackup.listBackups(this@MainActivity)
+            if (backups.isEmpty()) {
+                Toast.makeText(this@MainActivity, "Резервных копий не найдено", Toast.LENGTH_SHORT).show()
+                showBackupMenuDialog()
+                return@launch
+            }
+
+            val sdf = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.getDefault())
+            val labels = backups.map { sdf.format(java.util.Date(it.dateMillis)) }.toTypedArray()
+
+            AlertDialog.Builder(this@MainActivity)
+                .setTitle("Выберите дату восстановления")
+                .setItems(labels) { _, index ->
+                    val chosen = backups[index]
+                    AlertDialog.Builder(this@MainActivity)
+                        .setTitle("Восстановить?")
+                        .setMessage("Текущие настройки будут заменены копией от ${labels[index]}.")
+                        .setPositiveButton("Восстановить") { _, _ ->
+                            lifecycleScope.launch {
+                                val ok = SettingsBackup.restoreFromUri(this@MainActivity, chosen.uri)
+                                if (ok) {
+                                    Toast.makeText(this@MainActivity, "Настройки восстановлены", Toast.LENGTH_SHORT).show()
+                                    telegramClient.applyProxySettings() // подхватить восстановленный прокси
+                                    recreate()
+                                } else {
+                                    Toast.makeText(this@MainActivity, "Ошибка при восстановлении", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                        .setNegativeButton("Отмена") { _, _ -> showRestoreByDateDialog() }
+                        .show()
+                }
+                .setNegativeButton("Назад") { _, _ -> showBackupMenuDialog() }
+                .show()
+        }
     }
 
     private fun showProxySettingsDialog() {
