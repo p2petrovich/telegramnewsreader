@@ -323,7 +323,29 @@ object TextProcessor {
 
         t = t.replace(Regex("\\b(\\d+[\\d\\s]*)(?:₽|руб\\.?|р\\.)\\b", RegexOption.IGNORE_CASE), "$1 рублей")
 
-        // Валюты
+        // Валюты с масштабом (порядок важен: сначала составные, потом одиночные)
+        t = t.replace(
+            Regex("\\$(\\d+[\\d\\s,.]*)\\s*(млн|млрд)\\b", RegexOption.IGNORE_CASE)
+        ) { m ->
+            val num = m.groupValues[1].trim()
+            val scale = if (m.groupValues[2].lowercase() == "млн") "миллионов" else "миллиардов"
+            "$num $scale долларов"
+        }
+        t = t.replace(
+            Regex("€(\\d+[\\d\\s,.]*)\\s*(млн|млрд)\\b", RegexOption.IGNORE_CASE)
+        ) { m ->
+            val num = m.groupValues[1].trim()
+            val scale = if (m.groupValues[2].lowercase() == "млн") "миллионов" else "миллиардов"
+            "$num $scale евро"
+        }
+        t = t.replace(
+            Regex("£(\\d+[\\d\\s,.]*)\\s*(млн|млрд)\\b", RegexOption.IGNORE_CASE)
+        ) { m ->
+            val num = m.groupValues[1].trim()
+            val scale = if (m.groupValues[2].lowercase() == "млн") "миллионов" else "миллиардов"
+            "$num $scale фунтов"
+        }
+        // Валюты без масштаба
         t = t.replace(Regex("\\$(\\d+)"), "$1 долларов")
         t = t.replace(Regex("€(\\d+)"), "$1 евро")
         t = t.replace(Regex("£(\\d+)"), "$1 фунтов")
@@ -435,7 +457,8 @@ object TextProcessor {
             Regex("\\bМИД\\b")                              to "министерство иностранных дел",
             Regex("\\bФСБ\\b")                              to "ФСБ",
             Regex("\\bМЧС\\b")                              to "МЧС",
-            Regex("\\bВСУ\\b")                              to "украинские войска",
+            Regex("\\bВСУ\\b")                              to "вэ-эс-у",
+            Regex("\\bБПЛА\\b")                             to "бэ-пэ-эл-а",
             Regex("\\bНАТО\\b")                             to "НАТО",
             Regex("\\bпр-т\\b")                             to "проспект",
             Regex("\\bгр\\.\\b")                            to "гражданин",
@@ -447,10 +470,28 @@ object TextProcessor {
             t = t.replace(regex, replacement)
         }
 
-        return t
-    }
+        // Римские числительные перед словом "век"
+        val romanNumerals = mapOf(
+            "I" to "первого", "II" to "второго", "III" to "третьего",
+            "IV" to "четвёртого", "V" to "пятого", "VI" to "шестого",
+            "VII" to "седьмого", "VIII" to "восьмого", "IX" to "девятого",
+            "X" to "десятого", "XI" to "одиннадцатого", "XII" to "двенадцатого",
+            "XIII" to "тринадцатого", "XIV" to "четырнадцатого", "XV" to "пятнадцатого",
+            "XVI" to "шестнадцатого", "XVII" to "семнадцатого", "XVIII" to "восемнадцатого",
+            "XIX" to "девятнадцатого", "XX" to "двадцатого", "XXI" to "двадцать первого",
+            "XXII" to "двадцать второго"
+        )
+        // Сортируем по убыванию длины, чтобы XXI матчился раньше XX и X
+        val romanPattern = romanNumerals.keys.sortedByDescending { it.length }.joinToString("|")
+        t = t.replace(
+            Regex("\\b($romanPattern)\\s+(век[аеу]?)\\b")
+        ) { m ->
+            val roman = m.groupValues[1]
+            val centuryWord = m.groupValues[2]
+            "${romanNumerals[roman] ?: roman} $centuryWord"
+        }
 
-    fun formatForSpeech(text: String): String {
+        (text: String): String {
         if (NewsService.isChannelHeader(text)) return text
 
         var t = text
