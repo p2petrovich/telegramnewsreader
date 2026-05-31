@@ -1382,33 +1382,40 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showBackupMenuDialog() {
-        val options = arrayOf(
-            "Создать резервную копию",
-            "Восстановить из копии (выбрать дату)",
-            "Выбрать файл вручную"
-        )
+        val dialogView = layoutInflater.inflate(R.layout.dialog_backup_menu, null)
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .create()
 
-        AlertDialog.Builder(this)
-            .setTitle("Резервное копирование")
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> {
-                        lifecycleScope.launch {
-                            val createdFileName = SettingsBackup.saveBackupToFile(this@MainActivity)
-                            Toast.makeText(
-                                this@MainActivity,
-                                if (createdFileName != null) getString(R.string.backup_saved, createdFileName)
-                                else "Ошибка при сохранении",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    }
-                    1 -> showRestoreByDateDialog()
-                    2 -> importLauncher.launch(arrayOf("application/json"))
-                }
+        dialogView.findViewById<View>(R.id.btn_create_backup)?.setOnClickListener {
+            dialog.dismiss()
+            lifecycleScope.launch {
+                val createdFileName = SettingsBackup.saveBackupToFile(this@MainActivity)
+                Toast.makeText(
+                    this@MainActivity,
+                    if (createdFileName != null) getString(R.string.backup_saved, createdFileName)
+                    else "Ошибка при сохранении",
+                    Toast.LENGTH_LONG
+                ).show()
             }
-            .setNegativeButton("Назад") { _, _ -> showSettingsDialog() }
-            .show()
+        }
+
+        dialogView.findViewById<View>(R.id.btn_restore_by_date)?.setOnClickListener {
+            dialog.dismiss()
+            showRestoreByDateDialog()
+        }
+
+        dialogView.findViewById<View>(R.id.btn_import_manual)?.setOnClickListener {
+            dialog.dismiss()
+            importLauncher.launch(arrayOf("application/json"))
+        }
+
+        dialogView.findViewById<View>(R.id.btn_back_to_settings)?.setOnClickListener {
+            dialog.dismiss()
+            showSettingsDialog()
+        }
+
+        dialog.show()
     }
 
     private fun showRestoreByDateDialog() {
