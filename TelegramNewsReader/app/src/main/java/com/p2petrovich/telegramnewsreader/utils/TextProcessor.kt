@@ -491,7 +491,10 @@ object TextProcessor {
             "${romanNumerals[roman] ?: roman} $centuryWord"
         }
 
-        (text: String): String {
+        return t
+    }
+
+    fun formatForSpeech(text: String): String {
         if (NewsService.isChannelHeader(text)) return text
 
         var t = text
