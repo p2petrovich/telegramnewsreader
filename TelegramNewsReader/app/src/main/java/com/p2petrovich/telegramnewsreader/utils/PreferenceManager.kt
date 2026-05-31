@@ -69,7 +69,7 @@ object PreferenceManager {
     }
 
     fun getAiModel(context: Context): String =
-        getPreferences(context).getString(KEY_AI_MODEL, "deepseek/deepseek-v4-flash:free") ?: "deepseek/deepseek-v4-flash:free"
+        getPreferences(context).getString(KEY_AI_MODEL, "z-ai/glm-4.5-air:free") ?: "z-ai/glm-4.5-air:free"
 
     fun setAiModel(context: Context, model: String) {
         getPreferences(context).edit().putString(KEY_AI_MODEL, model).apply()
@@ -352,7 +352,7 @@ object PreferenceManager {
 
     fun getDefaultModelForProvider(provider: String): String = when (provider) {
         "groq"       -> "llama-3.3-70b-versatile"
-        "openrouter" -> "deepseek/deepseek-v4-flash:free"
-        else         -> "deepseek/deepseek-v4-flash:free"
+        "openrouter" -> "z-ai/glm-4.5-air:free"
+        else         -> "z-ai/glm-4.5-air:free"
     }
 }

@@ -1567,18 +1567,12 @@ class MainActivity : AppCompatActivity() {
             "groq" -> listOf(
                 "llama-3.3-70b-versatile"                  to "Llama 3.3 70B — быстрый ⚡",
                 "llama-3.1-8b-instant"                     to "Llama 3.1 8B — сверхбыстрый ⚡",
-                "meta-llama/llama-4-scout-17b-16e-instruct" to "Llama 4 Scout — новый ⚡",
-                "deepseek-r1-distill-qwen-32b"             to "DeepSeek R1 Distill — reasoning ⚡",
-                "qwen-qwq-32b"                             to "Qwen QwQ 32B — русский ⚡"
+                "meta-llama/llama-4-scout-17b-16e-instruct" to "Llama 4 Scout — новый ⚡"
             )
             else -> listOf(
-                "deepseek/deepseek-v4-flash:free"        to "DeepSeek V4 Flash — дефолт — FREE",
-                "qwen/qwen3-235b-a22b:free"              to "Qwen3 235B — лучший русский — FREE",
-                "openai/gpt-oss-120b:free"               to "GPT-OSS 120B — качество — FREE",
-                "deepseek/deepseek-r1:free"              to "DeepSeek R1 — reasoning — FREE",
-                "google/gemini-2.0-flash-exp:free"       to "Gemini 2.0 Flash — Google — FREE",
-                "meta-llama/llama-4-scout:free"          to "Llama 4 Scout — лёгкий — FREE",
-                "meta-llama/llama-3.3-70b-instruct:free" to "Llama 3.3 70B — проверенный — FREE"
+                "z-ai/glm-4.5-air:free"                  to "GLM-4.5 Air (Хороший русский) — FREE",
+                "openai/gpt-oss-120b:free"               to "GPT-OSS 120B (Сильный) — FREE",
+                "nvidia/nemotron-3-super-120b-a12b:free" to "Nemotron-3 Super (Стабильный) — FREE"
             )
         }
 
