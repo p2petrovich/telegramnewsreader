@@ -119,7 +119,10 @@ class AudioPlayerService : Service() {
                     if (throttle()) return START_STICKY
                     playNext() 
                 }
-                ACTION_REQUEST_STATUS -> { sendProgress(computeProgress().first, computeProgress().second, isActuallyPlaying()) }
+                ACTION_REQUEST_STATUS -> {
+                    val (cur, total) = computeProgress()
+                    sendProgress(cur, total, isActuallyPlaying())
+                }
             }
             startForeground(NOTIFICATION_ID, buildNotification())
         } catch (e: Exception) { Log.e(TAG, "onStartCommand exception", e) }
@@ -156,7 +159,8 @@ class AudioPlayerService : Service() {
 
         Log.d(TAG, "setPlaylist: ${paths.size} files, news=$totalNewsCount, newsIndices=${newsIndices.size}")
 
-        sendProgress(computeProgress().first, computeProgress().second, false)
+        val (cur, total) = computeProgress()
+        sendProgress(cur, total, false)
         if (playlist.isNotEmpty()) prepareCurrentSilently()
     }
 
@@ -167,7 +171,8 @@ class AudioPlayerService : Service() {
         releasePlayer()
         mediaPlayer = createMediaPlayer(playlist[currentIndex]) {
             updateNotification()
-            sendProgress(computeProgress().first, computeProgress().second, false)
+            val (cur, total) = computeProgress()
+            sendProgress(cur, total, false)
         }
     }
 
@@ -230,7 +235,8 @@ class AudioPlayerService : Service() {
         val mp = mediaPlayer ?: return
         try { if (mp.isPlaying) mp.pause() } catch (_: Exception) {}
         stopProgressUpdates()
-        sendProgress(computeProgress().first, computeProgress().second, false)
+        val (cur, total) = computeProgress()
+        sendProgress(cur, total, false)
         updateNotification()
     }
 
