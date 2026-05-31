@@ -10,7 +10,8 @@ import androidx.annotation.RequiresApi
 import com.p2petrovich.telegramnewsreader.db.AppDatabase
 import com.p2petrovich.telegramnewsreader.models.ChannelPreset
 import com.p2petrovich.telegramnewsreader.models.TelegramChannel
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -30,7 +31,7 @@ object SettingsBackup {
         return "telegram_news_backup_${sdf.format(Date())}.json"
     }
 
-    fun exportToJson(context: Context): String {
+    suspend fun exportToJson(context: Context): String = withContext(Dispatchers.IO) {
         val json = JSONObject()
         json.put("app_signature", APP_SIGNATURE)
         json.put("backup_version", BACKUP_VERSION)
@@ -77,7 +78,7 @@ object SettingsBackup {
         json.put("last_time_period_index", PresetManager.getLastTimePeriodIndex(context))
 
         val db = AppDatabase.getInstance(context)
-        val channels = runBlocking { db.channelDao().getAll() }
+        val channels = db.channelDao().getAll()
         val channelsArray = JSONArray()
         channels.forEach { channel ->
             val channelObj = JSONObject()
@@ -91,11 +92,11 @@ object SettingsBackup {
         }
         json.put("channels", channelsArray)
 
-        return json.toString(4)
+        json.toString(4)
     }
 
-    fun saveBackupToFile(context: Context): String? {
-        return try {
+    suspend fun saveBackupToFile(context: Context): String? = withContext(Dispatchers.IO) {
+        try {
             val jsonString = exportToJson(context)
             val bytes = jsonString.toByteArray(Charsets.UTF_8)
             val fileName = getDatedFileName()
@@ -173,13 +174,13 @@ object SettingsBackup {
         }
     }
 
-    fun importFromJson(context: Context, jsonString: String): Boolean {
-        return try {
+    suspend fun importFromJson(context: Context, jsonString: String): Boolean = withContext(Dispatchers.IO) {
+        try {
             val json = JSONObject(jsonString)
             
             // Валидация файла
-            if (json.optString("app_signature") != APP_SIGNATURE) return false
-            if (json.optInt("backup_version", 0) <= 0) return false
+            if (json.optString("app_signature") != APP_SIGNATURE) return@withContext false
+            if (json.optInt("backup_version", 0) <= 0) return@withContext false
 
             if (json.has("all_preferences")) {
                 val prefsJson = json.getJSONObject("all_preferences")
@@ -256,9 +257,7 @@ object SettingsBackup {
                     )
                 }
                 val db = AppDatabase.getInstance(context)
-                runBlocking {
-                    db.channelDao().replaceChannels(channels)
-                }
+                db.channelDao().replaceChannels(channels)
             }
 
             true

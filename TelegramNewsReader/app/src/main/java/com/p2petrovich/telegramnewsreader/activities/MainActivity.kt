@@ -70,19 +70,18 @@ class MainActivity : AppCompatActivity() {
     private lateinit var ttsManager: TTSManager
     private lateinit var newsService: NewsService
 
-    // Поле для выбора файла через системный проводник
     private val importLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let {
             lifecycleScope.launch {
-                val success = withContext(Dispatchers.IO) {
-                    try {
+                val success = try {
+                    withContext(Dispatchers.IO) {
                         contentResolver.openInputStream(it)?.use { stream ->
                             val jsonString = stream.bufferedReader().use { reader -> reader.readText() }
                             SettingsBackup.importFromJson(this@MainActivity, jsonString)
                         } ?: false
-                    } catch (_: Exception) {
-                        false
                     }
+                } catch (_: Exception) {
+                    false
                 }
                 if (success) {
                     Toast.makeText(this@MainActivity, "Настройки восстановлены", Toast.LENGTH_SHORT).show()
@@ -1391,9 +1390,7 @@ class MainActivity : AppCompatActivity() {
                 when (which) {
                     0 -> {
                         lifecycleScope.launch {
-                            val createdFileName = withContext(Dispatchers.IO) {
-                                SettingsBackup.saveBackupToFile(this@MainActivity)
-                            }
+                            val createdFileName = SettingsBackup.saveBackupToFile(this@MainActivity)
                             Toast.makeText(
                                 this@MainActivity,
                                 if (createdFileName != null) getString(R.string.backup_saved, createdFileName)
