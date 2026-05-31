@@ -15,16 +15,26 @@ import kotlinx.coroutines.Dispatchers
 
 object AiProcessor {
     private const val TAG = "AiProcessor"
-    private const val API_URL = "https://openrouter.ai/api/v1/chat/completions"
+    private const val OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+    private const val GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
     private val client = HttpClients.shared
+
+    private fun providerConfig(context: Context): Triple<String, String, String> {
+        val provider = PreferenceManager.getAiProvider(context)
+        val model = PreferenceManager.getAiModel(context)
+        return when (provider) {
+            "groq" -> Triple(GROQ_URL, BuildConfig.GROQ_API_KEY, model)
+            else -> Triple(OPENROUTER_URL, BuildConfig.OPENROUTER_API_KEY, model)
+        }
+    }
 
     /**
      * Проверяет доступность выбранной модели, отправляя пустой запрос.
      * Возвращает Pair(успех, сообщение)
      */
     suspend fun testModelAvailability(modelName: String, context: Context): Pair<Boolean, String> {
-        val apiKey = BuildConfig.OPENROUTER_API_KEY
+        val (apiUrl, apiKey, _) = providerConfig(context)
         if (apiKey.isBlank()) return false to "API ключ отсутствует"
 
         val json = JSONObject().apply {
@@ -36,17 +46,24 @@ object AiProcessor {
                 })
             }
             put("messages", messages)
-            put("max_tokens", 1) // Минимум токенов для проверки
+            put("max_tokens", 5) // Минимум токенов для проверки
         }
 
         val mediaType = "application/json; charset=utf-8".toMediaType()
         val body = json.toString().toRequestBody(mediaType)
 
-        val request = Request.Builder()
-            .url(API_URL)
+        val requestBuilder = Request.Builder()
+            .url(apiUrl)
             .addHeader("Authorization", "Bearer $apiKey")
             .post(body)
-            .build()
+
+        if (PreferenceManager.getAiProvider(context) == "openrouter") {
+            requestBuilder
+                .addHeader("HTTP-Referer", "https://github.com/p2petrovich/TelegramNewsReader")
+                .addHeader("X-Title", "TelegramNewsReader")
+        }
+
+        val request = requestBuilder.build()
 
         return try {
             val response = withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -55,7 +72,8 @@ object AiProcessor {
             if (response.isSuccessful) {
                 true to "Модель доступна"
             } else {
-                false to "Ошибка ${response.code}: ${response.message}"
+                val errorMsg = response.body?.string() ?: response.message
+                false to "Ошибка ${response.code}: $errorMsg"
             }
         } catch (e: Exception) {
             false to "Сеть недоступна: ${e.message}"
@@ -63,10 +81,10 @@ object AiProcessor {
     }
 
     suspend fun summarizeNews(newsText: String, context: Context): String {
-        val apiKey = BuildConfig.OPENROUTER_API_KEY
+        val (apiUrl, apiKey, modelName) = providerConfig(context)
 
         if (apiKey.isBlank()) {
-            Log.e(TAG, "OpenRouter API Key is missing!")
+            Log.e(TAG, "AI API Key is missing for ${PreferenceManager.getAiProvider(context)}!")
             return "[AI Error: Key missing] $newsText"
         }
 
@@ -75,7 +93,6 @@ object AiProcessor {
         // Ограничение длины входного текста для избежания ошибок 400 (Bad Request / Filtered)
         val safeText = if (newsText.length > 8000) newsText.take(8000) + "..." else newsText
 
-        val modelName = PreferenceManager.getAiModel(context)
         val style = PreferenceManager.getAiStyle(context)
 
 
@@ -166,14 +183,18 @@ object AiProcessor {
             for (attempt in 1..3) {
                 try {
                     val body = json.toString().toRequestBody(mediaType)
-                    val request = Request.Builder()
-                        .url(API_URL)
+                    val requestBuilder = Request.Builder()
+                        .url(apiUrl)
                         .addHeader("Authorization", "Bearer $apiKey")
-                        .addHeader("HTTP-Referer", "https://github.com/p2petrovich/TelegramNewsReader")
-                        .addHeader("X-Title", "TelegramNewsReader")
                         .post(body)
-                        .build()
 
+                    if (PreferenceManager.getAiProvider(context) == "openrouter") {
+                        requestBuilder
+                            .addHeader("HTTP-Referer", "https://github.com/p2petrovich/TelegramNewsReader")
+                            .addHeader("X-Title", "TelegramNewsReader")
+                    }
+
+                    val request = requestBuilder.build()
                     val response = client.newCall(request).execute()
                     val responseBody = response.body?.string()
 
@@ -196,7 +217,8 @@ object AiProcessor {
                             continue
                         }
                     } else {
-                        Log.e(TAG, "OpenRouter error: ${response.code}")
+                        val provider = PreferenceManager.getAiProvider(context)
+                        Log.e(TAG, "$provider error: ${response.code}")
                         return@withContext "[AI Error ${response.code}] $safeText"
                     }
                 } catch (e: Exception) {

@@ -65,10 +65,14 @@ android {
         def openRouterApiKey = System.getenv("OPENROUTER_API_KEY")
                 ?: localProperties.getProperty("openrouter.api.key", "")
 
+        def groqApiKey = System.getenv("GROQ_API_KEY")
+                ?: localProperties.getProperty("groq.api.key", "")
+
         buildConfigField "Integer", "TELEGRAM_API_ID", telegramApiId
         buildConfigField "String", "TELEGRAM_API_HASH", "\"${telegramApiHash}\""
         // [FIX] P3-12: новое имя поля BuildConfig — используется в AiProcessor.kt
         buildConfigField "String", "OPENROUTER_API_KEY", "\"${openRouterApiKey}\""
+        buildConfigField "String", "GROQ_API_KEY", "\"${groqApiKey}\""
 
         manifestPlaceholders = [appName: "News Reader"]
     }

@@ -1538,6 +1538,7 @@ class MainActivity : AppCompatActivity() {
     private fun showAiSettingsDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_ai_settings, null)
         val switchEnabled = dialogView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switch_ai_enabled)
+        val spinnerProvider = dialogView.findViewById<android.widget.Spinner>(R.id.spinner_ai_provider)
         val spinnerModel = dialogView.findViewById<android.widget.Spinner>(R.id.spinner_ai_model)
         val spinnerStyle = dialogView.findViewById<android.widget.Spinner>(R.id.spinner_ai_style)
         val btnTestManual = dialogView.findViewById<android.widget.Button>(R.id.btn_test_ai_model)
@@ -1549,20 +1550,41 @@ class MainActivity : AppCompatActivity() {
 
         switchEnabled.isChecked = PreferenceManager.isAiSummaryEnabled(this)
 
-        val models = listOf(
-            "z-ai/glm-4.5-air:free" to "GLM-4.5 Air (Хороший русский) — FREE",
-            "openai/gpt-oss-120b:free" to "GPT-OSS 120B (Сильный) — FREE",
-            "nvidia/nemotron-3-super-120b-a12b:free" to "Nemotron-3 Super (Стабильный) — FREE",
-            "deepseek/deepseek-v4-flash:free" to "DeepSeek V4 Flash — FREE",
-            "google/gemini-flash-1.5-free" to "Gemini 1.5 Flash (Google) — FREE",
-            "meta-llama/llama-3.3-70b-instruct:free" to "Llama 3.3 70B — FREE"
+        val providers = listOf(
+            "openrouter" to "OpenRouter (Бесплатные модели)",
+            "groq"       to "Groq (Очень быстро, 1000/день)"
         )
+        val providerAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, providers.map { it.second })
+        providerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinnerProvider.adapter = providerAdapter
 
+        val currentProvider = PreferenceManager.getAiProvider(this)
+        spinnerProvider.setSelection(providers.indexOfFirst { it.first == currentProvider }.coerceAtLeast(0))
+
+        fun getModelsForProvider(provider: String): List<Pair<String, String>> = when (provider) {
+            "groq" -> listOf(
+                "llama-3.3-70b-versatile"             to "Llama 3.3 70B — быстрый ⚡",
+                "deepseek-r1-distill-llama-70b"        to "DeepSeek R1 Distill — reasoning ⚡",
+                "qwen-qwq-32b"                         to "Qwen QwQ 32B — русский ⚡",
+                "llama-4-scout-17b-16e-instruct"       to "Llama 4 Scout — новый ⚡",
+                "llama-3.1-8b-instant"                 to "Llama 3.1 8B — сверхбыстрый ⚡"
+            )
+            else -> listOf(
+                "deepseek/deepseek-v4-flash:free"        to "DeepSeek V4 Flash — дефолт — FREE",
+                "qwen/qwen3-235b-a22b:free"              to "Qwen3 235B — лучший русский — FREE",
+                "openai/gpt-oss-120b:free"               to "GPT-OSS 120B — качество — FREE",
+                "deepseek/deepseek-r1:free"              to "DeepSeek R1 — reasoning — FREE",
+                "google/gemini-2.0-flash-exp:free"       to "Gemini 2.0 Flash — Google — FREE",
+                "meta-llama/llama-4-scout:free"          to "Llama 4 Scout — лёгкий — FREE",
+                "meta-llama/llama-3.3-70b-instruct:free" to "Llama 3.3 70B — проверенный — FREE"
+            )
+        }
+
+        var currentModels = getModelsForProvider(currentProvider).toMutableList()
         val modelStatuses = mutableMapOf<String, String>()
-        models.forEach { modelStatuses[it.first] = "⏳" }
-
+        
         val modelAdapter = object : android.widget.ArrayAdapter<Pair<String, String>>(
-            this, R.layout.item_model_status, models
+            this, R.layout.item_model_status, currentModels
         ) {
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
                 return createViewFromResource(position, convertView, parent, R.layout.item_model_status)
@@ -1572,11 +1594,11 @@ class MainActivity : AppCompatActivity() {
             }
             private fun createViewFromResource(position: Int, convertView: View?, parent: ViewGroup, resource: Int): View {
                 val view = convertView ?: layoutInflater.inflate(resource, parent, false)
-                val item = getItem(position)
+                val item = if (position < count) getItem(position) else null
                 val tvName = view.findViewById<TextView>(R.id.tv_model_name)
                 val tvStatus = view.findViewById<TextView>(R.id.tv_model_status)
                 
-                tvName.text = item?.second
+                tvName.text = item?.second ?: ""
                 val status = modelStatuses[item?.first] ?: "⏳"
                 tvStatus.text = status
                 
@@ -1590,13 +1612,41 @@ class MainActivity : AppCompatActivity() {
         }
         spinnerModel.adapter = modelAdapter
 
-        // Запускаем фоновую проверку всех моделей сразу
-        lifecycleScope.launch {
-            models.forEach { modelPair ->
-                val result = AiProcessor.testModelAvailability(modelPair.first, this@MainActivity)
-                modelStatuses[modelPair.first] = if (result.first) "✅" else "❌"
+        fun updateModelsAndCheck(provider: String) {
+            currentModels.clear()
+            currentModels.addAll(getModelsForProvider(provider))
+            modelAdapter.notifyDataSetChanged()
+            
+            val savedModel = PreferenceManager.getAiModel(this)
+            val modelIdx = currentModels.indexOfFirst { it.first == savedModel }.coerceAtLeast(0)
+            spinnerModel.setSelection(modelIdx)
+
+            lifecycleScope.launch {
+                currentModels.forEach { modelPair ->
+                    modelStatuses[modelPair.first] = "⏳"
+                }
                 modelAdapter.notifyDataSetChanged()
+                
+                currentModels.forEach { modelPair ->
+                    val result = AiProcessor.testModelAvailability(modelPair.first, this@MainActivity)
+                    modelStatuses[modelPair.first] = if (result.first) "✅" else "❌"
+                    modelAdapter.notifyDataSetChanged()
+                }
             }
+        }
+
+        spinnerProvider.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val newProvider = providers[position].first
+                if (newProvider != PreferenceManager.getAiProvider(this@MainActivity)) {
+                    PreferenceManager.setAiProvider(this@MainActivity, newProvider)
+                    PreferenceManager.setAiModel(this@MainActivity, PreferenceManager.getDefaultModelForProvider(newProvider))
+                    updateModelsAndCheck(newProvider)
+                } else {
+                    updateModelsAndCheck(currentProvider)
+                }
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
         }
 
         val styles = listOf(
@@ -1609,11 +1659,7 @@ class MainActivity : AppCompatActivity() {
         styleAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinnerStyle.adapter = styleAdapter
 
-        val currentModel = PreferenceManager.getAiModel(this)
         val currentStyle = PreferenceManager.getAiStyle(this)
-
-        val modelIdx = models.indexOfFirst { it.first == currentModel }.coerceAtLeast(0)
-        spinnerModel.setSelection(modelIdx)
 
         val styleIdx = styles.indexOfFirst { it.first == currentStyle }.coerceAtLeast(0)
         spinnerStyle.setSelection(styleIdx)
@@ -1622,7 +1668,7 @@ class MainActivity : AppCompatActivity() {
             .setView(dialogView)
             .setPositiveButton("Сохранить") { _, _ ->
                 PreferenceManager.setAiSummaryEnabled(this, switchEnabled.isChecked)
-                val selectedModel = models[spinnerModel.selectedItemPosition].first
+                val selectedModel = currentModels[spinnerModel.selectedItemPosition].first
                 val selectedStyle = styles[spinnerStyle.selectedItemPosition].first
                 PreferenceManager.setAiModel(this, selectedModel)
                 PreferenceManager.setAiStyle(this, selectedStyle)

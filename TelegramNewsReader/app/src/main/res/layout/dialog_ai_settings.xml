@@ -27,6 +27,17 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:text="Провайдер ИИ:"
+            android:layout_marginBottom="4dp"/>
+        <Spinner
+            android:id="@+id/spinner_ai_provider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:text="Модель ИИ:"
             android:layout_marginBottom="4dp"/>
         <Spinner

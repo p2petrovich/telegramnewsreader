@@ -28,6 +28,7 @@ object PreferenceManager {
     private const val KEY_DEDUP_HISTORY_SIZE = "dedup_history_size"
     private const val KEY_DEDUP_TIME_WINDOW = "dedup_time_window"
     private const val KEY_AI_SUMMARY_ENABLED = "ai_summary_enabled"
+    private const val KEY_AI_PROVIDER = "ai_provider"
     private const val KEY_AI_MODEL = "ai_model"
     private const val KEY_AI_STYLE = "ai_style"
 
@@ -58,6 +59,13 @@ object PreferenceManager {
 
     fun setAiSummaryEnabled(context: Context, enabled: Boolean) {
         getPreferences(context).edit().putBoolean(KEY_AI_SUMMARY_ENABLED, enabled).apply()
+    }
+
+    fun getAiProvider(context: Context): String =
+        getPreferences(context).getString(KEY_AI_PROVIDER, "openrouter") ?: "openrouter"
+
+    fun setAiProvider(context: Context, provider: String) {
+        getPreferences(context).edit().putString(KEY_AI_PROVIDER, provider).apply()
     }
 
     fun getAiModel(context: Context): String =
@@ -340,5 +348,11 @@ object PreferenceManager {
 
     fun saveEdgePitch(context: Context, pitch: Int) {
         getPreferences(context).edit().putInt(KEY_EDGE_PITCH, pitch).apply()
+    }
+
+    fun getDefaultModelForProvider(provider: String): String = when (provider) {
+        "groq"       -> "llama-3.3-70b-versatile"
+        "openrouter" -> "deepseek/deepseek-v4-flash:free"
+        else         -> "deepseek/deepseek-v4-flash:free"
     }
 }
