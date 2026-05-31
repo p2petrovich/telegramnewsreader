@@ -20,6 +20,11 @@ object AiProcessor {
 
     private val client = HttpClients.shared
 
+    private val testClient = HttpClients.shared.newBuilder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
+        .build()
+
     private fun providerConfig(context: Context): Triple<String, String, String> {
         val provider = PreferenceManager.getAiProvider(context)
         val model = PreferenceManager.getAiModel(context)
@@ -67,7 +72,7 @@ object AiProcessor {
 
         return try {
             val response = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                client.newCall(request).execute()
+                testClient.newCall(request).execute()
             }
             if (response.isSuccessful) {
                 true to "Модель доступна"

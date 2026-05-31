@@ -55,6 +55,8 @@ import com.p2petrovich.telegramnewsreader.utils.SettingsBackup
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -1563,11 +1565,11 @@ class MainActivity : AppCompatActivity() {
 
         fun getModelsForProvider(provider: String): List<Pair<String, String>> = when (provider) {
             "groq" -> listOf(
-                "llama-3.3-70b-versatile"             to "Llama 3.3 70B — быстрый ⚡",
-                "deepseek-r1-distill-llama-70b"        to "DeepSeek R1 Distill — reasoning ⚡",
-                "qwen-qwq-32b"                         to "Qwen QwQ 32B — русский ⚡",
-                "llama-4-scout-17b-16e-instruct"       to "Llama 4 Scout — новый ⚡",
-                "llama-3.1-8b-instant"                 to "Llama 3.1 8B — сверхбыстрый ⚡"
+                "llama-3.3-70b-versatile"                  to "Llama 3.3 70B — быстрый ⚡",
+                "llama-3.1-8b-instant"                     to "Llama 3.1 8B — сверхбыстрый ⚡",
+                "meta-llama/llama-4-scout-17b-16e-instruct" to "Llama 4 Scout — новый ⚡",
+                "deepseek-r1-distill-qwen-32b"             to "DeepSeek R1 Distill — reasoning ⚡",
+                "qwen-qwq-32b"                             to "Qwen QwQ 32B — русский ⚡"
             )
             else -> listOf(
                 "deepseek/deepseek-v4-flash:free"        to "DeepSeek V4 Flash — дефолт — FREE",
@@ -1627,11 +1629,13 @@ class MainActivity : AppCompatActivity() {
                 }
                 modelAdapter.notifyDataSetChanged()
                 
-                currentModels.forEach { modelPair ->
-                    val result = AiProcessor.testModelAvailability(modelPair.first, this@MainActivity)
-                    modelStatuses[modelPair.first] = if (result.first) "✅" else "❌"
-                    modelAdapter.notifyDataSetChanged()
-                }
+                currentModels.map { modelPair ->
+                    async {
+                        val result = AiProcessor.testModelAvailability(modelPair.first, this@MainActivity)
+                        modelStatuses[modelPair.first] = if (result.first) "✅" else "❌"
+                        withContext(Dispatchers.Main) { modelAdapter.notifyDataSetChanged() }
+                    }
+                }.awaitAll()
             }
         }
 
