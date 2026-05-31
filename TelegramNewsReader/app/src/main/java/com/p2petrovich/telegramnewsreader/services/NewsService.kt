@@ -250,8 +250,12 @@ class NewsService(
                                 msg
                             } else {
                                 semaphore.withPermit {
-                                    val rawResult = AiProcessor.summarizeNews(msg, context)
-                                    val summarized = AiProcessor.stripErrorPrefix(rawResult)
+                                    // Сохраняем временной префикс "ЧЧ:ММ — " перед отправкой в ИИ
+                                    val timePrefix = Regex("^\\d{2}:\\d{2}\\s*—\\s*").find(msg)?.value ?: ""
+                                    val msgWithoutPrefix = if (timePrefix.isNotEmpty()) msg.removePrefix(timePrefix) else msg
+
+                                    val rawResult = AiProcessor.summarizeNews(msgWithoutPrefix, context)
+                                    val summarized = timePrefix + AiProcessor.stripErrorPrefix(rawResult)
                                     synchronized(this@NewsService) {
                                         processedCount++
                                         progressCallback.onUpdateProgress("Сжатие через ИИ...", processedCount, totalToSynthesizeBeforeAi)
