@@ -10,14 +10,31 @@
         android:id="@+id/switch_proxy_enabled"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Использовать MTProto прокси"
+        android:text="Использовать прокси"
+        android:layout_marginBottom="8dp" />
+
+    <com.google.android.material.materialswitch.MaterialSwitch
+        android:id="@+id/switch_auto_proxy"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Автопереключение прокси"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:id="@+id/tv_connections_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Подключения"
+        android:textColor="?attr/colorPrimary"
+        android:textStyle="bold"
         android:layout_marginBottom="8dp" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recycler_proxies"
         android:layout_width="match_parent"
-        android:layout_height="200dp"
-        android:layout_marginBottom="8dp" />
+        android:layout_height="wrap_content"
+        android:minHeight="40dp"
+        android:layout_marginBottom="4dp" />
 
     <TextView
         android:id="@+id/tv_proxies_empty"
@@ -28,41 +45,23 @@
         android:visibility="gone"
         android:layout_marginBottom="8dp" />
 
-    <LinearLayout
+    <Button
+        android:id="@+id/btn_add_proxy"
+        style="@style/Widget.Material3.Button.TextButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal">
-
-        <Button
-            android:id="@+id/btn_add_proxy"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Добавить" />
-
-        <Button
-            android:id="@+id/btn_paste_proxy"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Вставить"
-            android:layout_marginStart="8dp" />
-    </LinearLayout>
+        android:text="Добавить прокси"
+        android:gravity="start|center_vertical"
+        android:paddingStart="0dp"
+        android:paddingEnd="0dp" />
 
     <LinearLayout
-        android:id="@+id/layout_auto_switch"
+        android:id="@+id/layout_auto_switch_settings"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:layout_marginTop="16dp"
         android:visibility="gone">
-
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/switch_auto_proxy"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Автопереключение" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -82,5 +81,18 @@
                 android:layout_marginStart="8dp" />
         </LinearLayout>
     </LinearLayout>
+
+    <!-- Kept for compatibility with MainActivity but hidden -->
+    <Button
+        android:id="@+id/btn_paste_proxy"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/layout_auto_switch"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
 
 </LinearLayout>

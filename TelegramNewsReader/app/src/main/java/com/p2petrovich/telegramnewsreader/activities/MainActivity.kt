@@ -1466,8 +1466,7 @@ class MainActivity : AppCompatActivity() {
         val recycler = dialogView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recycler_proxies)
         val tvEmpty = dialogView.findViewById<TextView>(R.id.tv_proxies_empty)
         val btnAdd = dialogView.findViewById<Button>(R.id.btn_add_proxy)
-        val btnPaste = dialogView.findViewById<Button>(R.id.btn_paste_proxy)
-        val layoutAuto = dialogView.findViewById<LinearLayout>(R.id.layout_auto_switch)
+        val layoutAuto = dialogView.findViewById<LinearLayout>(R.id.layout_auto_switch_settings)
         val swAuto = dialogView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switch_auto_proxy)
         val spinnerInterval = dialogView.findViewById<Spinner>(R.id.spinner_proxy_interval)
 
@@ -1485,40 +1484,25 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        val adapter = ProxyAdapter(
-            proxies = proxies,
-            onProxySelected = { selected ->
-                proxies.forEach { it.isEnabled = it.id == selected.id }
-                PreferenceManager.saveProxyList(this, proxies)
-                (recycler.adapter as? ProxyAdapter)?.updateData(proxies)
-            },
-            onProxyEdit = { proxy ->
-                showAddEditProxyDialog(proxy) { updated ->
-                    val idx = proxies.indexOfFirst { it.id == updated.id }
-                    if (idx >= 0) {
-                        proxies[idx] = updated
-                        PreferenceManager.saveProxyList(this, proxies)
-                        (recycler.adapter as? ProxyAdapter)?.updateData(proxies)
+        var adapter: ProxyAdapter? = null
+
+        val testAllProxies = {
+            proxies.forEach { proxy ->
+                telegramClient.testProxy(proxy.host, proxy.port, proxy.secret) { ping, error ->
+                    runOnUiThread {
+                        if (ping != null) {
+                            val ms = (ping * 1000).toInt()
+                            val status = if (ms == 0) "✅ Доступен" else "✅ $ms мс"
+                            val color = 0xFF4CAF50.toInt()
+                            adapter?.updatePing(proxy.id, status, color)
+                        } else {
+                            val color = 0xFFFF5252.toInt()
+                            adapter?.updatePing(proxy.id, "Недоступен", color)
+                        }
                     }
                 }
-            },
-            onProxyDelete = { proxy ->
-                AlertDialog.Builder(this)
-                    .setMessage("Удалить прокси ${proxy.host}?")
-                    .setPositiveButton("Удалить") { _, _ ->
-                        proxies.removeAll { it.id == proxy.id }
-                        PreferenceManager.saveProxyList(this, proxies)
-                        (recycler.adapter as? ProxyAdapter)?.updateData(proxies)
-                        updateEmptyState()
-                    }
-                    .setNegativeButton("Отмена", null)
-                    .show()
             }
-        )
-
-        recycler.layoutManager = LinearLayoutManager(this)
-        recycler.adapter = adapter
-        updateEmptyState()
+        }
 
         swEnabled.isChecked = PreferenceManager.isProxyEnabled(this)
         swAuto.isChecked = PreferenceManager.isProxyAutoSwitchEnabled(this)
@@ -1529,42 +1513,7 @@ class MainActivity : AppCompatActivity() {
         spinnerInterval.adapter = intervalAdapter
         spinnerInterval.setSelection(intervals.indexOf(PreferenceManager.getProxySwitchInterval(this)).coerceAtLeast(0))
 
-        btnAdd.setOnClickListener {
-            showAddEditProxyDialog(null) { newProxy ->
-                if (proxies.isEmpty()) newProxy.isEnabled = true
-                proxies.add(newProxy)
-                PreferenceManager.saveProxyList(this, proxies)
-                adapter.updateData(proxies)
-                updateEmptyState()
-            }
-        }
-
-        btnPaste.setOnClickListener {
-            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            val text = clipboard.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
-            if (text.startsWith("tg://proxy?") || text.startsWith("https://t.me/proxy?")) {
-                val uri = Uri.parse(text.replace("tg://proxy", "https://t.me/proxy"))
-                val host = uri.getQueryParameter("server") ?: ""
-                val port = uri.getQueryParameter("port")?.toIntOrNull() ?: 0
-                val secret = uri.getQueryParameter("secret") ?: ""
-
-                if (host.isNotEmpty() && port > 0 && secret.isNotEmpty()) {
-                    val newProxy = ProxyEntry(host = host, port = port, secret = secret)
-                    if (proxies.isEmpty()) newProxy.isEnabled = true
-                    proxies.add(newProxy)
-                    PreferenceManager.saveProxyList(this, proxies)
-                    adapter.updateData(proxies)
-                    updateEmptyState()
-                    Toast.makeText(this, "Прокси добавлен из буфера", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this, "Неверный формат ссылки", Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                Toast.makeText(this, "В буфере нет ссылки на прокси", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle("Настройки MTProto")
             .setView(dialogView)
             .setPositiveButton("Сохранить") { _, _ ->
@@ -1578,7 +1527,46 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("Отмена") { _, _ -> showSettingsDialog() }
             .setOnCancelListener { showSettingsDialog() }
-            .show()
+            .create()
+
+        adapter = ProxyAdapter(
+            proxies = proxies,
+            onProxySelected = { selected ->
+                proxies.forEach { it.isEnabled = it.id == selected.id }
+                PreferenceManager.saveProxyList(this, proxies)
+                adapter?.updateData(proxies)
+                telegramClient.applyProxySettings()
+            },
+            onProxyEdit = { proxy ->
+                dialog.dismiss()
+                showAddEditProxyDialog(proxy) { updated ->
+                    val idx = proxies.indexOfFirst { it.id == updated.id }
+                    if (idx >= 0) {
+                        proxies[idx] = updated
+                        PreferenceManager.saveProxyList(this, proxies)
+                        showProxySettingsDialog()
+                    }
+                }
+            },
+            onProxyTest = { _, _ -> }
+        )
+
+        recycler.layoutManager = LinearLayoutManager(this)
+        recycler.adapter = adapter
+        updateEmptyState()
+        testAllProxies()
+
+        btnAdd.setOnClickListener {
+            dialog.dismiss()
+            showAddEditProxyDialog(null) { newProxy ->
+                if (proxies.isEmpty()) newProxy.isEnabled = true
+                proxies.add(newProxy)
+                PreferenceManager.saveProxyList(this, proxies)
+                showProxySettingsDialog()
+            }
+        }
+
+        dialog.show()
     }
 
     private fun showAddEditProxyDialog(proxy: ProxyEntry?, onSaved: (ProxyEntry) -> Unit) {
@@ -1586,17 +1574,20 @@ class MainActivity : AppCompatActivity() {
         val etHost = dialogView.findViewById<EditText>(R.id.et_proxy_host)
         val etPort = dialogView.findViewById<EditText>(R.id.et_proxy_port)
         val etSecret = dialogView.findViewById<EditText>(R.id.et_proxy_secret)
+        val btnPaste = dialogView.findViewById<Button>(R.id.btn_paste_inline)
+        val btnDelete = dialogView.findViewById<Button>(R.id.btn_delete_proxy_inline)
 
         if (proxy != null) {
             etHost.setText(proxy.host)
             etPort.setText(proxy.port.toString())
             etSecret.setText(proxy.secret)
+            btnDelete.visibility = View.VISIBLE
         }
 
-        AlertDialog.Builder(this)
-            .setTitle(if (proxy == null) "Добавить прокси" else "Редактировать прокси")
+        val alertDialog = AlertDialog.Builder(this)
+            .setTitle("Прокси-сервер")
             .setView(dialogView)
-            .setPositiveButton("ОК") { _, _ ->
+            .setPositiveButton("Готово") { _, _ ->
                 val host = etHost.text.toString().trim()
                 val port = etPort.text.toString().toIntOrNull() ?: 0
                 val secret = etSecret.text.toString().trim()
@@ -1607,10 +1598,41 @@ class MainActivity : AppCompatActivity() {
                     onSaved(updated)
                 } else {
                     Toast.makeText(this, "Заполните все поля", Toast.LENGTH_SHORT).show()
+                    showProxySettingsDialog()
                 }
             }
-            .setNegativeButton("Отмена", null)
-            .show()
+            .setNegativeButton("Отмена") { _, _ ->
+                showProxySettingsDialog()
+            }
+            .setOnCancelListener {
+                showProxySettingsDialog()
+            }
+            .create()
+
+        btnPaste.setOnClickListener {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            val text = clipboard.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
+            if (text.startsWith("tg://proxy?") || text.startsWith("https://t.me/proxy?")) {
+                val uri = Uri.parse(text.replace("tg://proxy", "https://t.me/proxy"))
+                etHost.setText(uri.getQueryParameter("server") ?: "")
+                etPort.setText(uri.getQueryParameter("port") ?: "")
+                etSecret.setText(uri.getQueryParameter("secret") ?: "")
+            } else {
+                Toast.makeText(this, "В буфере нет ссылки на прокси", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        btnDelete.setOnClickListener {
+            if (proxy != null) {
+                val proxies = PreferenceManager.getProxyList(this).toMutableList()
+                proxies.removeAll { it.id == proxy.id }
+                PreferenceManager.saveProxyList(this, proxies)
+                alertDialog.dismiss()
+                showProxySettingsDialog()
+            }
+        }
+
+        alertDialog.show()
     }
 
     private fun showAiSettingsDialog() {
