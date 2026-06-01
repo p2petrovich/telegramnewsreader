@@ -436,31 +436,33 @@ class TelegramClient(private val context: Context) {
 
     fun applyProxySettings() {
         if (PreferenceManager.isProxyEnabled(context)) {
-            val host = PreferenceManager.getProxyHost(context)
-            val port = PreferenceManager.getProxyPort(context)
-            val secret = extractSecret(PreferenceManager.getProxySecret(context))
+            val proxies = PreferenceManager.getProxyList(context)
+            val activeProxy = proxies.find { it.isEnabled }
 
-            if (host.isNotEmpty() && port > 0) {
-                // Сначала удаляем все старые прокси
-                client?.send(TdApi.GetProxies()) { result ->
-                    if (result is TdApi.Proxies) {
-                        result.proxies.forEach { p ->
-                            client?.send(TdApi.RemoveProxy(p.id)) {}
-                        }
-                    }
-                    val proxyType = TdApi.ProxyTypeMtproto(secret)
-                    Log.d(TAG, "Applying MTProto proxy: $host:$port")
-                    client?.send(TdApi.AddProxy(host, port, true, proxyType)) { res ->
-                        if (res is TdApi.Proxy) {
-                            client?.send(TdApi.EnableProxy(res.id)) {
-                                Log.d(TAG, "Proxy applied and enabled")
+            if (activeProxy != null) {
+                val host = activeProxy.host
+                val port = activeProxy.port
+                val secret = extractSecret(activeProxy.secret)
+
+                if (host.isNotEmpty() && port > 0) {
+                    client?.send(TdApi.GetProxies()) { result ->
+                        if (result is TdApi.Proxies) {
+                            result.proxies.forEach { p ->
+                                client?.send(TdApi.RemoveProxy(p.id)) {}
                             }
-                        } else if (res is TdApi.Error) {
-                            Log.e(TAG, "Failed to add proxy: ${res.code} - ${res.message}")
+                        }
+                        val proxyType = TdApi.ProxyTypeMtproto(secret)
+                        Log.d(TAG, "Applying MTProto proxy: $host:$port")
+                        client?.send(TdApi.AddProxy(host, port, true, proxyType)) { res ->
+                            if (res is TdApi.Proxy) {
+                                client?.send(TdApi.EnableProxy(res.id)) {
+                                    Log.d(TAG, "Proxy applied and enabled")
+                                }
+                            }
                         }
                     }
+                    return
                 }
-                return
             }
         }
         client?.send(TdApi.DisableProxy()) {

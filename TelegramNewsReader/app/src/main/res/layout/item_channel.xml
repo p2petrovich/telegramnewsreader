@@ -38,7 +38,7 @@
             android:maxLines="1"
             android:textAppearance="?attr/textAppearanceTitleSmall"
             app:layout_constraintBottom_toTopOf="@id/textNewMessages"
-            app:layout_constraintEnd_toStartOf="@id/imageFavorite"
+            app:layout_constraintEnd_toStartOf="@id/checkboxChannel"
             app:layout_constraintStart_toEndOf="@id/ivAvatar"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintVertical_chainStyle="packed"
@@ -55,17 +55,6 @@
             app:layout_constraintStart_toStartOf="@id/textChannelName"
             app:layout_constraintTop_toBottomOf="@id/textChannelName"
             tools:text="15 новых" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/imageFavorite"
-            style="@style/Widget.Material3.Button.IconButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            app:icon="@drawable/ic_star_border"
-            app:iconSize="18dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toStartOf="@id/checkboxChannel"
-            app:layout_constraintTop_toTopOf="parent" />
 
         <com.google.android.material.checkbox.MaterialCheckBox
             android:id="@+id/checkboxChannel"

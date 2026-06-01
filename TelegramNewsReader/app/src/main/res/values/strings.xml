@@ -12,7 +12,6 @@
     <string name="next">Далее</string>
     <string name="voice_male">Мужской голос</string>
     <string name="voice_female">Женский голос</string>
-    <string name="favorites">Избранные</string>
     <string name="preview_text">Найдено %1$d новостей, ~%2$d мин</string>
     <string name="save_preset">Сохранить набор</string>
     <string name="manage_presets">Все наборы</string>
@@ -48,6 +47,7 @@
     <string name="dedup_threshold_percent">%1$d%%</string>
     <string name="dedup_history_count">%1$d сообщений</string>
     <string name="dedup_time_minutes">%1$d минут</string>
+    <string name="dedup_time_hours">%1$d ч</string>
     <string name="channels_progress">Прогресс по каналам: %1$d из %2$d</string>
     <string name="channel_news_count">Новостей: %1$d</string>
     <string name="channel_processing">Обработка…</string>

@@ -25,10 +25,7 @@ class ChannelAdapter(
     private var isFiltered = false
 
     fun updateChannels(newChannels: List<Channel>) {
-        newChannels.forEach { it.isFavorite = PreferenceManager.isChannelFavorite(context, it.id) }
-        val sorted = newChannels.sortedWith(
-            compareBy<Channel> { !it.isFavorite }.thenBy { it.title.lowercase() }
-        )
+        val sorted = newChannels.sortedBy { it.title.lowercase() }
         allChannels.clear()
         allChannels.addAll(sorted)
         if (isFiltered) {
@@ -48,6 +45,14 @@ class ChannelAdapter(
     fun clearFilter() {
         isFiltered = false
         applyDisplayList(allChannels.toList())
+    }
+
+    fun deselectAll() {
+        allChannels.forEach { it.isSelected = false }
+        isFiltered = false
+        displayedChannels.clear()
+        displayedChannels.addAll(allChannels)
+        notifyDataSetChanged()
     }
 
     fun isFilterActive(): Boolean = isFiltered
@@ -94,14 +99,6 @@ class ChannelAdapter(
             else
                 context.getString(R.string.channel_no_news)
 
-            channel.isFavorite = PreferenceManager.isChannelFavorite(context, channel.id)
-            if (channel.isFavorite) {
-                binding.imageFavorite.setIconResource(R.drawable.ic_star)
-                binding.imageFavorite.visibility = View.VISIBLE
-            } else {
-                binding.imageFavorite.visibility = View.GONE
-            }
-
             val path = channel.photoPath
             if (!path.isNullOrBlank()) {
                 val f = File(path)
@@ -121,14 +118,6 @@ class ChannelAdapter(
                 channel.isSelected = isChecked
                 onSelectionChanged(channel, isChecked)
             }
-            binding.root.setOnClickListener {
-                channel.isFavorite = !channel.isFavorite
-                if (channel.isFavorite)
-                    PreferenceManager.addFavoriteChannel(context, channel.id)
-                else
-                    PreferenceManager.removeFavoriteChannel(context, channel.id)
-                resortAndUpdate()
-            }
             binding.root.setOnLongClickListener {
                 onHideRequest(channel)
                 true
@@ -144,9 +133,7 @@ class ChannelAdapter(
     }
 
     private fun resortAndUpdate() {
-        val sortedAll = allChannels.sortedWith(
-            compareBy<Channel> { !it.isFavorite }.thenBy { it.title.lowercase() }
-        )
+        val sortedAll = allChannels.sortedBy { it.title.lowercase() }
         allChannels.clear()
         allChannels.addAll(sortedAll)
         val newDisplayed = if (isFiltered) {
@@ -167,7 +154,7 @@ class ChannelAdapter(
             val old = oldList[oldPos]
             val new = newList[newPos]
             return old.title == new.title && old.isSelected == new.isSelected &&
-                    old.isFavorite == new.isFavorite && old.newMessagesCount == new.newMessagesCount &&
+                    old.newMessagesCount == new.newMessagesCount &&
                     old.photoPath == new.photoPath
         }
     }

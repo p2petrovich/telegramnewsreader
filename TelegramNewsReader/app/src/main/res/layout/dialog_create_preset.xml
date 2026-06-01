@@ -23,13 +23,19 @@
         android:maxLength="40"
         android:layout_marginTop="4dp" />
 
-    <CheckBox
-        android:id="@+id/cb_save_time_period"
+    <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Сохранить текущий период"
-        android:checked="true"
+        android:text="Период новостей"
+        android:textSize="14sp"
+        android:textColor="?android:textColorSecondary"
         android:layout_marginTop="12dp" />
+
+    <Spinner
+        android:id="@+id/spinner_preset_time"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp" />
 
     <TextView
         android:id="@+id/tv_selected_info"

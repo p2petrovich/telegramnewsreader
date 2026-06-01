@@ -15,11 +15,13 @@ import android.text.method.ScrollingMovementMethod
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.SeekBar
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -36,9 +38,11 @@ import com.p2petrovich.telegramnewsreader.R
 import com.p2petrovich.telegramnewsreader.TelegramNewsApplication
 import com.p2petrovich.telegramnewsreader.adapters.ChannelAdapter
 import com.p2petrovich.telegramnewsreader.adapters.PresetAdapter
+import com.p2petrovich.telegramnewsreader.adapters.ProxyAdapter
 import com.p2petrovich.telegramnewsreader.databinding.ActivityMainBinding
 import com.p2petrovich.telegramnewsreader.models.Channel
 import com.p2petrovich.telegramnewsreader.models.ChannelPreset
+import com.p2petrovich.telegramnewsreader.models.ProxyEntry
 import com.p2petrovich.telegramnewsreader.services.AudioPlayerService
 import com.p2petrovich.telegramnewsreader.services.NewsService
 import com.p2petrovich.telegramnewsreader.services.ProgressCallback
@@ -238,15 +242,16 @@ class MainActivity : AppCompatActivity() {
         val currentEnabled = PreferenceManager.isDedupEnabled(this)
         val currentThreshold = PreferenceManager.getDedupThreshold(this)
         val currentHistorySize = PreferenceManager.getDedupHistorySize(this)
-        val currentTimeWindow = PreferenceManager.getDedupTimeWindow(this)
+        val currentTimeWindowMinutes = PreferenceManager.getDedupTimeWindow(this)
+        val currentTimeWindowHours = (currentTimeWindowMinutes / 60).coerceIn(0, 24)
 
         cbEnabled.isChecked = currentEnabled
         sbThreshold.progress = (currentThreshold * 100).toInt()
         tvThresholdValue.text = getString(R.string.dedup_threshold_percent, (currentThreshold * 100).toInt())
         sbHistorySize.progress = currentHistorySize
         tvHistoryValue.text = getString(R.string.dedup_history_count, currentHistorySize)
-        sbTimeWindow.progress = currentTimeWindow
-        tvTimeValue.text = getString(R.string.dedup_time_minutes, currentTimeWindow)
+        sbTimeWindow.progress = currentTimeWindowHours
+        tvTimeValue.text = getString(R.string.dedup_time_hours, currentTimeWindowHours)
 
         sbThreshold.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -266,7 +271,7 @@ class MainActivity : AppCompatActivity() {
 
         sbTimeWindow.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                tvTimeValue.text = getString(R.string.dedup_time_minutes, progress)
+                tvTimeValue.text = getString(R.string.dedup_time_hours, progress)
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
@@ -279,7 +284,7 @@ class MainActivity : AppCompatActivity() {
                 PreferenceManager.setDedupEnabled(this, cbEnabled.isChecked)
                 PreferenceManager.setDedupThreshold(this, sbThreshold.progress / 100f)
                 PreferenceManager.setDedupHistorySize(this, sbHistorySize.progress)
-                PreferenceManager.setDedupTimeWindow(this, sbTimeWindow.progress)
+                PreferenceManager.setDedupTimeWindow(this, sbTimeWindow.progress * 60)
                 // Сбрасываем дедупликатор, чтобы применить новые настройки
                 resetDeduplicator()
                 Toast.makeText(this, "Настройки сохранены", Toast.LENGTH_SHORT).show()
@@ -571,17 +576,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun deselectAllChannels() {
-        val allChannels = channelAdapter.getAllChannels()
-        val hadSelection = allChannels.any { it.isSelected }
-        val hadFilter = channelAdapter.isFilterActive()
-
-        if (!hadSelection && !hadFilter) {
-            Toast.makeText(this, "Каналы не выбраны", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        allChannels.forEach { it.isSelected = false }
-        channelAdapter.clearFilter()
+        channelAdapter.deselectAll()
 
         activePresetId = null
         PresetManager.setActivePresetId(this, null)
@@ -606,6 +601,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         channelAdapter.filterByPreset(preset.channelIds)
+        channelAdapter.refreshVisibleItems()
 
         updateNewsCollectionButton()
         PresetManager.saveLastSelection(this, preset.channelIds, preset.timePeriodIndex)
@@ -654,8 +650,13 @@ class MainActivity : AppCompatActivity() {
     private fun showCreatePresetDialog(selectedChannels: List<Channel>) {
         val dialogView = layoutInflater.inflate(R.layout.dialog_create_preset, null)
         val etName = dialogView.findViewById<EditText>(R.id.et_preset_name)
-        val cbSaveTime = dialogView.findViewById<CheckBox>(R.id.cb_save_time_period)
+        val spinnerTime = dialogView.findViewById<Spinner>(R.id.spinner_preset_time)
         val tvInfo = dialogView.findViewById<TextView>(R.id.tv_selected_info)
+
+        val timeAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, timePeriods)
+        timeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinnerTime.adapter = timeAdapter
+        spinnerTime.setSelection(currentTimePeriodIndex)
 
         val channelNames = selectedChannels.take(5).joinToString(", ") { it.title }
         val suffix = if (selectedChannels.size > 5) " и ещё ${selectedChannels.size - 5}" else ""
@@ -677,7 +678,7 @@ class MainActivity : AppCompatActivity() {
                     return@setPositiveButton
                 }
 
-                val timePeriod = if (cbSaveTime.isChecked) currentTimePeriodIndex else 2
+                val timePeriod = spinnerTime.selectedItemPosition
                 val channelIds = selectedChannels.map { it.id }.toSet()
 
                 val preset = PresetManager.createPreset(this, name, channelIds, timePeriod)
@@ -686,10 +687,8 @@ class MainActivity : AppCompatActivity() {
 
                 refreshPresetChips()
                 Toast.makeText(this, getString(R.string.preset_n_saved, name), Toast.LENGTH_SHORT).show()
-                showSettingsDialog()
             }
-            .setNegativeButton("Отмена") { _, _ -> showSettingsDialog() }
-            .setOnCancelListener { showSettingsDialog() }
+            .setNegativeButton("Отмена", null)
             .show()
     }
 
@@ -755,12 +754,15 @@ class MainActivity : AppCompatActivity() {
     private fun showEditPresetDialog(preset: ChannelPreset) {
         val dialogView = layoutInflater.inflate(R.layout.dialog_create_preset, null)
         val etName = dialogView.findViewById<EditText>(R.id.et_preset_name)
-        val cbSaveTime = dialogView.findViewById<CheckBox>(R.id.cb_save_time_period)
+        val spinnerTime = dialogView.findViewById<Spinner>(R.id.spinner_preset_time)
         val tvInfo = dialogView.findViewById<TextView>(R.id.tv_selected_info)
 
+        val timeAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, timePeriods)
+        timeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinnerTime.adapter = timeAdapter
+        spinnerTime.setSelection(preset.timePeriodIndex)
+
         etName.setText(preset.name)
-        cbSaveTime.text = "Обновить период на текущий"
-        cbSaveTime.isChecked = false
 
         val channelNames = channelAdapter.getAllChannels()
             .filter { it.id in preset.channelIds }
@@ -796,8 +798,7 @@ class MainActivity : AppCompatActivity() {
                     currentSelected.map { it.id }.toSet()
                 else preset.channelIds
 
-                val newTimePeriod = if (cbSaveTime.isChecked) currentTimePeriodIndex
-                else preset.timePeriodIndex
+                val newTimePeriod = spinnerTime.selectedItemPosition
 
                 val updated = preset.copy(
                     name = name,
@@ -1462,60 +1463,105 @@ class MainActivity : AppCompatActivity() {
     private fun showProxySettingsDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_proxy_settings, null)
         val swEnabled = dialogView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switch_proxy_enabled)
-        val etHost = dialogView.findViewById<EditText>(R.id.et_proxy_host)
-        val etPort = dialogView.findViewById<EditText>(R.id.et_proxy_port)
-        val etSecret = dialogView.findViewById<EditText>(R.id.et_proxy_secret)
-        val btnTest = dialogView.findViewById<Button>(R.id.btn_test_proxy)
-        val tvStatus = dialogView.findViewById<TextView>(R.id.tv_proxy_status)
+        val recycler = dialogView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recycler_proxies)
+        val tvEmpty = dialogView.findViewById<TextView>(R.id.tv_proxies_empty)
+        val btnAdd = dialogView.findViewById<Button>(R.id.btn_add_proxy)
+        val btnPaste = dialogView.findViewById<Button>(R.id.btn_paste_proxy)
+        val layoutAuto = dialogView.findViewById<LinearLayout>(R.id.layout_auto_switch)
+        val swAuto = dialogView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switch_auto_proxy)
+        val spinnerInterval = dialogView.findViewById<Spinner>(R.id.spinner_proxy_interval)
 
-        swEnabled.isChecked = PreferenceManager.isProxyEnabled(this)
-        etHost.setText(PreferenceManager.getProxyHost(this))
-        val port = PreferenceManager.getProxyPort(this)
-        etPort.setText(if (port > 0) port.toString() else "")
-        etSecret.setText(PreferenceManager.getProxySecret(this))
+        var proxies = PreferenceManager.getProxyList(this).toMutableList()
 
-        val performTest = { h: String, p: Int, s: String ->
-            tvStatus.text = getString(R.string.proxy_status_checking)
-            tvStatus.setTextColor(Color.GRAY)
-            btnTest.isEnabled = false
+        val updateEmptyState = {
+            if (proxies.isEmpty()) {
+                tvEmpty.visibility = View.VISIBLE
+                recycler.visibility = View.GONE
+                layoutAuto.visibility = View.GONE
+            } else {
+                tvEmpty.visibility = View.GONE
+                recycler.visibility = View.VISIBLE
+                layoutAuto.visibility = if (proxies.size >= 2) View.VISIBLE else View.GONE
+            }
+        }
 
-            telegramClient.testProxy(h, p, s) { ping, error ->
-                runOnUiThread {
-                    btnTest.isEnabled = true
-                    if (ping != null) {
-                        tvStatus.text = if (ping == 0.0)
-                            getString(R.string.proxy_status_available)
-                        else
-                            getString(R.string.proxy_status_available_ping, (ping * 1000).toInt())
-                        tvStatus.setTextColor("#4CAF50".toColorInt())
-                    } else {
-                        tvStatus.text = getString(R.string.proxy_status_error, error ?: "timeout")
-                        tvStatus.setTextColor(Color.RED)
+        val adapter = ProxyAdapter(
+            proxies = proxies,
+            onProxySelected = { selected ->
+                proxies.forEach { it.isEnabled = it.id == selected.id }
+                PreferenceManager.saveProxyList(this, proxies)
+                (recycler.adapter as? ProxyAdapter)?.updateData(proxies)
+            },
+            onProxyEdit = { proxy ->
+                showAddEditProxyDialog(proxy) { updated ->
+                    val idx = proxies.indexOfFirst { it.id == updated.id }
+                    if (idx >= 0) {
+                        proxies[idx] = updated
+                        PreferenceManager.saveProxyList(this, proxies)
+                        (recycler.adapter as? ProxyAdapter)?.updateData(proxies)
                     }
                 }
+            },
+            onProxyDelete = { proxy ->
+                AlertDialog.Builder(this)
+                    .setMessage("Удалить прокси ${proxy.host}?")
+                    .setPositiveButton("Удалить") { _, _ ->
+                        proxies.removeAll { it.id == proxy.id }
+                        PreferenceManager.saveProxyList(this, proxies)
+                        (recycler.adapter as? ProxyAdapter)?.updateData(proxies)
+                        updateEmptyState()
+                    }
+                    .setNegativeButton("Отмена", null)
+                    .show()
+            }
+        )
+
+        recycler.layoutManager = LinearLayoutManager(this)
+        recycler.adapter = adapter
+        updateEmptyState()
+
+        swEnabled.isChecked = PreferenceManager.isProxyEnabled(this)
+        swAuto.isChecked = PreferenceManager.isProxyAutoSwitchEnabled(this)
+
+        val intervals = listOf(1, 5, 10, 30, 60)
+        val intervalAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, intervals.map { "$it мин" })
+        intervalAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinnerInterval.adapter = intervalAdapter
+        spinnerInterval.setSelection(intervals.indexOf(PreferenceManager.getProxySwitchInterval(this)).coerceAtLeast(0))
+
+        btnAdd.setOnClickListener {
+            showAddEditProxyDialog(null) { newProxy ->
+                if (proxies.isEmpty()) newProxy.isEnabled = true
+                proxies.add(newProxy)
+                PreferenceManager.saveProxyList(this, proxies)
+                adapter.updateData(proxies)
+                updateEmptyState()
             }
         }
 
-        if (swEnabled.isChecked) {
-            val h = etHost.text.toString().trim()
-            val s = etSecret.text.toString().trim()
-            if (h.isNotEmpty() && port > 0 && s.isNotEmpty()) {
-                performTest(h, port, s)
+        btnPaste.setOnClickListener {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            val text = clipboard.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
+            if (text.startsWith("tg://proxy?") || text.startsWith("https://t.me/proxy?")) {
+                val uri = Uri.parse(text.replace("tg://proxy", "https://t.me/proxy"))
+                val host = uri.getQueryParameter("server") ?: ""
+                val port = uri.getQueryParameter("port")?.toIntOrNull() ?: 0
+                val secret = uri.getQueryParameter("secret") ?: ""
+
+                if (host.isNotEmpty() && port > 0 && secret.isNotEmpty()) {
+                    val newProxy = ProxyEntry(host = host, port = port, secret = secret)
+                    if (proxies.isEmpty()) newProxy.isEnabled = true
+                    proxies.add(newProxy)
+                    PreferenceManager.saveProxyList(this, proxies)
+                    adapter.updateData(proxies)
+                    updateEmptyState()
+                    Toast.makeText(this, "Прокси добавлен из буфера", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Неверный формат ссылки", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Toast.makeText(this, "В буфере нет ссылки на прокси", Toast.LENGTH_SHORT).show()
             }
-        }
-
-        btnTest.setOnClickListener {
-            val h = etHost.text.toString().trim()
-            val pStr = etPort.text.toString().trim()
-            val s = etSecret.text.toString().trim()
-
-            if (h.isEmpty() || pStr.isEmpty() || s.isEmpty()) {
-                tvStatus.text = getString(R.string.proxy_status_fill_all)
-                tvStatus.setTextColor(Color.RED)
-                return@setOnClickListener
-            }
-
-            performTest(h, pStr.toIntOrNull() ?: 0, s)
         }
 
         AlertDialog.Builder(this)
@@ -1523,17 +1569,47 @@ class MainActivity : AppCompatActivity() {
             .setView(dialogView)
             .setPositiveButton("Сохранить") { _, _ ->
                 PreferenceManager.setProxyEnabled(this, swEnabled.isChecked)
-                PreferenceManager.setProxyHost(this, etHost.text.toString().trim())
-                PreferenceManager.setProxyPort(this, etPort.text.toString().toIntOrNull() ?: 0)
-                PreferenceManager.setProxySecret(this, etSecret.text.toString().trim())
+                PreferenceManager.setProxyAutoSwitchEnabled(this, swAuto.isChecked)
+                PreferenceManager.setProxySwitchInterval(this, intervals[spinnerInterval.selectedItemPosition])
 
                 telegramClient.applyProxySettings()
                 Toast.makeText(this, "Настройки прокси обновлены", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Отмена") { _, _ ->
                 showSettingsDialog()
             }
+            .setNegativeButton("Отмена") { _, _ -> showSettingsDialog() }
             .setOnCancelListener { showSettingsDialog() }
+            .show()
+    }
+
+    private fun showAddEditProxyDialog(proxy: ProxyEntry?, onSaved: (ProxyEntry) -> Unit) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_proxy_add, null)
+        val etHost = dialogView.findViewById<EditText>(R.id.et_proxy_host)
+        val etPort = dialogView.findViewById<EditText>(R.id.et_proxy_port)
+        val etSecret = dialogView.findViewById<EditText>(R.id.et_proxy_secret)
+
+        if (proxy != null) {
+            etHost.setText(proxy.host)
+            etPort.setText(proxy.port.toString())
+            etSecret.setText(proxy.secret)
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(if (proxy == null) "Добавить прокси" else "Редактировать прокси")
+            .setView(dialogView)
+            .setPositiveButton("ОК") { _, _ ->
+                val host = etHost.text.toString().trim()
+                val port = etPort.text.toString().toIntOrNull() ?: 0
+                val secret = etSecret.text.toString().trim()
+
+                if (host.isNotEmpty() && port > 0 && secret.isNotEmpty()) {
+                    val updated = proxy?.copy(host = host, port = port, secret = secret)
+                        ?: ProxyEntry(host = host, port = port, secret = secret)
+                    onSaved(updated)
+                } else {
+                    Toast.makeText(this, "Заполните все поля", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Отмена", null)
             .show()
     }
 
@@ -1683,6 +1759,8 @@ class MainActivity : AppCompatActivity() {
         val dialog = AlertDialog.Builder(this).setView(dialogView).create()
 
         val rgColorTheme = dialogView.findViewById<android.widget.RadioGroup>(R.id.rg_color_theme)
+        val btnSave = dialogView.findViewById<Button>(R.id.btn_save_theme)
+        val btnCancel = dialogView.findViewById<Button>(R.id.btn_cancel_theme)
 
         val currentTheme = PreferenceManager.getColorTheme(this)
         when (currentTheme) {
@@ -1691,8 +1769,12 @@ class MainActivity : AppCompatActivity() {
             else -> rgColorTheme?.check(R.id.rb_theme_purple)
         }
 
-        rgColorTheme?.setOnCheckedChangeListener { _, checkedId ->
-            val selectedTheme = when (checkedId) {
+        btnCancel.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        btnSave.setOnClickListener {
+            val selectedTheme = when (rgColorTheme?.checkedRadioButtonId) {
                 R.id.rb_theme_teal -> "teal"
                 R.id.rb_theme_light -> "light"
                 else -> "purple"

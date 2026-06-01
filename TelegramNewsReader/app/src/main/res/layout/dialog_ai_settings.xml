@@ -84,7 +84,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Примечание: выбранная модель должна быть доступна в вашем аккаунте OpenRouter."
+            android:text="Примечание: выбранная модель должна быть доступна в вашем аккаунте."
             android:textSize="12sp"
             android:textColor="#777777"
             android:layout_marginBottom="8dp"/>

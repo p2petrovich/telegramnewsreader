@@ -20,6 +20,7 @@ import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.TextView
 import com.p2petrovich.telegramnewsreader.R
+import com.p2petrovich.telegramnewsreader.TelegramNewsApplication
 import com.p2petrovich.telegramnewsreader.adapters.VoiceAdapter
 import com.p2petrovich.telegramnewsreader.tts.EdgeTtsProvider
 import com.p2petrovich.telegramnewsreader.tts.TTSManagerSingleton
@@ -56,6 +57,9 @@ class VoiceSelectionActivity : AppCompatActivity() {
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val themeResId = TelegramNewsApplication.getThemeResId(this)
+        setTheme(themeResId)
+
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_voice_selection)
@@ -179,7 +183,7 @@ class VoiceSelectionActivity : AppCompatActivity() {
     private fun applyEngineVisibility(engine: String) {
         if (engine == "edge") {
             layoutEdgeSettings.visibility    = View.VISIBLE
-            layoutAndroidSettings.visibility = View.VISIBLE // Оставляем список Android видимым
+            layoutAndroidSettings.visibility = View.GONE
         } else {
             layoutEdgeSettings.visibility    = View.GONE
             layoutAndroidSettings.visibility = View.VISIBLE

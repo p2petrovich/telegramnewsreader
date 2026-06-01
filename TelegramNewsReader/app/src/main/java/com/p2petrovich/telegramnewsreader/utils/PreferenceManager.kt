@@ -2,6 +2,9 @@ package com.p2petrovich.telegramnewsreader.utils
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import com.p2petrovich.telegramnewsreader.models.ProxyEntry
 
 object PreferenceManager {
     private const val PREFS_NAME = "telegram_news_prefs"
@@ -14,7 +17,6 @@ object PreferenceManager {
     private const val KEY_HIDDEN_USERNAMES = "hidden_usernames"
     private const val KEY_HIDDEN_IDS = "hidden_ids"
     private const val KEY_HIDDEN_TITLES = "hidden_id_title_map"
-    private const val KEY_FAVORITE_CHANNELS = "favorite_channels"
     private const val KEY_COLOR_THEME = "color_theme"
 
     // Player state keys
@@ -34,9 +36,9 @@ object PreferenceManager {
 
     // Proxy settings
     private const val KEY_PROXY_ENABLED = "proxy_enabled"
-    private const val KEY_PROXY_HOST = "proxy_host"
-    private const val KEY_PROXY_PORT = "proxy_port"
-    private const val KEY_PROXY_SECRET = "proxy_secret"
+    private const val KEY_PROXY_LIST = "proxy_list_json"
+    private const val KEY_PROXY_AUTO_SWITCH = "proxy_auto_switch"
+    private const val KEY_PROXY_SWITCH_INTERVAL = "proxy_switch_interval"
 
     // Edge TTS settings
     private const val KEY_TTS_ENGINE  = "tts_engine"        // "android" | "edge"
@@ -184,33 +186,6 @@ object PreferenceManager {
         getPreferences(context).edit().putString(KEY_HIDDEN_TITLES, raw).apply()
     }
 
-    // Favorites
-    fun getFavoriteChannelIds(context: Context): Set<Long> {
-        val strs = getPreferences(context).getStringSet(KEY_FAVORITE_CHANNELS, emptySet()) ?: emptySet()
-        return strs.mapNotNull { it.toLongOrNull() }.toSet()
-    }
-
-    fun saveFavoriteChannelIds(context: Context, ids: Set<Long>) {
-        getPreferences(context).edit()
-            .putStringSet(KEY_FAVORITE_CHANNELS, ids.map { it.toString() }.toSet())
-            .apply()
-    }
-
-    fun addFavoriteChannel(context: Context, channelId: Long) {
-        val favs = getFavoriteChannelIds(context).toMutableSet()
-        favs.add(channelId)
-        saveFavoriteChannelIds(context, favs)
-    }
-
-    fun removeFavoriteChannel(context: Context, channelId: Long) {
-        val favs = getFavoriteChannelIds(context).toMutableSet()
-        favs.remove(channelId)
-        saveFavoriteChannelIds(context, favs)
-    }
-
-    fun isChannelFavorite(context: Context, channelId: Long): Boolean =
-        channelId in getFavoriteChannelIds(context)
-
     fun clearAll(context: Context) {
         getPreferences(context).edit().clear().apply()
     }
@@ -298,25 +273,31 @@ object PreferenceManager {
         getPreferences(context).edit().putBoolean(KEY_PROXY_ENABLED, enabled).apply()
     }
 
-    fun getProxyHost(context: Context): String =
-        getPreferences(context).getString(KEY_PROXY_HOST, "") ?: ""
-
-    fun setProxyHost(context: Context, host: String) {
-        getPreferences(context).edit().putString(KEY_PROXY_HOST, host).apply()
+    fun getProxyList(context: Context): List<ProxyEntry> {
+        val json = getPreferences(context).getString(KEY_PROXY_LIST, null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<ProxyEntry>>() {}.type
+            Gson().fromJson(json, type)
+        } catch (_: Exception) { emptyList() }
     }
 
-    fun getProxyPort(context: Context): Int =
-        getPreferences(context).getInt(KEY_PROXY_PORT, 0)
-
-    fun setProxyPort(context: Context, port: Int) {
-        getPreferences(context).edit().putInt(KEY_PROXY_PORT, port).apply()
+    fun saveProxyList(context: Context, list: List<ProxyEntry>) {
+        val json = Gson().toJson(list)
+        getPreferences(context).edit().putString(KEY_PROXY_LIST, json).apply()
     }
 
-    fun getProxySecret(context: Context): String =
-        getPreferences(context).getString(KEY_PROXY_SECRET, "") ?: ""
+    fun isProxyAutoSwitchEnabled(context: Context): Boolean =
+        getPreferences(context).getBoolean(KEY_PROXY_AUTO_SWITCH, false)
 
-    fun setProxySecret(context: Context, secret: String) {
-        getPreferences(context).edit().putString(KEY_PROXY_SECRET, secret).apply()
+    fun setProxyAutoSwitchEnabled(context: Context, enabled: Boolean) {
+        getPreferences(context).edit().putBoolean(KEY_PROXY_AUTO_SWITCH, enabled).apply()
+    }
+
+    fun getProxySwitchInterval(context: Context): Int =
+        getPreferences(context).getInt(KEY_PROXY_SWITCH_INTERVAL, 10) // default 10 min
+
+    fun setProxySwitchInterval(context: Context, minutes: Int) {
+        getPreferences(context).edit().putInt(KEY_PROXY_SWITCH_INTERVAL, minutes).apply()
     }
 
     // ===================== Edge TTS settings =====================

@@ -41,4 +41,27 @@
 
     </RadioGroup>
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end">
+
+        <Button
+            android:id="@+id/btn_cancel_theme"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Отмена" />
+
+        <Button
+            android:id="@+id/btn_save_theme"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Сохранить"
+            android:layout_marginStart="8dp" />
+
+    </LinearLayout>
+
 </LinearLayout>
