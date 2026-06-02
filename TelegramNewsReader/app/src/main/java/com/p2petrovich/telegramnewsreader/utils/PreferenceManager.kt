@@ -33,6 +33,7 @@ object PreferenceManager {
     private const val KEY_AI_PROVIDER = "ai_provider"
     private const val KEY_AI_MODEL = "ai_model"
     private const val KEY_AI_STYLE = "ai_style"
+    private const val KEY_NEWS_ORDER = "news_playback_order" // 0: ChNew, 1: ChOld, 2: ChronoNew, 3: ChronoOld
 
     // Proxy settings
     private const val KEY_PROXY_ENABLED = "proxy_enabled"
@@ -82,6 +83,13 @@ object PreferenceManager {
 
     fun setAiStyle(context: Context, style: String) {
         getPreferences(context).edit().putString(KEY_AI_STYLE, style).apply()
+    }
+
+    fun getNewsOrder(context: Context): Int =
+        getPreferences(context).getInt(KEY_NEWS_ORDER, 0) // Default: Channel, New First
+
+    fun setNewsOrder(context: Context, order: Int) {
+        getPreferences(context).edit().putInt(KEY_NEWS_ORDER, order).apply()
     }
 
     fun isAuthorized(context: Context): Boolean =

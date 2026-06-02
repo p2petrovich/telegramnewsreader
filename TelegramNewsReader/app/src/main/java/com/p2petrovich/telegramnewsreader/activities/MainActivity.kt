@@ -1321,6 +1321,11 @@ class MainActivity : AppCompatActivity() {
             showAiSettingsDialog()
         }
 
+        dialogView.findViewById<View>(R.id.btn_news_order)?.setOnClickListener {
+            dialog.dismiss()
+            showNewsOrderDialog()
+        }
+
         dialogView.findViewById<View>(R.id.btn_color_theme)?.setOnClickListener {
             dialog.dismiss()
             showColorThemeDialog()
@@ -1809,6 +1814,45 @@ class MainActivity : AppCompatActivity() {
 
         dialog.setOnCancelListener { showSettingsDialog() }
 
+        dialog.show()
+    }
+
+    private fun showNewsOrderDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_news_order, null)
+        val dialog = AlertDialog.Builder(this).setView(dialogView).create()
+
+        val rgOrder = dialogView.findViewById<android.widget.RadioGroup>(R.id.rg_news_order)
+        val btnSave = dialogView.findViewById<Button>(R.id.btn_save_order)
+        val btnCancel = dialogView.findViewById<Button>(R.id.btn_cancel_order)
+
+        val currentOrder = PreferenceManager.getNewsOrder(this)
+        when (currentOrder) {
+            0 -> rgOrder?.check(R.id.rb_order_by_channel_new_first)
+            1 -> rgOrder?.check(R.id.rb_order_by_channel_old_first)
+            2 -> rgOrder?.check(R.id.rb_order_chronological_new_first)
+            3 -> rgOrder?.check(R.id.rb_order_chronological_old_first)
+        }
+
+        btnCancel.setOnClickListener {
+            dialog.dismiss()
+            showSettingsDialog()
+        }
+
+        btnSave.setOnClickListener {
+            val selectedOrder = when (rgOrder?.checkedRadioButtonId) {
+                R.id.rb_order_by_channel_new_first -> 0
+                R.id.rb_order_by_channel_old_first -> 1
+                R.id.rb_order_chronological_new_first -> 2
+                R.id.rb_order_chronological_old_first -> 3
+                else -> 0
+            }
+            PreferenceManager.setNewsOrder(this, selectedOrder)
+            dialog.dismiss()
+            showSettingsDialog()
+            Toast.makeText(this, "Порядок воспроизведения изменён", Toast.LENGTH_SHORT).show()
+        }
+
+        dialog.setOnCancelListener { showSettingsDialog() }
         dialog.show()
     }
 

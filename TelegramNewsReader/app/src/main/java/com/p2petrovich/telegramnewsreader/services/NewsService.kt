@@ -170,14 +170,46 @@ class NewsService(
 
                 var realNewsCount = 0
                 val newsPreview = mutableListOf<String>()
+                val order = PreferenceManager.getNewsOrder(context)
 
-                channelResults.forEach { (channel, messages) ->
-                    Log.d(TAG, "Channel ${channel.title}: received ${messages.size} messages from Telegram")
-                    if (messages.isNotEmpty()) {
-                        allMessages.add(makeChannelHeader(channel.title))
-                        allMessages.addAll(messages)
-                        realNewsCount += messages.size
-                        newsPreview.addAll(messages.take(5))
+                // Обработка порядка воспроизведения
+                when (order) {
+                    0 -> { // Поканально: от новых к старым (как было)
+                        channelResults.forEach { (channel, messages) ->
+                            if (messages.isNotEmpty()) {
+                                allMessages.add(makeChannelHeader(channel.title))
+                                allMessages.addAll(messages)
+                                realNewsCount += messages.size
+                                newsPreview.addAll(messages.take(5))
+                            }
+                        }
+                    }
+                    1 -> { // Поканально: от старых к новым
+                        channelResults.forEach { (channel, messages) ->
+                            if (messages.isNotEmpty()) {
+                                allMessages.add(makeChannelHeader(channel.title))
+                                allMessages.addAll(messages.reversed())
+                                realNewsCount += messages.size
+                                newsPreview.addAll(messages.reversed().take(5))
+                            }
+                        }
+                    }
+                    2 -> { // Хронологически: от новых к старым (смешанно, без заголовков)
+                        // Собираем все сообщения в один список с сохранением времени для сортировки
+                        val mixedMessages = channelResults.flatMap { it.second }
+                        // getChannelMessagesPaginated уже возвращает от новых к старым. 
+                        // Сортируем по времени (первые 5 символов "HH:mm")
+                        val sorted = mixedMessages.sortedByDescending { it.take(5) }
+                        allMessages.addAll(sorted)
+                        realNewsCount = sorted.size
+                        newsPreview.addAll(sorted.take(5))
+                    }
+                    3 -> { // Хронологически: от старых к новым (смешанно, без заголовков)
+                        val mixedMessages = channelResults.flatMap { it.second }
+                        val sorted = mixedMessages.sortedBy { it.take(5) }
+                        allMessages.addAll(sorted)
+                        realNewsCount = sorted.size
+                        newsPreview.addAll(sorted.take(5))
                     }
                 }
 
