@@ -47,10 +47,10 @@
             android:textAppearance="?attr/textAppearanceLabelMedium"
             android:textColor="#FF5252"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="@id/tv_proxy_address"
+            app:layout_constraintEnd_toStartOf="@id/btn_proxy_edit"
             app:layout_constraintStart_toStartOf="@id/tv_proxy_address"
             app:layout_constraintTop_toBottomOf="@id/tv_proxy_address"
-            tools:text="Недоступен" />
+            tools:text="Подключен, пинг: 145 мс" />
 
         <ImageButton
             android:id="@+id/btn_proxy_edit"

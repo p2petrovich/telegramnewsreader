@@ -1492,12 +1492,13 @@ class MainActivity : AppCompatActivity() {
                     runOnUiThread {
                         if (ping != null) {
                             val ms = (ping * 1000).toInt()
-                            val status = if (ms == 0) "✅ Доступен" else "✅ $ms мс"
+                            val status = if (ms <= 0) "Подключен" else "Подключен, пинг: $ms мс"
                             val color = 0xFF4CAF50.toInt()
                             adapter?.updatePing(proxy.id, status, color)
                         } else {
+                            val status = if (error != null) "Недоступен: $error" else "Недоступен"
                             val color = 0xFFFF5252.toInt()
-                            adapter?.updatePing(proxy.id, "Недоступен", color)
+                            adapter?.updatePing(proxy.id, status, color)
                         }
                     }
                 }
