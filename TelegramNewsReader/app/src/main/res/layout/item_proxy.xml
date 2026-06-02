@@ -23,8 +23,7 @@
             android:src="@drawable/ic_check"
             android:visibility="gone"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="@id/tv_proxy_address"
-            app:layout_constraintBottom_toBottomOf="@id/tv_proxy_address"
+            app:layout_constraintTop_toTopOf="parent"
             app:tint="?attr/colorPrimary" />
 
         <TextView
@@ -32,12 +31,13 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="0dp"
-            android:textAppearance="?attr/textAppearanceBodyLarge"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurface"
             app:layout_constraintEnd_toStartOf="@id/btn_proxy_edit"
             app:layout_constraintStart_toEndOf="@id/iv_proxy_active"
             app:layout_constraintTop_toTopOf="parent"
-            tools:layout_marginStart="28dp"
             tools:text="media.gotelega.click:443" />
 
         <TextView
