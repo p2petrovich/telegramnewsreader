@@ -20,9 +20,11 @@
             android:id="@+id/iv_proxy_active"
             android:layout_width="20dp"
             android:layout_height="20dp"
+            android:layout_marginEnd="8dp"
             android:src="@drawable/ic_check"
             android:visibility="gone"
-            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/btn_proxy_edit"
             app:layout_constraintTop_toTopOf="parent"
             app:tint="?attr/colorPrimary" />
 
@@ -31,12 +33,12 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="0dp"
-            android:maxLines="1"
             android:ellipsize="end"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:maxLines="1"
+            android:textAppearance="?attr/textAppearanceBodyLarge"
             android:textColor="?attr/colorOnSurface"
-            app:layout_constraintEnd_toStartOf="@id/btn_proxy_edit"
-            app:layout_constraintStart_toEndOf="@id/iv_proxy_active"
+            app:layout_constraintEnd_toStartOf="@id/iv_proxy_active"
+            app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             tools:text="media.gotelega.click:443" />
 
@@ -47,7 +49,7 @@
             android:textAppearance="?attr/textAppearanceLabelMedium"
             android:textColor="#FF5252"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toStartOf="@id/btn_proxy_edit"
+            app:layout_constraintEnd_toEndOf="@id/tv_proxy_address"
             app:layout_constraintStart_toStartOf="@id/tv_proxy_address"
             app:layout_constraintTop_toBottomOf="@id/tv_proxy_address"
             tools:text="Подключен, пинг: 145 мс" />

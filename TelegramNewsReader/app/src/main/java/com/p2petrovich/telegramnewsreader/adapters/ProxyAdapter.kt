@@ -62,10 +62,6 @@ class ProxyAdapter(
             tvPing.visibility = View.VISIBLE
 
             ivActive.visibility = if (proxy.isEnabled) View.VISIBLE else View.GONE
-            // Используем правильный каст для ConstraintLayout
-            val params = tvAddress.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
-            params.marginStart = if (proxy.isEnabled) (8 * itemView.resources.displayMetrics.density).toInt() else 0
-            tvAddress.layoutParams = params
 
             itemView.setOnClickListener { onProxySelected(proxy) }
             btnEdit.setOnClickListener { onProxyEdit(proxy) }

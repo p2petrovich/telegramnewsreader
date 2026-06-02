@@ -29,7 +29,9 @@ object SettingsBackup {
     private const val APP_SIGNATURE = "telegram_news_reader"
     private const val BACKUP_VERSION = 1
     
-    private val SENSITIVE_KEYS = setOf("proxy_secret", "proxy_host", "proxy_port", "phone_number")
+    private val SENSITIVE_KEYS = setOf(
+        "phone_number", "openrouter_api_key", "groq_api_key"
+    )
 
     private fun getDatedFileName(): String {
         val sdf = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.getDefault())
