@@ -51,10 +51,45 @@ class VoiceSelectionActivity : AppCompatActivity() {
     private lateinit var tvEdgePitch: TextView
     private lateinit var btnTestEdge: Button
 
-    private val edgeVoices = listOf(
-        EdgeTtsProvider.VOICE_DMITRY   to "Dmitry — мужской (рекомендуется)",
-        EdgeTtsProvider.VOICE_SVETLANA to "Svetlana — женский"
-    )
+    private val edgeVoices by lazy {
+        val systemLang = resources.configuration.locales[0].language
+        val enVoices = listOf(
+            EdgeTtsProvider.VOICE_GUY         to "Guy (en-US) ♂",
+            EdgeTtsProvider.VOICE_ARIA        to "Aria (en-US) ♀",
+            EdgeTtsProvider.VOICE_JENNY       to "Jenny (en-US) ♀",
+            EdgeTtsProvider.VOICE_ERIC        to "Eric (en-US) ♂",
+            EdgeTtsProvider.VOICE_DAVIS       to "Davis (en-US) ♂",
+            EdgeTtsProvider.VOICE_JANE        to "Jane (en-US) ♀",
+            EdgeTtsProvider.VOICE_JASON       to "Jason (en-US) ♂",
+            EdgeTtsProvider.VOICE_SARA        to "Sara (en-US) ♀",
+            EdgeTtsProvider.VOICE_TONY        to "Tony (en-US) ♂",
+            EdgeTtsProvider.VOICE_NANCY       to "Nancy (en-US) ♀",
+            EdgeTtsProvider.VOICE_AMBER       to "Amber (en-US) ♀",
+            EdgeTtsProvider.VOICE_ANA         to "Ana (en-US) ♀",
+            EdgeTtsProvider.VOICE_ASHLEY      to "Ashley (en-US) ♀",
+            EdgeTtsProvider.VOICE_BRANDON     to "Brandon (en-US) ♂",
+            EdgeTtsProvider.VOICE_CHRISTOPHER to "Christopher (en-US) ♂",
+            EdgeTtsProvider.VOICE_CORA        to "Cora (en-US) ♀",
+            EdgeTtsProvider.VOICE_ELIZABETH   to "Elizabeth (en-US) ♀",
+            EdgeTtsProvider.VOICE_JACOB       to "Jacob (en-US) ♂",
+            EdgeTtsProvider.VOICE_MICHELLE    to "Michelle (en-US) ♀",
+            EdgeTtsProvider.VOICE_MONICA      to "Monica (en-US) ♀",
+            EdgeTtsProvider.VOICE_ROGER       to "Roger (en-US) ♂",
+            EdgeTtsProvider.VOICE_RYAN        to "Ryan Multilingual (en-US) ♂",
+            EdgeTtsProvider.VOICE_STEFFAN     to "Steffan (en-US) ♂",
+            EdgeTtsProvider.VOICE_LIBBY       to "Libby (en-GB) ♀",
+            EdgeTtsProvider.VOICE_MAISIE      to "Maisie (en-GB) ♀",
+            EdgeTtsProvider.VOICE_RYAN_GB     to "Ryan (en-GB) ♂",
+            EdgeTtsProvider.VOICE_SONIA       to "Sonia (en-GB) ♀",
+            EdgeTtsProvider.VOICE_THOMAS      to "Thomas (en-GB) ♂",
+        )
+        val ruVoices = listOf(
+            EdgeTtsProvider.VOICE_DMITRY   to "Dmitry (ru-RU) ♂",
+            EdgeTtsProvider.VOICE_SVETLANA to "Svetlana (ru-RU) ♀",
+        )
+        // На EN-устройствах EN голоса идут первыми, на RU — русские первыми
+        if (systemLang == "ru") ruVoices + enVoices else enVoices + ruVoices
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val themeResId = TelegramNewsApplication.getThemeResId(this)
@@ -71,7 +106,7 @@ class VoiceSelectionActivity : AppCompatActivity() {
         }
 
         supportActionBar?.apply {
-            title = "Голос и речь"
+            title = getString(R.string.voice_and_speech)
             setDisplayHomeAsUpEnabled(true)
         }
 
@@ -112,7 +147,7 @@ class VoiceSelectionActivity : AppCompatActivity() {
             PreferenceManager.saveTtsEngine(this, engine)
             applyEngineVisibility(engine)
             ttsManager.refreshEdgeProvider()
-            val label = if (engine == "edge") "Edge TTS включён" else "Android TTS включён"
+            val label = if (engine == "edge") getString(R.string.edge_tts_enabled) else getString(R.string.android_tts_enabled)
             Toast.makeText(this, label, Toast.LENGTH_SHORT).show()
         }
 
@@ -196,24 +231,24 @@ class VoiceSelectionActivity : AppCompatActivity() {
 
     private fun testEdgeVoice(voice: String, rate: Int) {
         btnTestEdge.isEnabled = false
-        btnTestEdge.text      = "⏳ Синтезирую..."
+        btnTestEdge.text      = getString(R.string.synthesizing)
         val pitch = sbEdgePitch.progress - 200
 
         CoroutineScope(Dispatchers.IO).launch {
             val provider = EdgeTtsProvider(context = this@VoiceSelectionActivity, voice = voice, ratePct = rate, pitchHz = pitch)
             val outFile  = File(cacheDir, "edge_test_preview.wav")
             val ok = provider.synthesizeToWav(
-                "Привет! Это голос Edge TTS. Качество звучания Microsoft Neural.", outFile
+                getString(R.string.tts_edge_test_phrase), outFile
             )
             withContext(Dispatchers.Main) {
                 btnTestEdge.isEnabled = true
-                btnTestEdge.text      = "▶ Тест Edge голоса"
+                btnTestEdge.text      = getString(R.string.test_edge_voice)
                 if (ok && outFile.exists()) {
                     playPreviewWav(outFile)
                 } else {
                     Toast.makeText(
                         this@VoiceSelectionActivity,
-                        "Не удалось синтезировать — проверьте интернет",
+                        getString(R.string.edge_tts_error),
                         Toast.LENGTH_SHORT
                     ).show()
                 }
@@ -253,30 +288,39 @@ class VoiceSelectionActivity : AppCompatActivity() {
             }
 
             val allVoiceEntries = ttsManager.getAvailableVoiceEntries()
-            val russianVoices = allVoiceEntries.filter {
-                it.language == "ru" || it.language.startsWith("ru", ignoreCase = true)
+            // Показываем голоса языка телефона + русские (для русскоязычных каналов)
+            val systemLang = resources.configuration.locales[0].language
+            val relevantVoices = if (systemLang == "ru") {
+                allVoiceEntries.filter { it.language == "ru" || it.language.startsWith("ru", ignoreCase = true) }
+            } else {
+                allVoiceEntries.filter {
+                    it.language == systemLang ||
+                    it.language.startsWith(systemLang, ignoreCase = true) ||
+                    it.language == "ru" ||
+                    it.language.startsWith("ru", ignoreCase = true)
+                }
             }
 
-            if (russianVoices.isEmpty()) {
+            if (relevantVoices.isEmpty()) {
                 if (isReady) {
-                    Toast.makeText(this@VoiceSelectionActivity, "Русские голоса TTS не найдены", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@VoiceSelectionActivity, getString(R.string.no_tts_voices_found), Toast.LENGTH_LONG).show()
                 }
                 return@launch
             }
 
             val savedVoiceName = PreferenceManager.getTtsVoiceName(this@VoiceSelectionActivity)
-            val savedVoiceIsRussian = russianVoices.any { it.systemName == savedVoiceName }
+            val savedVoiceIsRelevant = relevantVoices.any { it.systemName == savedVoiceName }
 
-            val currentSelectedVoice = if (savedVoiceIsRussian) {
+            val currentSelectedVoice = if (savedVoiceIsRelevant) {
                 savedVoiceName
             } else {
-                russianVoices.firstOrNull()?.systemName.also {
+                relevantVoices.firstOrNull()?.systemName.also {
                     if (it != null) PreferenceManager.saveTtsVoiceName(this@VoiceSelectionActivity, it)
                 }
             }
 
             voiceAdapter = VoiceAdapter(
-                voiceEntries = russianVoices,
+                voiceEntries = relevantVoices,
                 selectedVoiceName = currentSelectedVoice,
                 onVoiceSelected = { voiceEntry -> onVoiceSelected(voiceEntry) },
                 onVoicePlay = { voiceEntry -> onVoicePlay(voiceEntry) }
@@ -291,7 +335,7 @@ class VoiceSelectionActivity : AppCompatActivity() {
         ttsManager.setVoiceByEntry(voiceEntry)
         ttsManager.applyVoiceSettings(voiceEntry.systemName)
         PreferenceManager.saveTtsVoiceName(this, voiceEntry.systemName)
-        Toast.makeText(this, "Голос изменён: ${voiceEntry.displayName}", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.voice_changed, voiceEntry.displayName), Toast.LENGTH_SHORT).show()
     }
 
     private fun onVoicePlay(voiceEntry: VoiceEntry) {
@@ -302,7 +346,7 @@ class VoiceSelectionActivity : AppCompatActivity() {
 
         ttsManager.setVoiceByEntry(voiceEntry)
         ttsManager.applyVoiceSettings(voiceEntry.systemName)
-        ttsManager.speak("Привет! Это голос ${voiceEntry.displayName}. Как вам качество звучания?")
+        ttsManager.speak(getString(R.string.tts_test_phrase, voiceEntry.displayName))
 
         if (currentVoice != null && currentVoice != voiceEntry.systemName) {
             pendingVoiceRestore = Runnable {
@@ -312,7 +356,7 @@ class VoiceSelectionActivity : AppCompatActivity() {
             recyclerView.postDelayed(pendingVoiceRestore!!, 3000)
         }
 
-        Toast.makeText(this, "Тестирую: ${voiceEntry.displayName}", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.voice_testing, voiceEntry.displayName), Toast.LENGTH_SHORT).show()
     }
 
     // ── Навигация / lifecycle ─────────────────────────────────────────────────

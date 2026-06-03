@@ -49,8 +49,41 @@ class EdgeTtsProvider(
     companion object {
         private const val TAG = "EdgeTtsProvider"
 
+        // Russian voices
         const val VOICE_DMITRY   = "ru-RU-DmitryNeural"
         const val VOICE_SVETLANA = "ru-RU-SvetlanaNeural"
+
+        // English (US) voices
+        const val VOICE_GUY         = "en-US-GuyNeural"
+        const val VOICE_ARIA        = "en-US-AriaNeural"
+        const val VOICE_JENNY       = "en-US-JennyNeural"
+        const val VOICE_ERIC        = "en-US-EricNeural"
+        const val VOICE_DAVIS       = "en-US-DavisNeural"
+        const val VOICE_JANE        = "en-US-JaneNeural"
+        const val VOICE_JASON       = "en-US-JasonNeural"
+        const val VOICE_SARA        = "en-US-SaraNeural"
+        const val VOICE_TONY        = "en-US-TonyNeural"
+        const val VOICE_NANCY       = "en-US-NancyNeural"
+        const val VOICE_AMBER       = "en-US-AmberNeural"
+        const val VOICE_ANA         = "en-US-AnaNeural"
+        const val VOICE_ASHLEY      = "en-US-AshleyNeural"
+        const val VOICE_BRANDON     = "en-US-BrandonNeural"
+        const val VOICE_CHRISTOPHER = "en-US-ChristopherNeural"
+        const val VOICE_CORA        = "en-US-CoraNeural"
+        const val VOICE_ELIZABETH   = "en-US-ElizabethNeural"
+        const val VOICE_JACOB       = "en-US-JacobNeural"
+        const val VOICE_MICHELLE    = "en-US-MichelleNeural"
+        const val VOICE_MONICA      = "en-US-MonicaNeural"
+        const val VOICE_ROGER       = "en-US-RogerNeural"
+        const val VOICE_RYAN        = "en-US-RyanMultilingualNeural"
+        const val VOICE_STEFFAN     = "en-US-SteffanNeural"
+
+        // English (GB) voices
+        const val VOICE_LIBBY    = "en-GB-LibbyNeural"
+        const val VOICE_MAISIE   = "en-GB-MaisieNeural"
+        const val VOICE_RYAN_GB  = "en-GB-RyanNeural"
+        const val VOICE_SONIA    = "en-GB-SoniaNeural"
+        const val VOICE_THOMAS   = "en-GB-ThomasNeural"
 
         private const val TOKEN = ApiConfig.EDGE_TOKEN
         private const val WS_BASE = ApiConfig.EDGE_WS_BASE

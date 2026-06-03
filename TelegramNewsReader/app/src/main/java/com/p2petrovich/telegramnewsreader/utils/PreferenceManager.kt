@@ -317,9 +317,11 @@ object PreferenceManager {
         getPreferences(context).edit().putString(KEY_TTS_ENGINE, engine).apply()
     }
 
-    fun getEdgeVoice(context: Context): String =
-        getPreferences(context).getString(KEY_EDGE_VOICE, "ru-RU-DmitryNeural")
-            ?: "ru-RU-DmitryNeural"
+    fun getEdgeVoice(context: Context): String {
+        val systemLang = context.resources.configuration.locales[0].language
+        val default = if (systemLang == "ru") "ru-RU-DmitryNeural" else "en-US-GuyNeural"
+        return getPreferences(context).getString(KEY_EDGE_VOICE, default) ?: default
+    }
 
     fun saveEdgeVoice(context: Context, voice: String) {
         getPreferences(context).edit().putString(KEY_EDGE_VOICE, voice).apply()

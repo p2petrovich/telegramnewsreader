@@ -97,7 +97,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         val success = status == TextToSpeech.SUCCESS
         if (success) {
             ttsInitialized.set(true)
-            tts?.setLanguage(Locale("ru"))
             applySavedVoice()
         } else {
             ttsInitialized.set(false)
@@ -117,19 +116,26 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     private fun applySavedVoice() {
         val availableVoices = tts?.voices
-        val russianVoices = availableVoices?.filter { it.locale.language == "ru" }
         val savedVoiceName = PreferenceManager.getTtsVoiceName(context)
         val matchedVoice = availableVoices?.find { it.name == savedVoiceName }
 
         if (matchedVoice != null) {
             tts?.language = matchedVoice.locale
             tts?.voice = matchedVoice
-        } else if (!russianVoices.isNullOrEmpty()) {
-            tts?.language = russianVoices.first().locale
-            tts?.voice = russianVoices.first()
         }
+        // Если сохранённого голоса нет — оставляем системный дефолт (язык телефона)
 
         applyVoiceParametersOnce()
+    }
+
+    /**
+     * Определяет язык текста по соотношению кириллических и латинских символов.
+     * Используется для автоматического выбора локали TTS при воспроизведении.
+     */
+    fun detectLocale(text: String): Locale {
+        val cyrillicCount = text.count { it in '\u0400'..'\u04FF' }
+        val latinCount = text.count { it.isLetter() && it !in '\u0400'..'\u04FF' }
+        return if (cyrillicCount > latinCount) Locale("ru") else Locale.ENGLISH
     }
 
     private fun applyVoiceParametersOnce() {
@@ -223,6 +229,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     fun speak(text: String) {
         if (ttsInitialized.get()) {
+            tts?.setLanguage(detectLocale(text))
             tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "TTS_SAMPLE")
         }
     }
@@ -649,6 +656,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                         }
                     }
                 })
+                tts?.setLanguage(detectLocale(text))
                 val result = tts?.synthesizeToFile(text, params, tempWavFile, utteranceId)
                 if (result == TextToSpeech.ERROR) {
                     tts?.setOnUtteranceProgressListener(null)

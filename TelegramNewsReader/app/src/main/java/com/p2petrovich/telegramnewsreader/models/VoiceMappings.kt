@@ -28,10 +28,9 @@ object VoiceMappings {
 
     fun mapVoices(voices: List<Voice>): List<VoiceEntry> {
         return voices
-            .filter { it.locale.language == "ru" }
             .map { mapVoice(it) }
             .distinctBy { it.systemName }
-            .sortedWith(compareBy<VoiceEntry> { it.gender.ordinal }.thenBy { it.displayName })
+            .sortedWith(compareBy<VoiceEntry> { it.language }.thenBy { it.gender.ordinal }.thenBy { it.displayName })
     }
 
     private fun createVoiceEntryFromSystemVoice(voice: Voice): VoiceEntry {
