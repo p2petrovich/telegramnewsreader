@@ -23,7 +23,7 @@
             android:layout_gravity="end"
             android:layout_marginEnd="16dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Настройки"
+            android:contentDescription="@string/settings_title"
             android:padding="8dp"
             android:src="@drawable/ic_settings" />
 
@@ -78,7 +78,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:paddingEnd="4dp"
-                            android:text="долгий тап = старт"
+                            android:text="@string/long_tap_start"
                             android:textColor="?android:textColorTertiary"
                             android:textSize="11sp" />
 
@@ -171,7 +171,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:text="Период: 30 минут"
+                android:text="@string/period_minutes"
                 android:textColor="@color/purple_200"
                 android:textSize="15sp" />
 
@@ -216,7 +216,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Сбор новостей..."
+                            android:text="@string/collecting_news_status"
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
@@ -245,7 +245,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="Осталось: вычисляется..."
+                        android:text="@string/eta_calculating_status"
                         android:textColor="@android:color/darker_gray"
                         android:textSize="12sp" />
 
@@ -264,7 +264,7 @@
                             android:layout_height="wrap_content"
                             android:maxLines="2"
                             android:singleLine="false"
-                            android:text="Собрано: 0"
+                            android:text="@string/collected_zero"
                             android:textColor="?android:attr/textColorSecondary"
                             android:textSize="12sp" />
 
@@ -309,7 +309,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginBottom="8dp"
-                            android:text="Последние новости:"
+                            android:text="@string/latest_news_label"
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
@@ -352,7 +352,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginBottom="8dp"
-                            android:text="Прогресс по каналам: 0 из 0"
+                            android:text="@string/channels_progress_zero"
                             android:textSize="14sp"
                             android:textStyle="bold" />
 

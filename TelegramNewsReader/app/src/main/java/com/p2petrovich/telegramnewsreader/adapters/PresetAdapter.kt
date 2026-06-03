@@ -39,21 +39,22 @@ class PresetAdapter(
     override fun onBindViewHolder(holder: PresetViewHolder, position: Int) {
         val preset = presets[position]
         val isActive = preset.id == activePresetId
+        val context = holder.itemView.context
 
         holder.tvName.text = preset.name
         holder.indicator.visibility = if (isActive) View.VISIBLE else View.GONE
 
         val periodText = if (preset.timePeriodIndex in timePeriods.indices)
-            timePeriods[preset.timePeriodIndex] else "30 минут"
-        holder.tvDetails.text = "${preset.channelIds.size} каналов • $periodText"
+            timePeriods[preset.timePeriodIndex] else context.getString(R.string.period_minutes, 30)
+        holder.tvDetails.text = context.getString(R.string.preset_channels_count, preset.channelIds.size, periodText)
 
         val names = preset.channelIds
             .mapNotNull { channelNames[it] }
             .take(3)
             .joinToString(", ")
         val suffix = if (preset.channelIds.size > 3)
-            " и ещё ${preset.channelIds.size - 3}" else ""
-        holder.tvChannels.text = if (names.isNotEmpty()) "$names$suffix" else "Каналы не найдены"
+            context.getString(R.string.and_more_n, preset.channelIds.size - 3) else ""
+        holder.tvChannels.text = if (names.isNotEmpty()) "$names$suffix" else context.getString(R.string.channels_not_found)
 
         holder.itemView.alpha = if (isActive) 1.0f else 0.8f
 

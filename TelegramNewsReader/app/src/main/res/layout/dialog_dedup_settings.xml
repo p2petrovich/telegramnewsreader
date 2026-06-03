@@ -90,7 +90,7 @@
         android:id="@+id/tv_dedup_history_value"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="500 сообщений"
+        android:text="@string/messages_count_format"
         android:textSize="14sp"
         android:layout_marginBottom="16dp"/>
 
@@ -122,7 +122,7 @@
         android:id="@+id/tv_dedup_time_value"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="1 час"
+        android:text="@string/hour_format"
         android:textSize="14sp"
         android:layout_marginBottom="8dp"/>
 

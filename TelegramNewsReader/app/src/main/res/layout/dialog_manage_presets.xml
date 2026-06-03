@@ -11,7 +11,7 @@
         android:id="@+id/tv_presets_empty"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Нет сохранённых наборов.\nВыберите каналы и нажмите «Сохранить набор»."
+        android:text="@string/no_presets_hint"
         android:textSize="14sp"
         android:textColor="?android:textColorSecondary"
         android:gravity="center"

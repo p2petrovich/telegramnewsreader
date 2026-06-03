@@ -53,7 +53,7 @@ class AudioPlayerService : Service() {
     private var mediaPlayer: MediaPlayer? = null
     private var playlist: List<String> = emptyList()
     private var currentIndex = 0
-    private var title: String = "Новости"
+    private var title: String = ""
     private var totalNewsCount = 0
     private var newsFileIndices: Set<Int> = emptySet()
     private var lastActionTime = 0L
@@ -91,7 +91,7 @@ class AudioPlayerService : Service() {
                 ACTION_SET_PLAYLIST -> {
                     val paths = intent.getStringArrayListExtra(EXTRA_FILE_PATHS) ?: arrayListOf()
                     val start = intent.getIntExtra(EXTRA_START_INDEX, 0)
-                    title = intent.getStringExtra(EXTRA_TITLE) ?: "Новости"
+                    title = intent.getStringExtra(EXTRA_TITLE) ?: getString(R.string.news_default_title)
                     val realNews = intent.getIntExtra(EXTRA_REAL_NEWS_COUNT, 0)
                     val newsIndices = intent.getIntArrayExtra(EXTRA_NEWS_FILE_INDICES)?.toSet() ?: emptySet()
                     setPlaylist(paths, start, realNews, newsIndices)
@@ -311,15 +311,16 @@ class AudioPlayerService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val mgr = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             if (mgr.getNotificationChannel(CHANNEL_ID) == null) {
-                mgr.createNotificationChannel(NotificationChannel(CHANNEL_ID, "Аудио", NotificationManager.IMPORTANCE_LOW))
+                mgr.createNotificationChannel(NotificationChannel(CHANNEL_ID, getString(R.string.audio_channel_name), NotificationManager.IMPORTANCE_LOW))
             }
         }
     }
 
     private fun buildNotification(): Notification {
+        if (title.isEmpty()) title = getString(R.string.news_default_title)
         val isPlaying = isActuallyPlaying()
         val (cur, total) = computeProgress()
-        val progressText = if (total > 0) "новость $cur/$total" else ""
+        val progressText = if (total > 0) getString(R.string.news_progress_format, cur, total) else ""
 
         val openIntent = PendingIntent.getActivity(this, 0,
             Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or pendingFlag())
@@ -336,15 +337,15 @@ class AudioPlayerService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_tnr)
             .setContentTitle("$title — $progressText")
-            .setContentText(if (isPlaying) "Воспроизведение" else "Пауза")
+            .setContentText(if (isPlaying) getString(R.string.playing_status) else getString(R.string.paused_status))
             .setContentIntent(openIntent)
             .setOngoing(isPlaying)
             .setOnlyAlertOnce(true)
             .setColor(ContextCompat.getColor(this, R.color.purple_500))
             .addAction(
                 if (isPlaying) R.drawable.ic_notif_pause else R.drawable.ic_notif_play,
-                if (isPlaying) "Пауза" else "Пуск", playPauseIntent)
-            .addAction(R.drawable.ic_notif_next, "Далее", nextIntent)
+                if (isPlaying) getString(R.string.pause) else getString(R.string.play), playPauseIntent)
+            .addAction(R.drawable.ic_notif_next, getString(R.string.next), nextIntent)
             .build()
     }
 

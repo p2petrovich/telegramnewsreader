@@ -52,9 +52,10 @@ class ProxyAdapter(
         private val ivActive = view.findViewById<android.widget.ImageView>(R.id.iv_proxy_active)
 
         fun bind(proxy: ProxyEntry) {
+            val context = itemView.context
             tvAddress.text = "${proxy.host}:${proxy.port}"
             
-            val status = pings[proxy.id] ?: (if (proxy.isEnabled) "Соединение..." else "Недоступен")
+            val status = pings[proxy.id] ?: (if (proxy.isEnabled) context.getString(R.string.proxy_connecting) else context.getString(R.string.proxy_unavailable))
             val color = pingColors[proxy.id] ?: (if (proxy.isEnabled) 0xFF4CAF50.toInt() else 0xFFFF5252.toInt())
             
             tvPing.text = status

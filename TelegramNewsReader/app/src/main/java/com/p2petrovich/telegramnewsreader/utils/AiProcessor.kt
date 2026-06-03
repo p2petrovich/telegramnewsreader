@@ -40,7 +40,7 @@ object AiProcessor {
      */
     suspend fun testModelAvailability(modelName: String, context: Context): Pair<Boolean, String> {
         val (apiUrl, apiKey, _) = providerConfig(context)
-        if (apiKey.isBlank()) return false to "API ключ отсутствует"
+        if (apiKey.isBlank()) return false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_api_key_missing)
 
         val json = JSONObject().apply {
             put("model", modelName)
@@ -75,13 +75,13 @@ object AiProcessor {
                 testClient.newCall(request).execute()
             }
             if (response.isSuccessful) {
-                true to "Модель доступна"
+                true to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_model_available)
             } else {
                 val errorMsg = response.body?.string() ?: response.message
-                false to "Ошибка ${response.code}: $errorMsg"
+                false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_error_format, response.code, errorMsg)
             }
         } catch (e: Exception) {
-            false to "Сеть недоступна: ${e.message}"
+            false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_network_unavailable, e.message)
         }
     }
 

@@ -18,7 +18,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Голос и речь"
+            android:text="@string/voice_and_speech"
             android:textSize="24sp"
             android:textStyle="bold"
             android:textColor="?attr/colorOnPrimary" />
@@ -26,7 +26,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Выберите движок и голос озвучки"
+            android:text="@string/select_engine_voice"
             android:textSize="14sp"
             android:textColor="?attr/colorOnPrimary"
             android:layout_marginTop="4dp"
@@ -53,7 +53,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="🔊 Движок озвучки"
+                    android:text="@string/voice_engine_title"
                     android:textStyle="bold"
                     android:textSize="16sp"
                     android:textColor="?attr/colorPrimary" />
@@ -69,14 +69,14 @@
                         android:id="@+id/rbAndroid"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Android TTS (системный)"
+                        android:text="@string/android_tts_system"
                         android:textSize="15sp" />
 
                     <RadioButton
                         android:id="@+id/rbEdge"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Edge TTS — Microsoft Neural (рекомендуется)"
+                        android:text="@string/edge_tts_recommended"
                         android:textSize="15sp"
                         android:layout_marginTop="4dp" />
                 </RadioGroup>
@@ -100,7 +100,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="🎙 Настройки Edge TTS"
+                    android:text="@string/edge_tts_settings_title"
                     android:textStyle="bold"
                     android:textSize="16sp"
                     android:textColor="?attr/colorPrimary" />
@@ -109,7 +109,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Голос"
+                    android:text="@string/voice"
                     android:textSize="14sp"
                     android:textColor="?android:attr/textColorSecondary"
                     android:layout_marginTop="12dp" />
@@ -132,7 +132,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="Скорость речи"
+                        android:text="@string/speech_speed"
                         android:textSize="14sp"
                         android:textColor="?android:attr/textColorSecondary" />
 
@@ -185,7 +185,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="Высота тона"
+                        android:text="@string/pitch"
                         android:textSize="14sp"
                         android:textColor="?android:attr/textColorSecondary" />
 
@@ -231,7 +231,7 @@
                     android:id="@+id/btnTestEdge"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="▶ Тест Edge голоса"
+                    android:text="@string/test_edge_voice"
                     android:layout_marginTop="16dp" />
 
             </LinearLayout>
@@ -253,7 +253,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="🤖 Голоса Android TTS"
+                    android:text="@string/android_voices_title"
                     android:textStyle="bold"
                     android:textSize="16sp"
                     android:textColor="?attr/colorPrimary"
@@ -283,7 +283,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="💡 Совет"
+            android:text="@string/tip_title"
             android:textStyle="bold"
             android:textColor="?attr/colorPrimary"
             android:textSize="16sp" />
@@ -291,7 +291,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="• Edge TTS — Microsoft Neural голоса, качество значительно выше\n• Требует интернет при синтезе (кеш работает офлайн)\n• Android TTS работает полностью офлайн"
+            android:text="@string/edge_tts_tip"
             android:textSize="14sp"
             android:textColor="?android:attr/textColorSecondary"
             android:layout_marginTop="4dp"

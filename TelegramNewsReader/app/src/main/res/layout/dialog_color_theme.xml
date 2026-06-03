@@ -8,7 +8,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Цветовая тема"
+        android:text="@string/color_theme_title"
         android:textSize="20sp"
         android:textStyle="bold"
         android:layout_marginBottom="16dp"
@@ -25,19 +25,19 @@
             android:id="@+id/rb_theme_purple"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Фиолетовая (темная)" />
+            android:text="@string/theme_purple" />
 
         <RadioButton
             android:id="@+id/rb_theme_teal"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Бирюзовая (темная)" />
+            android:text="@string/theme_teal" />
 
         <RadioButton
             android:id="@+id/rb_theme_light"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Светлая" />
+            android:text="@string/theme_light" />
 
     </RadioGroup>
 
@@ -52,14 +52,14 @@
             style="@style/Widget.Material3.Button.TextButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Отмена" />
+            android:text="@string/cancel" />
 
         <Button
             android:id="@+id/btn_save_theme"
             style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Сохранить"
+            android:text="@string/save"
             android:layout_marginStart="8dp" />
 
     </LinearLayout>

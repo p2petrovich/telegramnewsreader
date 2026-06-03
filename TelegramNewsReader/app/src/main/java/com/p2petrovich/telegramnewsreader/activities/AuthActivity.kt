@@ -7,6 +7,8 @@ import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import android.view.autofill.AutofillManager
+import androidx.appcompat.app.AlertDialog
+import com.p2petrovich.telegramnewsreader.R
 import com.p2petrovich.telegramnewsreader.databinding.ActivityAuthBinding
 import com.p2petrovich.telegramnewsreader.telegram.TelegramClient
 import com.p2petrovich.telegramnewsreader.telegram.TelegramClientManager
@@ -28,13 +30,13 @@ class AuthActivity : AppCompatActivity() {
             runOnUiThread {
                 binding.etPassword.visibility = View.VISIBLE
                 binding.btnVerifyPassword.visibility = View.VISIBLE
-                Toast.makeText(this, "Введите облачный пароль", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.enter_cloud_password), Toast.LENGTH_SHORT).show()
             }
         }
 
         telegramClient.onClientReady = {
             runOnUiThread {
-                Toast.makeText(this, "Авторизация успешна", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.auth_success), Toast.LENGTH_SHORT).show()
                 PreferenceManager.setAuthorized(this, true)
                 startActivity(Intent(this, MainActivity::class.java))
                 finish()
@@ -43,11 +45,11 @@ class AuthActivity : AppCompatActivity() {
 
         telegramClient.onFatalError = { message ->
             runOnUiThread {
-                androidx.appcompat.app.AlertDialog.Builder(this)
-                    .setTitle("Ошибка безопасности")
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.security_error)
                     .setMessage(message)
                     .setCancelable(false)
-                    .setPositiveButton("Выход") { _, _ -> finish() }
+                    .setPositiveButton(R.string.exit) { _, _ -> finish() }
                     .show()
             }
         }
@@ -81,7 +83,7 @@ class AuthActivity : AppCompatActivity() {
         binding.btnSendCode.setOnClickListener {
             var phone = binding.etPhone.text.toString().trim()
             if (phone.isEmpty()) {
-                showError("Введите номер телефона")
+                showError(getString(R.string.enter_phone_error))
                 return@setOnClickListener
             }
 
@@ -96,11 +98,11 @@ class AuthActivity : AppCompatActivity() {
                 runOnUiThread {
                     showLoading(false)
                     if (success) {
-                        Toast.makeText(this, "Код отправлен", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, getString(R.string.code_sent), Toast.LENGTH_SHORT).show()
                         binding.etCode.visibility = View.VISIBLE
                         binding.btnVerify.visibility = View.VISIBLE
                     } else {
-                        showError("Не удалось отправить код")
+                        showError(getString(R.string.code_send_error))
                     }
                 }
             }
@@ -109,7 +111,7 @@ class AuthActivity : AppCompatActivity() {
         binding.btnVerify.setOnClickListener {
             val code = binding.etCode.text.toString().trim()
             if (code.isEmpty()) {
-                showError("Введите код из SMS")
+                showError(getString(R.string.enter_code_error))
                 return@setOnClickListener
             }
 
@@ -118,9 +120,9 @@ class AuthActivity : AppCompatActivity() {
                 runOnUiThread {
                     showLoading(false)
                     if (success) {
-                        Toast.makeText(this, "Код принят. Ожидание авторизации...", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, getString(R.string.code_accepted), Toast.LENGTH_SHORT).show()
                     } else {
-                        showError("Неверный код")
+                        showError(getString(R.string.invalid_code))
                     }
                 }
             }
@@ -129,7 +131,7 @@ class AuthActivity : AppCompatActivity() {
         binding.btnVerifyPassword.setOnClickListener {
             val password = binding.etPassword.text.toString().trim()
             if (password.isEmpty()) {
-                Toast.makeText(this, "Введите пароль", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.enter_password), Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
@@ -138,7 +140,7 @@ class AuthActivity : AppCompatActivity() {
                 runOnUiThread {
                     showLoading(false)
                     if (!success) {
-                        showError("Неверный пароль")
+                        showError(getString(R.string.invalid_password))
                     }
                 }
             }

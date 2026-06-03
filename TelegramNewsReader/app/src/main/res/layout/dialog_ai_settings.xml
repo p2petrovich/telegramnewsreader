@@ -12,7 +12,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Настройки ИИ"
+            android:text="@string/ai_settings_title"
             android:textSize="18sp"
             android:textStyle="bold"
             android:layout_marginBottom="16dp"/>
@@ -21,13 +21,13 @@
             android:id="@+id/switch_ai_enabled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Включить обработку через ИИ"
+            android:text="@string/enable_ai_processing"
             android:layout_marginBottom="16dp" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Провайдер ИИ:"
+            android:text="@string/ai_provider_label"
             android:layout_marginBottom="4dp"/>
         <Spinner
             android:id="@+id/spinner_ai_provider"
@@ -38,7 +38,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Модель ИИ:"
+            android:text="@string/ai_model_label"
             android:layout_marginBottom="4dp"/>
         <Spinner
             android:id="@+id/spinner_ai_model"
@@ -58,7 +58,7 @@
                 style="@style/Widget.Material3.Button.TonalButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Проверить доступность"
+                android:text="@string/check_availability"
                 android:textSize="12sp" />
 
             <TextView
@@ -73,7 +73,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Стиль пересказа:"
+            android:text="@string/summary_style_label"
             android:layout_marginBottom="4dp"/>
         <Spinner
             android:id="@+id/spinner_ai_style"
@@ -84,7 +84,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Примечание: выбранная модель должна быть доступна в вашем аккаунте."
+            android:text="@string/ai_note"
             android:textSize="12sp"
             android:textColor="#777777"
             android:layout_marginBottom="8dp"/>

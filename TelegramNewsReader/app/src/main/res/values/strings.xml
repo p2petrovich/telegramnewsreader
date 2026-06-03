@@ -25,6 +25,267 @@
     <string name="percentage">%1$d%%</string>
     <string name="time_period">Period: %1$s</string>
     <string name="version">Version: %1$s</string>
+    <string name="mtproto_title">MTProto Proxy Settings</string>
+    <string name="save_proxy_error">Please fill in all fields</string>
+    <string name="long_tap_start">long tap = start</string>
+    <string name="period_minutes">Period: %1$d minutes</string>
+    <string name="collecting_news_status">Collecting news…</string>
+    <string name="latest_news_label">Latest news:</string>
+    <string name="settings_title">Settings</string>
+    <string name="cat_content_filters">Content &amp; Filters</string>
+    <string name="channel_presets">Channel sets</string>
+    <string name="presets_desc">Group creation and editor</string>
+    <string name="hidden_channels">Hidden channels</string>
+    <string name="black_list_desc">Blacklist management</string>
+    <string name="dedup_menu_desc">Skip similar news</string>
+    <string name="ai_summary_menu">Smart Summary (AI)</string>
+    <string name="ai_style_models_desc">Summarization style and models</string>
+    <string name="playback_order">Playback order</string>
+    <string name="news_queue_desc">News reading sequence</string>
+    <string name="cat_ui_connection">Interface &amp; Connection</string>
+    <string name="voice_tembre_desc">Speaker and timbre selection</string>
+    <string name="color_theme">Color theme</string>
+    <string name="app_design_desc">App appearance</string>
+    <string name="mtproto_settings">MTProto Settings</string>
+    <string name="vpn_free_desc">Connection without VPN</string>
+    <string name="cat_system_data">System &amp; Data</string>
+    <string name="backup_menu">Backup</string>
+    <string name="export_import_desc">Export and import settings</string>
+    <string name="clear_cache_menu">Clear cache</string>
+    <string name="delete_audio_desc">Deleting audio files</string>
+    <string name="about_app">About</string>
+    <string name="version_info_desc">Version and information</string>
+    <string name="reset_auth">Reset authorization</string>
+    <string name="logout_desc">Logout and clear all data</string>
+
+    <!-- AI Settings -->
+    <string name="ai_settings_title">AI Settings</string>
+    <string name="enable_ai_processing">Enable AI processing</string>
+    <string name="ai_provider_label">AI Provider:</string>
+    <string name="ai_model_label">AI Model:</string>
+    <string name="check_availability">Check availability</string>
+    <string name="summary_style_label">Summarization style:</string>
+    <string name="ai_note">Note: the selected model must be available in your account.</string>
+
+    <!-- Proxy Settings -->
+    <string name="use_proxy">Use proxy</string>
+    <string name="auto_proxy_switch">Auto-switch proxy</string>
+    <string name="connections_label">Connections</string>
+    <string name="proxies_empty">Proxy list is empty</string>
+    <string name="add_proxy">Add proxy</string>
+    <string name="interval_min">Interval (min):</string>
+
+    <!-- About dialog -->
+    <string name="app_description">App for reading news from Telegram channels with voice acting.\n\nDeveloper: p2petrovich\n© 2025</string>
+
+    <string name="settings_restored">Settings restored</string>
+    <string name="file_read_error">Error reading file</string>
+    <string name="settings_saved">Settings saved</string>
+    <string name="select_channels_first">Select channels first</string>
+    <string name="selection_cleared">Selection cleared</string>
+    <string name="enter_name">Enter name</string>
+    <string name="preset_deleted">Preset deleted</string>
+    <string name="collect_news_first">Collect news first</string>
+    <string name="client_not_ready">Telegram client is not ready</string>
+    <string name="select_one_channel">Select at least one channel</string>
+    <string name="error_prefix">Error: %1$s</string>
+    <string name="no_new_news">No new news found</string>
+    <string name="no_backups_found">No backups found</string>
+    <string name="restore_error">Restore error</string>
+    <string name="proxy_updated">Proxy settings updated</string>
+    <string name="clipboard_no_proxy">No proxy link in clipboard</string>
+
+    <string name="enter_cloud_password">Enter cloud password</string>
+    <string name="auth_success">Authorization successful</string>
+    <string name="security_error">Security error</string>
+    <string name="exit">Exit</string>
+    <string name="enter_phone_error">Enter phone number</string>
+    <string name="code_sent">Code sent</string>
+    <string name="code_send_error">Failed to send code</string>
+    <string name="enter_code_error">Enter code from SMS</string>
+    <string name="code_accepted">Code accepted. Waiting for authorization…</string>
+    <string name="invalid_code">Invalid code</string>
+    <string name="enter_password">Enter password</string>
+    <string name="invalid_password">Invalid password</string>
+
+    <string name="edge_voice_guy">Guy (en-US) ♂</string>
+    <string name="edge_voice_aria">Aria (en-US) ♀</string>
+    <string name="edge_voice_jenny">Jenny (en-US) ♀</string>
+    <string name="edge_voice_eric">Eric (en-US) ♂</string>
+    <string name="edge_voice_davis">Davis (en-US) ♂</string>
+    <string name="edge_voice_jane">Jane (en-US) ♀</string>
+    <string name="edge_voice_jason">Jason (en-US) ♂</string>
+    <string name="edge_voice_sara">Sara (en-US) ♀</string>
+    <string name="edge_voice_tony">Tony (en-US) ♂</string>
+    <string name="edge_voice_nancy">Nancy (en-US) ♀</string>
+    <string name="edge_voice_amber">Amber (en-US) ♀</string>
+    <string name="edge_voice_ana">Ana (en-US) ♀</string>
+    <string name="edge_voice_ashley">Ashley (en-US) ♀</string>
+    <string name="edge_voice_brandon">Brandon (en-US) ♂</string>
+    <string name="edge_voice_christopher">Christopher (en-US) ♂</string>
+    <string name="edge_voice_cora">Cora (en-US) ♀</string>
+    <string name="edge_voice_elizabeth">Elizabeth (en-US) ♀</string>
+    <string name="edge_voice_jacob">Jacob (en-US) ♂</string>
+    <string name="edge_voice_michelle">Michelle (en-US) ♀</string>
+    <string name="edge_voice_monica">Monica (en-US) ♀</string>
+    <string name="edge_voice_roger">Roger (en-US) ♂</string>
+    <string name="edge_voice_ryan">Ryan Multilingual (en-US) ♂</string>
+    <string name="edge_voice_steffan">Steffan (en-US) ♂</string>
+    <string name="edge_voice_libby">Libby (en-GB) ♀</string>
+    <string name="edge_voice_maisie">Maisie (en-GB) ♀</string>
+    <string name="edge_voice_ryan_gb">Ryan (en-GB) ♂</string>
+    <string name="edge_voice_sonia">Sonia (en-GB) ♀</string>
+    <string name="edge_voice_thomas">Thomas (en-GB) ♂</string>
+    <string name="edge_voice_dmitry">Dmitry (ru-RU) ♂</string>
+    <string name="edge_voice_svetlana">Svetlana (ru-RU) ♀</string>
+
+    <string name="engine_network">network</string>
+    <string name="engine_local">local</string>
+    <string name="pitch_reset">Pitch reset</string>
+    <string name="rate_reset">Rate reset</string>
+
+    <string name="no_presets_hint">No saved sets.\nSelect channels and click \"Save set\".</string>
+    <string name="playback_order_title">Playback order</string>
+    <string name="order_by_channel_new_first">By channel: new to old</string>
+    <string name="order_by_channel_old_first">By channel: old to new</string>
+    <string name="order_chronological_new_first">Chronological: new to old (no headers)</string>
+    <string name="order_chronological_old_first">Chronological: old to new (no headers)</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="color_theme_title">Color theme</string>
+    <string name="theme_purple">Purple (dark)</string>
+    <string name="theme_teal">Teal (dark)</string>
+    <string name="theme_light">Light</string>
+    <string name="hidden_channels_title">Hidden channels</string>
+    <string name="no_hidden_channels">No hidden channels</string>
+    <string name="restore_selected">Restore selected</string>
+    <string name="channel_default_name">Channel</string>
+    <string name="clear_cache_title">Clear audio cache</string>
+    <string name="clear">Clear</string>
+    <string name="cache_full_cleared">Cache and history fully cleared</string>
+    <string name="cache_partial_cleared">Cache cleared, Telegram history remains</string>
+
+    <string name="preset_name_label">Set name</string>
+    <string name="preset_name_hint">Example: Morning news</string>
+    <string name="preset_period_label">News period</string>
+
+    <string name="create_backup">Create backup</string>
+    <string name="save_settings_downloads">Save current settings to Downloads</string>
+    <string name="restore_from_backup">Restore from backup</string>
+    <string name="select_existing_backup">Select from existing backups</string>
+    <string name="select_file_manual">Select file manually</string>
+    <string name="open_via_file_manager">Open file via Android file manager</string>
+    <string name="back">Back</string>
+    <string name="paste_from_clipboard">Paste from clipboard</string>
+    <string name="proxy_mtproto">MTProto Proxy</string>
+    <string name="server">Server</string>
+    <string name="port">Port</string>
+    <string name="secret">Secret</string>
+    <string name="delete">Delete</string>
+
+    <string name="collect_digest">Collect digest</string>
+    <string name="edit_filters">Edit filters</string>
+
+    <string name="current_channel">Current channel: %1$s</string>
+
+    <string name="channel_header_format">News from channel %1$s:</string>
+    <string name="speech_synthesis_status">Speech synthesis…</string>
+    <string name="synthesis_completed_status">Synthesis completed</string>
+    <string name="collecting_from_n_channels">Collecting from %1$d channels…</string>
+    <string name="channel_n_of_m">Channel %1$d of %2$d</string>
+    <string name="deduplication_status">Deduplication…</string>
+    <string name="filtering_status">Filtering…</string>
+    <string name="checking_duplicates_status">Checking for duplicates…</string>
+    <string name="ai_summarization_status">AI Summarization…</string>
+    <string name="ai_processing_completed_status">AI processing completed</string>
+    <string name="prepared_for_synthesis_status">Prepared for synthesis</string>
+    <string name="timeout_exceeded_status">Timeout exceeded</string>
+    <string name="no_news_status">No news</string>
+
+    <string name="ai_api_key_missing">API key is missing</string>
+    <string name="ai_model_available">Model is available</string>
+    <string name="ai_error_format">Error %1$d: %2$s</string>
+    <string name="ai_network_unavailable">Network unavailable: %1$s</string>
+    <string name="edit">Edit</string>
+
+    <string name="proxy_connecting">Connecting…</string>
+    <string name="proxy_unavailable">Unavailable</string>
+
+    <string name="preset_channels_count">%1$d channels • %2$s</string>
+    <string name="and_more_n"> and %1$d more</string>
+    <string name="channels_not_found">Channels not found</string>
+
+    <string name="audio_channel_name">Audio</string>
+    <string name="news_default_title">News</string>
+    <string name="news_progress_format">news %1$d/%2$d</string>
+    <string name="playing_status">Playing</string>
+    <string name="paused_status">Paused</string>
+
+    <string name="verify_password">Verify password</string>
+    <string name="voice_engine_title">🔊 Voice Engine</string>
+    <string name="android_tts_system">Android TTS (system)</string>
+    <string name="select_engine_voice">Select engine and voice</string>
+    <string name="messages_count_format">%1$d messages</string>
+    <string name="hour_format">%1$d hour</string>
+    <string name="loading">Loading…</string>
+    <string name="speech_speed">Speech speed</string>
+    <string name="voice_language">Speech language</string>
+    <string name="voice">Voice</string>
+    <string name="select_categories">Select categories</string>
+
+    <string name="edge_tts_recommended">Edge TTS — Microsoft Neural (recommended)</string>
+    <string name="edge_tts_settings_title">🎙 Edge TTS Settings</string>
+    <string name="pitch">Pitch</string>
+    <string name="android_voices_title">🤖 Android TTS Voices</string>
+    <string name="tip_title">💡 Tip</string>
+    <string name="edge_tts_tip">• Edge TTS — Microsoft Neural voices, significantly higher quality\n• Requires internet during synthesis (cache works offline)\n• Android TTS works completely offline</string>
+
+    <string name="listen_voice">Listen to voice</string>
+    <string name="timbre">Timbre</string>
+    <string name="reset_timbre">Reset timbre</string>
+    <string name="speed">Speed</string>
+    <string name="reset_speed">Reset speed</string>
+    <string name="eta_calculating_status">Remaining: calculating…</string>
+    <string name="collected_zero">Collected: 0</string>
+    <string name="channels_progress_zero">Channel progress: 0 of 0</string>
+
+    <string name="restore">Restore</string>
+    <string name="done">Done</string>
+    <string name="yes">Yes</string>
+    <string name="hide">Hide</string>
+
+    <string name="select_time_period">Select time period</string>
+    <string name="select_restore_date">Select restore date</string>
+    <string name="reset_auth_title">Reset authorization</string>
+    <string name="hide_channel_title">Hide channel</string>
+
+    <string name="lib_not_ready">Library not ready</string>
+
+    <string name="time_10m">10 minutes</string>
+    <string name="time_20m">20 minutes</string>
+    <string name="time_30m">30 minutes</string>
+    <string name="time_1h">1 hour</string>
+    <string name="time_2h">2 hours</string>
+    <string name="time_3h">3 hours</string>
+    <string name="time_6h">6 hours</string>
+    <string name="time_12h">12 hours</string>
+    <string name="time_24h">24 hours</string>
+
+    <string name="ai_style_minimal">Cleaning only</string>
+    <string name="ai_style_balanced">Balanced (2x compression)</string>
+    <string name="ai_style_extreme">Radio-Flash (1 sentence)</string>
+
+    <string name="ai_model_llama_fast">Llama 3.3 70B — fast ⚡</string>
+    <string name="ai_model_llama_instant">Llama 3.1 8B — instant ⚡</string>
+    <string name="ai_model_llama_new">Llama 4 Scout — new ⚡</string>
+    <string name="ai_model_glm_free">GLM-4.5 Air (Good Russian) — FREE</string>
+    <string name="ai_model_gpt_free">GPT-OSS 120B (Strong) — FREE</string>
+    <string name="ai_model_nemotron_free">Nemotron-3 Super (Stable) — FREE</string>
+
+    <string name="ai_settings_saved">AI Settings saved</string>
+
+    <string name="min_short">min</string>
+    <string name="proxy_server">Proxy Server</string>
 
     <!-- Deduplication settings -->
     <string name="dedup_title">Duplicate filtering</string>

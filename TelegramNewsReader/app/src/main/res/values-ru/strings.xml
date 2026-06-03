@@ -25,6 +25,267 @@
     <string name="percentage">%1$d%%</string>
     <string name="time_period">Период: %1$s</string>
     <string name="version">Версия: %1$s</string>
+    <string name="mtproto_title">Настройки прокси MTProto</string>
+    <string name="save_proxy_error">Заполните все поля</string>
+    <string name="long_tap_start">долгий тап = старт</string>
+    <string name="period_minutes">Период: %1$d минут</string>
+    <string name="collecting_news_status">Сбор новостей…</string>
+    <string name="latest_news_label">Последние новости:</string>
+    <string name="settings_title">Настройки</string>
+    <string name="cat_content_filters">Контент и фильтры</string>
+    <string name="channel_presets">Наборы каналов</string>
+    <string name="presets_desc">Создание и редактор групп</string>
+    <string name="hidden_channels">Скрытые каналы</string>
+    <string name="black_list_desc">Управление черным списком</string>
+    <string name="dedup_menu_desc">Пропуск похожих новостей</string>
+    <string name="ai_summary_menu">Умный пересказ (ИИ)</string>
+    <string name="ai_style_models_desc">Стиль суммаризации и модели</string>
+    <string name="playback_order">Порядок воспроизведения</string>
+    <string name="news_queue_desc">Очередность чтения новостей</string>
+    <string name="cat_ui_connection">Интерфейс и связь</string>
+    <string name="voice_tembre_desc">Выбор диктора и тембра</string>
+    <string name="color_theme">Цветовая тема</string>
+    <string name="app_design_desc">Оформление приложения</string>
+    <string name="mtproto_settings">Настройки MTProto</string>
+    <string name="vpn_free_desc">Соединение без VPN</string>
+    <string name="cat_system_data">Система и данные</string>
+    <string name="backup_menu">Резервное копирование</string>
+    <string name="export_import_desc">Экспорт и импорт настроек</string>
+    <string name="clear_cache_menu">Очистить кэш</string>
+    <string name="delete_audio_desc">Удаление аудиофайлов</string>
+    <string name="about_app">О программе</string>
+    <string name="version_info_desc">Версия и информация</string>
+    <string name="reset_auth">Сбросить авторизацию</string>
+    <string name="logout_desc">Выход из аккаунта и очистка всех данных</string>
+
+    <!-- AI Settings -->
+    <string name="ai_settings_title">Настройки ИИ</string>
+    <string name="enable_ai_processing">Включить обработку через ИИ</string>
+    <string name="ai_provider_label">Провайдер ИИ:</string>
+    <string name="ai_model_label">Модель ИИ:</string>
+    <string name="check_availability">Проверить доступность</string>
+    <string name="summary_style_label">Стиль пересказа:</string>
+    <string name="ai_note">Примечание: выбранная модель должна быть доступна в вашем аккаунте.</string>
+
+    <!-- Proxy Settings -->
+    <string name="use_proxy">Использовать прокси</string>
+    <string name="auto_proxy_switch">Автопереключение прокси</string>
+    <string name="connections_label">Подключения</string>
+    <string name="proxies_empty">Список прокси пуст</string>
+    <string name="add_proxy">Добавить прокси</string>
+    <string name="interval_min">Интервал (мин):</string>
+
+    <!-- About dialog -->
+    <string name="app_description">Приложение для чтения новостей из Telegram-каналов с озвучкой.\n\nРазработчик: p2petrovich\n© 2025</string>
+
+    <string name="settings_restored">Настройки восстановлены</string>
+    <string name="file_read_error">Ошибка при чтении файла</string>
+    <string name="settings_saved">Настройки сохранены</string>
+    <string name="select_channels_first">Сначала выберите каналы</string>
+    <string name="selection_cleared">Выбор сброшен</string>
+    <string name="enter_name">Введите название</string>
+    <string name="preset_deleted">Набор удалён</string>
+    <string name="collect_news_first">Сначала соберите новости</string>
+    <string name="client_not_ready">Telegram клиент не готов</string>
+    <string name="select_one_channel">Выберите хотя бы один канал</string>
+    <string name="error_prefix">Ошибка: %1$s</string>
+    <string name="no_new_news">Новые новости не найдены</string>
+    <string name="no_backups_found">Резервных копий не найдено</string>
+    <string name="restore_error">Ошибка при восстановлении</string>
+    <string name="proxy_updated">Настройки прокси обновлены</string>
+    <string name="clipboard_no_proxy">В буфере нет ссылки на прокси</string>
+
+    <string name="enter_cloud_password">Введите облачный пароль</string>
+    <string name="auth_success">Авторизация успешна</string>
+    <string name="security_error">Ошибка безопасности</string>
+    <string name="exit">Выход</string>
+    <string name="enter_phone_error">Введите номер телефона</string>
+    <string name="code_sent">Код отправлен</string>
+    <string name="code_send_error">Не удалось отправить код</string>
+    <string name="enter_code_error">Введите код из SMS</string>
+    <string name="code_accepted">Код принят. Ожидание авторизации...</string>
+    <string name="invalid_code">Неверный код</string>
+    <string name="enter_password">Введите пароль</string>
+    <string name="invalid_password">Неверный пароль</string>
+
+    <string name="edge_voice_guy">Гай (en-US) ♂</string>
+    <string name="edge_voice_aria">Ария (en-US) ♀</string>
+    <string name="edge_voice_jenny">Дженни (en-US) ♀</string>
+    <string name="edge_voice_eric">Эрик (en-US) ♂</string>
+    <string name="edge_voice_davis">Дэвис (en-US) ♂</string>
+    <string name="edge_voice_jane">Джейн (en-US) ♀</string>
+    <string name="edge_voice_jason">Джейсон (en-US) ♂</string>
+    <string name="edge_voice_sara">Сара (en-US) ♀</string>
+    <string name="edge_voice_tony">Тони (en-US) ♂</string>
+    <string name="edge_voice_nancy">Нэнси (en-US) ♀</string>
+    <string name="edge_voice_amber">Эмбер (en-US) ♀</string>
+    <string name="edge_voice_ana">Ана (en-US) ♀</string>
+    <string name="edge_voice_ashley">Эшли (en-US) ♀</string>
+    <string name="edge_voice_brandon">Брэндон (en-US) ♂</string>
+    <string name="edge_voice_christopher">Кристофер (en-US) ♂</string>
+    <string name="edge_voice_cora">Кора (en-US) ♀</string>
+    <string name="edge_voice_elizabeth">Элизабет (en-US) ♀</string>
+    <string name="edge_voice_jacob">Джейкоб (en-US) ♂</string>
+    <string name="edge_voice_michelle">Мишель (en-US) ♀</string>
+    <string name="edge_voice_monica">Моника (en-US) ♀</string>
+    <string name="edge_voice_roger">Роджер (en-US) ♂</string>
+    <string name="edge_voice_ryan">Райан Мультиязычный (en-US) ♂</string>
+    <string name="edge_voice_steffan">Штеффан (en-US) ♂</string>
+    <string name="edge_voice_libby">Либби (en-GB) ♀</string>
+    <string name="edge_voice_maisie">Мэйзи (en-GB) ♀</string>
+    <string name="edge_voice_ryan_gb">Райан (en-GB) ♂</string>
+    <string name="edge_voice_sonia">Соня (en-GB) ♀</string>
+    <string name="edge_voice_thomas">Томас (en-GB) ♂</string>
+    <string name="edge_voice_dmitry">Дмитрий (ru-RU) ♂</string>
+    <string name="edge_voice_svetlana">Светлана (ru-RU) ♀</string>
+
+    <string name="engine_network">сеть</string>
+    <string name="engine_local">локально</string>
+    <string name="pitch_reset">Тембр сброшен</string>
+    <string name="rate_reset">Скорость сброшена</string>
+
+    <string name="no_presets_hint">Нет сохранённых наборов.\nВыберите каналы и нажмите «Сохранить набор».</string>
+    <string name="playback_order_title">Порядок воспроизведения</string>
+    <string name="order_by_channel_new_first">Поканально: от новых к старым</string>
+    <string name="order_by_channel_old_first">Поканально: от старых к новым</string>
+    <string name="order_chronological_new_first">Хронологически: от новых к старым (без заголовков)</string>
+    <string name="order_chronological_old_first">Хронологически: от старых к новым (без заголовков)</string>
+    <string name="save">Сохранить</string>
+    <string name="cancel">Отмена</string>
+    <string name="color_theme_title">Цветовая тема</string>
+    <string name="theme_purple">Фиолетовая (темная)</string>
+    <string name="theme_teal">Бирюзовая (темная)</string>
+    <string name="theme_light">Светлая</string>
+    <string name="hidden_channels_title">Скрытые каналы</string>
+    <string name="no_hidden_channels">Скрытых каналов нет</string>
+    <string name="restore_selected">Вернуть выбранные</string>
+    <string name="channel_default_name">Канал</string>
+    <string name="clear_cache_title">Очистить кэш аудио</string>
+    <string name="clear">Очистить</string>
+    <string name="cache_full_cleared">Кэш и история полностью очищены</string>
+    <string name="cache_partial_cleared">Кэш очищен, история Telegram осталась</string>
+
+    <string name="preset_name_label">Название набора</string>
+    <string name="preset_name_hint">Например: Утренние новости</string>
+    <string name="preset_period_label">Период новостей</string>
+
+    <string name="create_backup">Создать резервную копию</string>
+    <string name="save_settings_downloads">Сохранить текущие настройки в Downloads</string>
+    <string name="restore_from_backup">Восстановить из копии</string>
+    <string name="select_existing_backup">Выбрать из списка существующих бэкапов</string>
+    <string name="select_file_manual">Выбрать файл вручную</string>
+    <string name="open_via_file_manager">Открыть файл через проводник Android</string>
+    <string name="back">Назад</string>
+    <string name="paste_from_clipboard">Вставить из буфера обмена</string>
+    <string name="proxy_mtproto">Прокси MTProto</string>
+    <string name="server">Сервер</string>
+    <string name="port">Порт</string>
+    <string name="secret">Ключ (Secret)</string>
+    <string name="delete">Удалить</string>
+
+    <string name="collect_digest">Собрать дайджест</string>
+    <string name="edit_filters">Редактировать фильтры</string>
+
+    <string name="current_channel">Текущий канал: %1$s</string>
+
+    <string name="channel_header_format">Новости из канала %1$s:</string>
+    <string name="speech_synthesis_status">Синтез речи…</string>
+    <string name="synthesis_completed_status">Синтез завершен</string>
+    <string name="collecting_from_n_channels">Сбор из %1$d каналов…</string>
+    <string name="channel_n_of_m">Канал %1$d из %2$d</string>
+    <string name="deduplication_status">Дедупликация…</string>
+    <string name="filtering_status">Фильтрация…</string>
+    <string name="checking_duplicates_status">Проверка на дубли…</string>
+    <string name="ai_summarization_status">Сжатие через ИИ…</string>
+    <string name="ai_processing_completed_status">ИИ обработка завершена</string>
+    <string name="prepared_for_synthesis_status">Подготовлено к озвучке</string>
+    <string name="timeout_exceeded_status">Превышено время ожидания</string>
+    <string name="no_news_status">Нет новостей</string>
+
+    <string name="ai_api_key_missing">API ключ отсутствует</string>
+    <string name="ai_model_available">Модель доступна</string>
+    <string name="ai_error_format">Ошибка %1$d: %2$s</string>
+    <string name="ai_network_unavailable">Сеть недоступна: %1$s</string>
+    <string name="edit">Редактировать</string>
+
+    <string name="proxy_connecting">Соединение…</string>
+    <string name="proxy_unavailable">Недоступен</string>
+
+    <string name="preset_channels_count">%1$d каналов • %2$s</string>
+    <string name="and_more_n"> и ещё %1$d</string>
+    <string name="channels_not_found">Каналы не найдены</string>
+
+    <string name="audio_channel_name">Аудио</string>
+    <string name="news_default_title">Новости</string>
+    <string name="news_progress_format">новость %1$d/%2$d</string>
+    <string name="playing_status">Воспроизведение</string>
+    <string name="paused_status">Пауза</string>
+
+    <string name="verify_password">Подтвердить пароль</string>
+    <string name="voice_engine_title">🔊 Движок озвучки</string>
+    <string name="android_tts_system">Android TTS (системный)</string>
+    <string name="select_engine_voice">Выберите движок и голос озвучки</string>
+    <string name="messages_count_format">%1$d сообщений</string>
+    <string name="hour_format">%1$d час</string>
+    <string name="loading">Загрузка…</string>
+    <string name="speech_speed">Скорость речи</string>
+    <string name="voice_language">Язык озвучивания</string>
+    <string name="voice">Голос</string>
+    <string name="select_categories">Выберите категории</string>
+
+    <string name="edge_tts_recommended">Edge TTS — Microsoft Neural (рекомендуется)</string>
+    <string name="edge_tts_settings_title">🎙 Настройки Edge TTS</string>
+    <string name="pitch">Высота тона</string>
+    <string name="android_voices_title">🤖 Голоса Android TTS</string>
+    <string name="tip_title">💡 Совет</string>
+    <string name="edge_tts_tip">• Edge TTS — Microsoft Neural голоса, качество значительно выше\n• Требует интернет при синтезе (кеш работает офлайн)\n• Android TTS работает полностью офлайн</string>
+
+    <string name="listen_voice">Прослушать голос</string>
+    <string name="timbre">Тембр</string>
+    <string name="reset_timbre">Сброс тембра</string>
+    <string name="speed">Скорость</string>
+    <string name="reset_speed">Сброс скорости</string>
+    <string name="eta_calculating_status">Осталось: вычисляется…</string>
+    <string name="collected_zero">Собрано: 0</string>
+    <string name="channels_progress_zero">Прогресс по каналам: 0 из 0</string>
+
+    <string name="restore">Восстановить</string>
+    <string name="done">Готово</string>
+    <string name="yes">Да</string>
+    <string name="hide">Скрыть</string>
+
+    <string name="select_time_period">Выберите период времени</string>
+    <string name="select_restore_date">Выберите дату восстановления</string>
+    <string name="reset_auth_title">Сброс авторизации</string>
+    <string name="hide_channel_title">Скрыть канал</string>
+
+    <string name="lib_not_ready">Библиотека не готова</string>
+
+    <string name="time_10m">10 минут</string>
+    <string name="time_20m">20 минут</string>
+    <string name="time_30m">30 минут</string>
+    <string name="time_1h">1 час</string>
+    <string name="time_2h">2 часа</string>
+    <string name="time_3h">3 часа</string>
+    <string name="time_6h">6 часов</string>
+    <string name="time_12h">12 часов</string>
+    <string name="time_24h">24 часа</string>
+
+    <string name="ai_style_minimal">Только чистка от мусора</string>
+    <string name="ai_style_balanced">Сбалансированное сжатие (в 2 раза)</string>
+    <string name="ai_style_extreme">Радио-молния (1 предложение)</string>
+
+    <string name="ai_model_llama_fast">Llama 3.3 70B — быстрый ⚡</string>
+    <string name="ai_model_llama_instant">Llama 3.1 8B — сверхбыстрый ⚡</string>
+    <string name="ai_model_llama_new">Llama 4 Scout — новый ⚡</string>
+    <string name="ai_model_glm_free">GLM-4.5 Air (Хороший русский) — FREE</string>
+    <string name="ai_model_gpt_free">GPT-OSS 120B (Сильный) — FREE</string>
+    <string name="ai_model_nemotron_free">Nemotron-3 Super (Стабильный) — FREE</string>
+
+    <string name="ai_settings_saved">Настройки ИИ сохранены</string>
+
+    <string name="min_short">мин</string>
+    <string name="proxy_server">Прокси-сервер</string>
 
     <!-- Deduplication settings -->
     <string name="dedup_title">Фильтрация дублей</string>

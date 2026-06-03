@@ -47,7 +47,7 @@ class VoiceAdapter(
         val context = holder.itemView.context
         val ttsManager = TTSManagerSingleton.getInstance(context)
 
-        val engineInfo = if (voiceEntry.isNetwork) "сеть" else "локально"
+        val engineInfo = if (voiceEntry.isNetwork) context.getString(R.string.engine_network) else context.getString(R.string.engine_local)
         holder.radio.text = "${voiceEntry.getGenderIcon()} ${voiceEntry.displayName} ($engineInfo)"
         holder.radio.isChecked = position == selectedIndex
         holder.genderIcon?.text = voiceEntry.getGenderIcon()
@@ -117,7 +117,7 @@ class VoiceAdapter(
                 holder.seekPitch.progress = 100
                 ttsManager.updatePitchForVoice(voiceEntries[pos].systemName, 1.0f)
                 holder.pitchValue?.text = "1.0"
-                Toast.makeText(context, "Тембр сброшен", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.pitch_reset), Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -127,7 +127,7 @@ class VoiceAdapter(
                 holder.seekRate.progress = 100
                 ttsManager.updateRateForVoice(voiceEntries[pos].systemName, 1.0f)
                 holder.speedValue?.text = "1.0"
-                Toast.makeText(context, "Скорость сброшена", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.rate_reset), Toast.LENGTH_SHORT).show()
             }
         }
     }

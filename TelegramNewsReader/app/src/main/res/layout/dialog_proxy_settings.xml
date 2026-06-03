@@ -10,21 +10,21 @@
         android:id="@+id/switch_proxy_enabled"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Использовать прокси"
+        android:text="@string/use_proxy"
         android:layout_marginBottom="8dp" />
 
     <com.google.android.material.materialswitch.MaterialSwitch
         android:id="@+id/switch_auto_proxy"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Автопереключение прокси"
+        android:text="@string/auto_proxy_switch"
         android:layout_marginBottom="16dp" />
 
     <TextView
         android:id="@+id/tv_connections_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Подключения"
+        android:text="@string/connections_label"
         android:textColor="?attr/colorPrimary"
         android:textStyle="bold"
         android:layout_marginBottom="8dp" />
@@ -41,7 +41,7 @@
         android:id="@+id/tv_proxies_empty"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Список прокси пуст"
+        android:text="@string/proxies_empty"
         android:gravity="center"
         android:visibility="gone"
         android:layout_marginBottom="8dp" />
@@ -51,7 +51,7 @@
         style="@style/Widget.Material3.Button.TextButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Добавить прокси"
+        android:text="@string/add_proxy"
         android:gravity="start|center_vertical"
         android:paddingStart="0dp"
         android:paddingEnd="0dp" />
@@ -73,7 +73,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Интервал (мин):" />
+                android:text="@string/interval_min" />
 
             <Spinner
                 android:id="@+id/spinner_proxy_interval"

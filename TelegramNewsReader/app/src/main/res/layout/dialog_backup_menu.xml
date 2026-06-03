@@ -10,7 +10,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Резервное копирование"
+        android:text="@string/backup_menu"
         android:textSize="20sp"
         android:textStyle="bold"
         android:paddingBottom="16dp"
@@ -42,14 +42,14 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Создать резервную копию"
+                    android:text="@string/create_backup"
                     android:textSize="16sp"
                     android:textStyle="bold"
                     android:textColor="?attr/colorOnSurface" />
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Сохранить текущие настройки в Downloads"
+                    android:text="@string/save_settings_downloads"
                     android:textSize="13sp"
                     android:textColor="?attr/colorOnSurfaceVariant" />
             </LinearLayout>
@@ -68,14 +68,14 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Восстановить из копии"
+                    android:text="@string/restore_from_backup"
                     android:textSize="16sp"
                     android:textStyle="bold"
                     android:textColor="?attr/colorOnSurface" />
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Выбрать из списка существующих бэкапов"
+                    android:text="@string/select_existing_backup"
                     android:textSize="13sp"
                     android:textColor="?attr/colorOnSurfaceVariant" />
             </LinearLayout>
@@ -94,14 +94,14 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Выбрать файл вручную"
+                    android:text="@string/select_file_manual"
                     android:textSize="16sp"
                     android:textStyle="bold"
                     android:textColor="?attr/colorOnSurface" />
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Открыть файл через проводник Android"
+                    android:text="@string/open_via_file_manager"
                     android:textSize="13sp"
                     android:textColor="?attr/colorOnSurfaceVariant" />
             </LinearLayout>
@@ -115,6 +115,6 @@
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         android:layout_marginTop="8dp"
-        android:text="Назад" />
+        android:text="@string/back" />
 
 </LinearLayout>

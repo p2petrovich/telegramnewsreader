@@ -64,7 +64,7 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             app:tint="?attr/colorOnSurfaceVariant"
-            android:contentDescription="Настройки" />
+            android:contentDescription="@string/settings_title" />
 
         <!-- Hidden but kept for binding compatibility -->
         <RadioButton

@@ -41,7 +41,8 @@ class NewsService(
         private const val HEADER_MARKER = "\u200B\u200C\u200B"
 
         fun isChannelHeader(text: String): Boolean = text.contains(HEADER_MARKER)
-        fun makeChannelHeader(title: String): String = "${HEADER_MARKER}Новости из канала ${title}:"
+        fun makeChannelHeader(title: String, context: android.content.Context): String = 
+            "${HEADER_MARKER}${context.getString(com.p2petrovich.telegramnewsreader.R.string.channel_header_format, title)}"
     }
 
     data class Prepared(
@@ -117,7 +118,7 @@ class NewsService(
                         // Если ИИ не было, то синтез — это 0..100%
                         if (total > 0) (current * 100 / total).coerceIn(0, 100) else 0
                     }
-                    progressCallback.onOverallProgress("Синтез речи...", overallPercentage)
+                    progressCallback.onOverallProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.speech_synthesis_status), overallPercentage)
 
                     val synthesizedNews = if (total > 0) {
                         (current.toLong() * actualTtsNewsCount / total).toInt().coerceIn(0, actualTtsNewsCount)
@@ -127,7 +128,7 @@ class NewsService(
                 override fun onStarted(messageCount: Int) { progressCallback.onSynthesisStarted(messageCount) }
                 override fun onCompleted() {
                     progressCallback.onUpdateCounters(list.totalCollected, actualTtsNewsCount, actualTtsNewsCount)
-                    progressCallback.onOverallProgress("Синтез завершен", 100)
+                    progressCallback.onOverallProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.synthesis_completed_status), 100)
                     progressCallback.onSynthesisCompleted()
                 }
             }
@@ -153,7 +154,7 @@ class NewsService(
                 val currentTimeSeconds = System.currentTimeMillis() / 1000
                 val fromDate = currentTimeSeconds - (timeHours * 3600).toLong()
 
-                progressCallback.onUpdateProgress("Сбор из ${channels.size} каналов...", 0, channels.size)
+                progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.collecting_from_n_channels, channels.size), 0, channels.size)
                 progressCallback.onUpdateChannelProgress(channels)
 
                 val channelResults = channels.mapIndexed { index, channel ->
@@ -161,7 +162,7 @@ class NewsService(
                         ensureActive()
                         val result = processChannelWithTimeout(channel, fromDate)
                         progressCallback.onChannelProcessed(result.first, result.second.size)
-                        progressCallback.onUpdateProgress("Канал ${index + 1} из ${channels.size}", index + 1, channels.size)
+                        progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.channel_n_of_m, index + 1, channels.size), index + 1, channels.size)
                         result
                     }
                 }.awaitAll()
@@ -177,7 +178,7 @@ class NewsService(
                     0 -> { // Поканально: от новых к старым (как было)
                         channelResults.forEach { (channel, messages) ->
                             if (messages.isNotEmpty()) {
-                                allMessages.add(makeChannelHeader(channel.title))
+                                allMessages.add(makeChannelHeader(channel.title, context))
                                 allMessages.addAll(messages)
                                 realNewsCount += messages.size
                                 newsPreview.addAll(messages.take(5))
@@ -187,7 +188,7 @@ class NewsService(
                     1 -> { // Поканально: от старых к новым
                         channelResults.forEach { (channel, messages) ->
                             if (messages.isNotEmpty()) {
-                                allMessages.add(makeChannelHeader(channel.title))
+                                allMessages.add(makeChannelHeader(channel.title, context))
                                 allMessages.addAll(messages.reversed())
                                 realNewsCount += messages.size
                                 newsPreview.addAll(messages.reversed().take(5))
@@ -218,13 +219,13 @@ class NewsService(
 
                 if (allMessages.isEmpty()) {
                     Log.w(TAG, "Total messages from all channels is ZERO")
-                    progressCallback.onUpdateProgress("Нет новостей", 100, 100)
+                    progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.no_news_status), 100, 100)
                     return@withTimeout Prepared(emptyList(), 0, 0, 0)
                 }
 
                 ensureActive()
 
-                progressCallback.onUpdateProgress("Дедупликация...", 0, 100)
+                progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.deduplication_status), 0, 100)
                 val deduplicated = TextProcessor.deduplicateAcrossChannels(allMessages)
                 val dedupNewsCount = deduplicated.count { !isChannelHeader(it) }
                 Log.d(TAG, "After across-channel dedup: ${deduplicated.size} (news: $dedupNewsCount)")
@@ -232,7 +233,7 @@ class NewsService(
 
                 ensureActive()
 
-                progressCallback.onUpdateProgress("Фильтрация...", 0, 100)
+                progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.filtering_status), 0, 100)
                 val preparedMessages = TextProcessor.filterMessages(
                     deduplicated,
                     maxNews = TextProcessor.MAX_NEWS_DEFAULT,
@@ -249,7 +250,7 @@ class NewsService(
 
                 // Дедупликация через Deduplicator (если включена)
                 val afterDedup = if (deduplicator != null && deduplicator.isEnabled) {
-                    progressCallback.onUpdateProgress("Проверка на дубли...", 0, 100)
+                    progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.checking_duplicates_status), 0, 100)
                     val filtered = mutableListOf<String>()
                     for (msg in preparedMessages) {
                         if (isChannelHeader(msg)) {
@@ -271,7 +272,7 @@ class NewsService(
                 
                 // Параллельная обработка через ИИ с ограничением параллелизма
                 val finalMessages = if (isAiEnabled) {
-                    progressCallback.onUpdateProgress("Сжатие через ИИ...", 0, totalToSynthesizeBeforeAi)
+                    progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_summarization_status), 0, totalToSynthesizeBeforeAi)
                     
                     val semaphore = Semaphore(3) // Ограничиваем 3 одновременными запросами
                     var processedCount = 0
@@ -290,13 +291,13 @@ class NewsService(
                                     val summarized = timePrefix + AiProcessor.stripErrorPrefix(rawResult)
                                     synchronized(this@NewsService) {
                                         processedCount++
-                                        progressCallback.onUpdateProgress("Сжатие через ИИ...", processedCount, totalToSynthesizeBeforeAi)
+                                        progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_summarization_status), processedCount, totalToSynthesizeBeforeAi)
                                         
                                         // Общий прогресс (первая фаза: 0..50%)
                                         val overallPercentage = if (totalToSynthesizeBeforeAi > 0) {
                                             (processedCount * 50 / totalToSynthesizeBeforeAi).coerceIn(0, 50)
                                         } else 0
-                                        progressCallback.onOverallProgress("Сжатие через ИИ...", overallPercentage)
+                                        progressCallback.onOverallProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_summarization_status), overallPercentage)
                                     }
                                     summarized
                                 }
@@ -312,7 +313,7 @@ class NewsService(
 
                     val totalToSynthesizeAfterAi = filteredResults.count { !isChannelHeader(it) }
                     progressCallback.onAiProcessingComplete(totalToSynthesizeBeforeAi, totalToSynthesizeAfterAi)
-                    progressCallback.onUpdateProgress("ИИ обработка завершена", 100, 100)
+                    progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_processing_completed_status), 100, 100)
                     filteredResults
                 } else {
                     afterDropTrivial
@@ -321,16 +322,18 @@ class NewsService(
                 val finalToSynthesize = finalMessages.count { !isChannelHeader(it) }
 
                 progressCallback.onUpdateCounters(totalCollected, finalToSynthesize, 0)
-                progressCallback.onUpdateProgress("Подготовлено к озвучке", 100, 100)
+                progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.prepared_for_synthesis_status), 100, 100)
 
                 Prepared(finalMessages, totalCollected, finalToSynthesize, realNewsCount, isAiEnabled)
             }
         } catch (e: TimeoutCancellationException) {
-            progressCallback.onUpdateProgress("Превышено время ожидания", 0, 100)
+            val context = ttsManager.getContext()
+            progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.timeout_exceeded_status), 0, 100)
             null
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) {
-            progressCallback.onUpdateProgress("Ошибка: ${e.message}", 0, 100)
+            val context = ttsManager.getContext()
+            progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.error_prefix, e.message), 0, 100)
             null
         }
     }

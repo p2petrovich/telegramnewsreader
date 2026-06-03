@@ -479,7 +479,7 @@ class TelegramClient(private val context: Context) {
 
     fun testProxy(host: String, port: Int, secret: String, callback: (Double?, String?) -> Unit) {
         if (client == null) {
-            callback(null, "Библиотека не готова")
+            callback(null, context.getString(com.p2petrovich.telegramnewsreader.R.string.lib_not_ready))
             return
         }
 

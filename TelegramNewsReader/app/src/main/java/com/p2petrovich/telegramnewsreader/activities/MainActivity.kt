@@ -90,10 +90,10 @@ class MainActivity : AppCompatActivity() {
                     false
                 }
                 if (success) {
-                    Toast.makeText(this@MainActivity, "Настройки восстановлены", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, getString(R.string.settings_restored), Toast.LENGTH_SHORT).show()
                     recreate()
                 } else {
-                    Toast.makeText(this@MainActivity, "Ошибка при чтении файла", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, getString(R.string.file_read_error), Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -132,10 +132,13 @@ class MainActivity : AppCompatActivity() {
         private const val PREFS_NAME = "telegram_news_prefs"
     }
 
-    private val timePeriods = arrayOf(
-        "10 минут", "20 минут", "30 минут", "1 час", "2 часа",
-        "3 часа", "6 часов", "12 часов", "24 часа"
-    )
+    private val timePeriods by lazy {
+        arrayOf(
+            getString(R.string.time_10m), getString(R.string.time_20m), getString(R.string.time_30m),
+            getString(R.string.time_1h), getString(R.string.time_2h), getString(R.string.time_3h),
+            getString(R.string.time_6h), getString(R.string.time_12h), getString(R.string.time_24h)
+        )
+    }
     private val timeValues = arrayOf(0.16, 0.33, 0.5, 1.0, 2.0, 3.0, 6.0, 12.0, 24.0)
     private var currentTimePeriodIndex = 2
 
@@ -280,17 +283,17 @@ class MainActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle(getString(R.string.dedup_settings_title))
             .setView(dialogView)
-            .setPositiveButton("Сохранить") { _, _ ->
+            .setPositiveButton(R.string.save) { _, _ ->
                 PreferenceManager.setDedupEnabled(this, cbEnabled.isChecked)
                 PreferenceManager.setDedupThreshold(this, sbThreshold.progress / 100f)
                 PreferenceManager.setDedupHistorySize(this, sbHistorySize.progress)
                 PreferenceManager.setDedupTimeWindow(this, sbTimeWindow.progress * 60)
                 // Сбрасываем дедупликатор, чтобы применить новые настройки
                 resetDeduplicator()
-                Toast.makeText(this, "Настройки сохранены", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()
                 showSettingsDialog()
             }
-            .setNegativeButton("Отмена") { _, _ -> showSettingsDialog() }
+            .setNegativeButton(R.string.cancel) { _, _ -> showSettingsDialog() }
             .setOnCancelListener { showSettingsDialog() }
             .show()
     }
@@ -558,7 +561,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnSavePreset.setOnClickListener {
             val selected = channelAdapter.getSelectedChannels()
             if (selected.isEmpty()) {
-                Toast.makeText(this, "Сначала выберите каналы", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.select_channels_first), Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             showCreatePresetDialog(selected)
@@ -585,7 +588,7 @@ class MainActivity : AppCompatActivity() {
         saveCurrentSelection()
         refreshPresetChips()
 
-        Toast.makeText(this, "Выбор сброшен", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.selection_cleared), Toast.LENGTH_SHORT).show()
     }
 
     private fun applyPreset(preset: ChannelPreset) {
@@ -669,12 +672,12 @@ class MainActivity : AppCompatActivity() {
         )
 
         AlertDialog.Builder(this)
-            .setTitle("Сохранить набор каналов")
+            .setTitle(R.string.save_preset)
             .setView(dialogView)
-            .setPositiveButton("Сохранить") { _, _ ->
+            .setPositiveButton(android.R.string.ok) { _, _ ->
                 val name = etName.text?.toString()?.trim()
                 if (name.isNullOrEmpty()) {
-                    Toast.makeText(this, "Введите название", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.enter_name), Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
 
@@ -712,9 +715,9 @@ class MainActivity : AppCompatActivity() {
         val activeId = PresetManager.getActivePresetId(this)
 
         val dialog = AlertDialog.Builder(this)
-            .setTitle("Наборы каналов")
+            .setTitle(R.string.channel_presets)
             .setView(dialogView)
-            .setNegativeButton("Закрыть", null)
+            .setNegativeButton(android.R.string.ok, null)
             .create()
 
         recycler.adapter = PresetAdapter(
@@ -730,14 +733,14 @@ class MainActivity : AppCompatActivity() {
             onPresetDelete = { preset ->
                 AlertDialog.Builder(this)
                     .setMessage(getString(R.string.preset_delete_confirm, preset.name))
-                    .setPositiveButton("Удалить") { _, _ ->
+                    .setPositiveButton(android.R.string.ok) { _, _ ->
                         PresetManager.deletePreset(this, preset.id)
                         dialog.dismiss()
                         refreshPresetChips()
-                        Toast.makeText(this, "Набор удалён", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, getString(R.string.preset_deleted), Toast.LENGTH_SHORT).show()
                         showPresetsManagerDialog()
                     }
-                    .setNegativeButton("Отмена", null)
+                    .setNegativeButton(android.R.string.cancel, null)
                     .show()
             },
             onPresetEdit = { preset ->
@@ -785,12 +788,12 @@ class MainActivity : AppCompatActivity() {
         container.addView(cbUpdateChannels)
 
         AlertDialog.Builder(this)
-            .setTitle("Редактировать набор")
+            .setTitle(R.string.edit)
             .setView(dialogView)
-            .setPositiveButton("Сохранить") { _, _ ->
+            .setPositiveButton(R.string.save) { _, _ ->
                 val name = etName.text?.toString()?.trim()
                 if (name.isNullOrEmpty()) {
-                    Toast.makeText(this, "Введите название", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.enter_name), Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
 
@@ -849,10 +852,10 @@ class MainActivity : AppCompatActivity() {
         telegramClient.onFatalError = { message ->
             runOnUiThread {
                 androidx.appcompat.app.AlertDialog.Builder(this)
-                    .setTitle("Ошибка безопасности")
+                    .setTitle(R.string.security_error)
                     .setMessage(message)
                     .setCancelable(false)
-                    .setPositiveButton("Выход") { _, _ -> finish() }
+                    .setPositiveButton(R.string.exit) { _, _ -> finish() }
                     .show()
             }
         }
@@ -998,7 +1001,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun collectNews() {
         if (!isClientReady || !telegramClient.checkAuthState()) {
-            Toast.makeText(this, "Telegram клиент не готов", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.client_not_ready), Toast.LENGTH_LONG).show()
             return
         }
 
@@ -1298,7 +1301,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showTimePeriodDialog() {
         AlertDialog.Builder(this)
-            .setTitle("Выберите период времени")
+            .setTitle(R.string.select_time_period)
             .setItems(timePeriods) { _, which ->
                 currentTimePeriodIndex = which
                 updateTimePeriodButton()
@@ -1356,20 +1359,20 @@ class MainActivity : AppCompatActivity() {
             val (count, bytes) = NewsCache.getStats(this)
             val sizeMb = bytes / (1024 * 1024)
             AlertDialog.Builder(this)
-                .setTitle("Очистить кэш аудио")
+                .setTitle(R.string.clear_cache_title)
                 .setMessage(getString(R.string.cache_info, count, sizeMb.toInt()))
-                .setPositiveButton("Очистить") { _, _ ->
+                .setPositiveButton(R.string.clear) { _, _ ->
                     NewsCache.clearAll(this)
                     resetDeduplicator()
                     // Очищаем кэш сообщений в самом Telegram клиенте
                     telegramClient.clearTtsRelatedCache { success ->
                         runOnUiThread {
-                            val msg = if (success) "Кэш и история полностью очищены" else "Кэш очищен, история Telegram осталась"
+                            val msg = if (success) getString(R.string.cache_full_cleared) else getString(R.string.cache_partial_cleared)
                             Toast.makeText(this@MainActivity, msg, Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
-                .setNegativeButton("Отмена", null)
+                .setNegativeButton(R.string.cancel, null)
                 .show()
         }
         dialogView.findViewById<View>(R.id.btn_reset_auth)?.setOnClickListener {
@@ -1430,7 +1433,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val backups = SettingsBackup.listBackups(this@MainActivity)
             if (backups.isEmpty()) {
-                Toast.makeText(this@MainActivity, "Резервных копий не найдено", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, getString(R.string.no_backups_found), Toast.LENGTH_SHORT).show()
                 showBackupMenuDialog()
                 return@launch
             }
@@ -1439,13 +1442,13 @@ class MainActivity : AppCompatActivity() {
             val labels = backups.map { sdf.format(java.util.Date(it.dateMillis)) }.toTypedArray()
 
             AlertDialog.Builder(this@MainActivity)
-                .setTitle("Выберите дату восстановления")
+                .setTitle(R.string.select_restore_date)
                 .setItems(labels) { _, index ->
                     val chosen = backups[index]
                     AlertDialog.Builder(this@MainActivity)
                         .setTitle("Восстановить?")
                         .setMessage("Текущие настройки будут заменены копией от ${labels[index]}.")
-                        .setPositiveButton("Восстановить") { _, _ ->
+                        .setPositiveButton(R.string.restore) { _, _ ->
                             lifecycleScope.launch {
                                 val ok = SettingsBackup.restoreFromUri(this@MainActivity, chosen.uri)
                                 if (ok) {
@@ -1453,14 +1456,14 @@ class MainActivity : AppCompatActivity() {
                                     telegramClient.applyProxySettings() // подхватить восстановленный прокси
                                     recreate()
                                 } else {
-                                    Toast.makeText(this@MainActivity, "Ошибка при восстановлении", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(this@MainActivity, getString(R.string.restore_error), Toast.LENGTH_SHORT).show()
                                 }
                             }
                         }
-                        .setNegativeButton("Отмена") { _, _ -> showRestoreByDateDialog() }
+                        .setNegativeButton(R.string.cancel) { _, _ -> showRestoreByDateDialog() }
                         .show()
                 }
-                .setNegativeButton("Назад") { _, _ -> showBackupMenuDialog() }
+                .setNegativeButton(R.string.back) { _, _ -> showBackupMenuDialog() }
                 .show()
         }
     }
@@ -1513,25 +1516,25 @@ class MainActivity : AppCompatActivity() {
         swEnabled.isChecked = PreferenceManager.isProxyEnabled(this)
         swAuto.isChecked = PreferenceManager.isProxyAutoSwitchEnabled(this)
 
-        val intervals = listOf(1, 5, 10, 30, 60)
-        val intervalAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, intervals.map { "$it мин" })
+        val intervals = listOf(5, 10, 15, 30, 60)
+        val intervalAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, intervals.map { "$it ${getString(R.string.min_short)}" })
         intervalAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinnerInterval.adapter = intervalAdapter
         spinnerInterval.setSelection(intervals.indexOf(PreferenceManager.getProxySwitchInterval(this)).coerceAtLeast(0))
 
         val dialog = AlertDialog.Builder(this)
-            .setTitle("Настройки MTProto")
+            .setTitle(R.string.mtproto_title)
             .setView(dialogView)
-            .setPositiveButton("Сохранить") { _, _ ->
+            .setPositiveButton(R.string.save) { _, _ ->
                 PreferenceManager.setProxyEnabled(this, swEnabled.isChecked)
                 PreferenceManager.setProxyAutoSwitchEnabled(this, swAuto.isChecked)
                 PreferenceManager.setProxySwitchInterval(this, intervals[spinnerInterval.selectedItemPosition])
 
                 telegramClient.applyProxySettings()
-                Toast.makeText(this, "Настройки прокси обновлены", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.proxy_updated), Toast.LENGTH_SHORT).show()
                 showSettingsDialog()
             }
-            .setNegativeButton("Отмена") { _, _ -> showSettingsDialog() }
+            .setNegativeButton(R.string.cancel) { _, _ -> showSettingsDialog() }
             .setOnCancelListener { showSettingsDialog() }
             .create()
 
@@ -1591,9 +1594,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         val alertDialog = AlertDialog.Builder(this)
-            .setTitle("Прокси-сервер")
+            .setTitle(R.string.proxy_server)
             .setView(dialogView)
-            .setPositiveButton("Готово") { _, _ ->
+            .setPositiveButton(R.string.done) { _, _ ->
                 val host = etHost.text.toString().trim()
                 val port = etPort.text.toString().toIntOrNull() ?: 0
                 val secret = etSecret.text.toString().trim()
@@ -1603,11 +1606,11 @@ class MainActivity : AppCompatActivity() {
                         ?: ProxyEntry(host = host, port = port, secret = secret)
                     onSaved(updated)
                 } else {
-                    Toast.makeText(this, "Заполните все поля", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.save_proxy_error), Toast.LENGTH_SHORT).show()
                     showProxySettingsDialog()
                 }
             }
-            .setNegativeButton("Отмена") { _, _ ->
+            .setNegativeButton(R.string.cancel) { _, _ ->
                 showProxySettingsDialog()
             }
             .setOnCancelListener {
@@ -1624,7 +1627,7 @@ class MainActivity : AppCompatActivity() {
                 etPort.setText(uri.getQueryParameter("port") ?: "")
                 etSecret.setText(uri.getQueryParameter("secret") ?: "")
             } else {
-                Toast.makeText(this, "В буфере нет ссылки на прокси", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.clipboard_no_proxy), Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -1669,14 +1672,14 @@ class MainActivity : AppCompatActivity() {
 
         fun getModelsForProvider(provider: String): List<Pair<String, String>> = when (provider) {
             "groq" -> listOf(
-                "llama-3.3-70b-versatile"                  to "Llama 3.3 70B — быстрый ⚡",
-                "llama-3.1-8b-instant"                     to "Llama 3.1 8B — сверхбыстрый ⚡",
-                "meta-llama/llama-4-scout-17b-16e-instruct" to "Llama 4 Scout — новый ⚡"
+                "llama-3.3-70b-versatile"                  to getString(R.string.ai_model_llama_fast),
+                "llama-3.1-8b-instant"                     to getString(R.string.ai_model_llama_instant),
+                "meta-llama/llama-4-scout-17b-16e-instruct" to getString(R.string.ai_model_llama_new)
             )
             else -> listOf(
-                "z-ai/glm-4.5-air:free"                  to "GLM-4.5 Air (Хороший русский) — FREE",
-                "openai/gpt-oss-120b:free"               to "GPT-OSS 120B (Сильный) — FREE",
-                "nvidia/nemotron-3-super-120b-a12b:free" to "Nemotron-3 Super (Стабильный) — FREE"
+                "z-ai/glm-4.5-air:free"                  to getString(R.string.ai_model_glm_free),
+                "openai/gpt-oss-120b:free"               to getString(R.string.ai_model_gpt_free),
+                "nvidia/nemotron-3-super-120b-a12b:free" to getString(R.string.ai_model_nemotron_free)
             )
         }
 
@@ -1752,9 +1755,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         val styles = listOf(
-            "minimal" to "Только чистка от мусора",
-            "balanced" to "Сбалансированное сжатие (в 2 раза)",
-            "extreme" to "Радио-молния (1 предложение)"
+            "minimal" to getString(R.string.ai_style_minimal),
+            "balanced" to getString(R.string.ai_style_balanced),
+            "extreme" to getString(R.string.ai_style_extreme)
         )
 
         val styleAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, styles.map { it.second })
@@ -1768,16 +1771,16 @@ class MainActivity : AppCompatActivity() {
 
         AlertDialog.Builder(this)
             .setView(dialogView)
-            .setPositiveButton("Сохранить") { _, _ ->
+            .setPositiveButton(R.string.save) { _, _ ->
                 PreferenceManager.setAiSummaryEnabled(this, switchEnabled.isChecked)
                 val selectedModel = currentModels[spinnerModel.selectedItemPosition].first
                 val selectedStyle = styles[spinnerStyle.selectedItemPosition].first
                 PreferenceManager.setAiModel(this, selectedModel)
                 PreferenceManager.setAiStyle(this, selectedStyle)
-                Toast.makeText(this, "Настройки ИИ сохранены", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.ai_settings_saved), Toast.LENGTH_SHORT).show()
                 showSettingsDialog()
             }
-            .setNegativeButton("Отмена") { _, _ -> showSettingsDialog() }
+            .setNegativeButton(R.string.cancel) { _, _ -> showSettingsDialog() }
             .setOnCancelListener { showSettingsDialog() }
             .show()
     }
@@ -1864,17 +1867,17 @@ class MainActivity : AppCompatActivity() {
         dialogView.findViewById<TextView>(R.id.tvVersion).text = getString(R.string.version, versionName)
         AlertDialog.Builder(this)
             .setView(dialogView)
-            .setPositiveButton("Закрыть") { _, _ -> showSettingsDialog() }
+            .setPositiveButton(android.R.string.ok) { _, _ -> showSettingsDialog() }
             .setOnCancelListener { showSettingsDialog() }
             .show()
     }
 
     private fun showResetAuthConfirmation() {
         AlertDialog.Builder(this)
-            .setTitle("Сброс авторизации")
+            .setTitle(R.string.reset_auth_title)
             .setMessage("Все данные будут удалены. Продолжить?")
-            .setPositiveButton("Да") { _, _ -> resetAuthorization() }
-            .setNegativeButton("Отмена") { _, _ -> showSettingsDialog() }
+            .setPositiveButton(R.string.yes) { _, _ -> resetAuthorization() }
+            .setNegativeButton(R.string.cancel) { _, _ -> showSettingsDialog() }
             .setOnCancelListener { showSettingsDialog() }
             .show()
     }
@@ -1896,9 +1899,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun confirmHideChannel(channel: Channel) {
         AlertDialog.Builder(this)
-            .setTitle("Скрыть канал")
+            .setTitle(R.string.hide_channel_title)
             .setMessage(getString(R.string.hide_channel_confirm, channel.title))
-            .setPositiveButton("Скрыть") { _, _ -> hideChannel(channel) }
+            .setPositiveButton(R.string.hide) { _, _ -> hideChannel(channel) }
             .setNegativeButton("Отмена", null)
             .show()
     }
@@ -1933,22 +1936,22 @@ class MainActivity : AppCompatActivity() {
         hiddenUsernames.forEach { u -> items.add("@$u"); meta.add("u" to u) }
         hiddenIds.forEach { idStr ->
             val title = idStr.toLongOrNull()
-                ?.let { PreferenceManager.getHiddenTitleForId(this, it) } ?: "Канал"
+                ?.let { PreferenceManager.getHiddenTitleForId(this, it) } ?: getString(R.string.channel_default_name)
             items.add(title); meta.add("i" to idStr)
         }
 
         if (items.isEmpty()) {
-            Toast.makeText(this, "Скрытых каналов нет", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.no_hidden_channels), Toast.LENGTH_SHORT).show()
             return
         }
 
         val checked = BooleanArray(items.size)
         AlertDialog.Builder(this)
-            .setTitle("Скрытые каналы")
+            .setTitle(R.string.hidden_channels_title)
             .setMultiChoiceItems(items.toTypedArray(), checked) { _, which, isChecked ->
                 checked[which] = isChecked
             }
-            .setPositiveButton("Вернуть выбранные") { _, _ ->
+            .setPositiveButton(R.string.restore_selected) { _, _ ->
                 val toRestoreU = mutableSetOf<String>()
                 val toRestoreI = mutableSetOf<String>()
                 meta.forEachIndexed { i, (type, key) ->
@@ -1965,7 +1968,7 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "Каналы возвращены", Toast.LENGTH_SHORT).show()
                 showSettingsDialog()
             }
-            .setNegativeButton("Отмена") { _, _ -> showSettingsDialog() }
+            .setNegativeButton(R.string.cancel) { _, _ -> showSettingsDialog() }
             .setOnCancelListener { showSettingsDialog() }
             .show()
     }

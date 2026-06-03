@@ -15,7 +15,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Настройки"
+            android:text="@string/settings_title"
             android:textSize="24sp"
             android:textStyle="bold"
             android:paddingBottom="16dp"
@@ -26,7 +26,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Контент и фильтры"
+            android:text="@string/cat_content_filters"
             android:textSize="14sp"
             android:textStyle="bold"
             android:paddingStart="8dp"
@@ -59,14 +59,14 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Наборы каналов"
+                        android:text="@string/channel_presets"
                         android:textSize="16sp"
                         android:textStyle="bold"
                         android:textColor="?attr/colorOnSurface" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Создание и редактор групп"
+                        android:text="@string/presets_desc"
                         android:textSize="13sp"
                         android:textColor="?attr/colorOnSurfaceVariant" />
                 </LinearLayout>
@@ -85,14 +85,14 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Скрытые каналы"
+                        android:text="@string/hidden_channels"
                         android:textSize="16sp"
                         android:textStyle="bold"
                         android:textColor="?attr/colorOnSurface" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Управление черным списком"
+                        android:text="@string/black_list_desc"
                         android:textSize="13sp"
                         android:textColor="?attr/colorOnSurfaceVariant" />
                 </LinearLayout>
@@ -111,14 +111,14 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Фильтрация дублей"
+                        android:text="@string/dedup_title"
                         android:textSize="16sp"
                         android:textStyle="bold"
                         android:textColor="?attr/colorOnSurface" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Пропуск похожих новостей"
+                        android:text="@string/dedup_menu_desc"
                         android:textSize="13sp"
                         android:textColor="?attr/colorOnSurfaceVariant" />
                 </LinearLayout>
@@ -137,14 +137,14 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Умный пересказ (ИИ)"
+                        android:text="@string/ai_summary_menu"
                         android:textSize="16sp"
                         android:textStyle="bold"
                         android:textColor="?attr/colorOnSurface" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Стиль суммаризации и модели"
+                        android:text="@string/ai_style_models_desc"
                         android:textSize="13sp"
                         android:textColor="?attr/colorOnSurfaceVariant" />
                 </LinearLayout>
@@ -163,14 +163,14 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Порядок воспроизведения"
+                        android:text="@string/playback_order"
                         android:textSize="16sp"
                         android:textStyle="bold"
                         android:textColor="?attr/colorOnSurface" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Очередность чтения новостей"
+                        android:text="@string/news_queue_desc"
                         android:textSize="13sp"
                         android:textColor="?attr/colorOnSurfaceVariant" />
                 </LinearLayout>
@@ -181,7 +181,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Интерфейс и связь"
+            android:text="@string/cat_ui_connection"
             android:textSize="14sp"
             android:textStyle="bold"
             android:paddingStart="8dp"
@@ -214,14 +214,14 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Голос и речь"
+                        android:text="@string/voice_and_speech"
                         android:textSize="16sp"
                         android:textStyle="bold"
                         android:textColor="?attr/colorOnSurface" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Выбор диктора и тембра"
+                        android:text="@string/voice_tembre_desc"
                         android:textSize="13sp"
                         android:textColor="?attr/colorOnSurfaceVariant" />
                 </LinearLayout>
@@ -240,14 +240,14 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Цветовая тема"
+                        android:text="@string/color_theme"
                         android:textSize="16sp"
                         android:textStyle="bold"
                         android:textColor="?attr/colorOnSurface" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Оформление приложения"
+                        android:text="@string/app_design_desc"
                         android:textSize="13sp"
                         android:textColor="?attr/colorOnSurfaceVariant" />
                 </LinearLayout>
@@ -266,14 +266,14 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Настройки MTProto"
+                        android:text="@string/mtproto_settings"
                         android:textSize="16sp"
                         android:textStyle="bold"
                         android:textColor="?attr/colorOnSurface" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Соединение без VPN"
+                        android:text="@string/vpn_free_desc"
                         android:textSize="13sp"
                         android:textColor="?attr/colorOnSurfaceVariant" />
                 </LinearLayout>
@@ -284,7 +284,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Система и данные"
+            android:text="@string/cat_system_data"
             android:textSize="14sp"
             android:textStyle="bold"
             android:paddingStart="8dp"
@@ -317,14 +317,14 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Резервное копирование"
+                        android:text="@string/backup_menu"
                         android:textSize="16sp"
                         android:textStyle="bold"
                         android:textColor="?attr/colorOnSurface" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Экспорт и импорт настроек"
+                        android:text="@string/export_import_desc"
                         android:textSize="13sp"
                         android:textColor="?attr/colorOnSurfaceVariant" />
                 </LinearLayout>
@@ -343,14 +343,14 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Очистить кэш"
+                        android:text="@string/clear_cache_menu"
                         android:textSize="16sp"
                         android:textStyle="bold"
                         android:textColor="?attr/colorOnSurface" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Удаление аудиофайлов"
+                        android:text="@string/delete_audio_desc"
                         android:textSize="13sp"
                         android:textColor="?attr/colorOnSurfaceVariant" />
                 </LinearLayout>
@@ -369,14 +369,14 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="О программе"
+                        android:text="@string/about_app"
                         android:textSize="16sp"
                         android:textStyle="bold"
                         android:textColor="?attr/colorOnSurface" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Версия и информация"
+                        android:text="@string/version_info_desc"
                         android:textSize="13sp"
                         android:textColor="?attr/colorOnSurfaceVariant" />
                 </LinearLayout>
@@ -404,14 +404,14 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Сбросить авторизацию"
+                    android:text="@string/reset_auth"
                     android:textSize="16sp"
                     android:textStyle="bold"
                     android:textColor="#F44336" />
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Выход из аккаунта и очистка всех данных"
+                    android:text="@string/logout_desc"
                     android:textSize="13sp"
                     android:textColor="#BDBDBD" />
             </LinearLayout>

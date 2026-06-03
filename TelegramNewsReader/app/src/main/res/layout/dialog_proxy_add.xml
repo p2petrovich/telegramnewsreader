@@ -14,7 +14,7 @@
             style="@style/Widget.Material3.Button.TextButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Вставить из буфера обмена"
+            android:text="@string/paste_from_clipboard"
             android:gravity="start|center_vertical"
             android:paddingStart="0dp"
             android:layout_marginBottom="16dp" />
@@ -22,7 +22,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Прокси MTProto"
+            android:text="@string/proxy_mtproto"
             android:textColor="?attr/colorPrimary"
             android:textStyle="bold"
             android:layout_marginBottom="16dp" />
@@ -36,7 +36,7 @@
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Сервер"
+            android:hint="@string/server"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_marginBottom="12dp">
             <com.google.android.material.textfield.TextInputEditText
@@ -49,7 +49,7 @@
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Порт"
+            android:hint="@string/port"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_marginBottom="12dp">
             <com.google.android.material.textfield.TextInputEditText
@@ -62,7 +62,7 @@
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Ключ (Secret)"
+            android:hint="@string/secret"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_marginBottom="16dp">
             <com.google.android.material.textfield.TextInputEditText
@@ -77,7 +77,7 @@
             style="@style/Widget.Material3.Button.TextButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Удалить"
+            android:text="@string/delete"
             android:textColor="?attr/colorError"
             android:gravity="start|center_vertical"
             android:paddingStart="0dp"

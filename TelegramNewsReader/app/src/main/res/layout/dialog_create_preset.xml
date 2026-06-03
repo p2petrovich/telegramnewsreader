@@ -10,7 +10,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Название набора"
+        android:text="@string/preset_name_label"
         android:textSize="14sp"
         android:textColor="?android:textColorSecondary" />
 
@@ -18,7 +18,7 @@
         android:id="@+id/et_preset_name"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Например: Утренние новости"
+        android:hint="@string/preset_name_hint"
         android:inputType="text"
         android:maxLength="40"
         android:layout_marginTop="4dp" />
@@ -26,7 +26,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Период новостей"
+        android:text="@string/preset_period_label"
         android:textSize="14sp"
         android:textColor="?android:textColorSecondary"
         android:layout_marginTop="12dp" />
