@@ -130,21 +130,18 @@ class TelegramClient(private val context: Context) {
                 ApiConfig.tdlibDatabaseDir(context).deleteRecursively()
                 ApiConfig.tdlibFilesDir(context).deleteRecursively()
                 // Сообщаем пользователю, что потребуется повторный вход.
-                onFatalError?.invoke(
-                    "Ключ шифрования базы был сброшен системой. Данные очищены — " +
-                            "потребуется повторный вход в Telegram."
-                )
+                onFatalError?.invoke(context.getString(com.p2petrovich.telegramnewsreader.R.string.db_key_lost_error))
                 // Генерируем свежий ключ для чистой БД.
                 when (val retry = SecurityManager.getDatabaseEncryptionKeyChecked(context)) {
                     is SecurityManager.KeyResult.Ok -> retry.key
                     else -> {
-                        onFatalError?.invoke("Ошибка безопасности: Android Keystore недоступен.")
+                        onFatalError?.invoke(context.getString(com.p2petrovich.telegramnewsreader.R.string.security_error_keystore_unavailable))
                         return
                     }
                 }
             }
             is SecurityManager.KeyResult.Unavailable -> {
-                onFatalError?.invoke("Ошибка безопасности: Android Keystore недоступен. Запуск невозможен.")
+                onFatalError?.invoke(context.getString(com.p2petrovich.telegramnewsreader.R.string.security_error_keystore_unavailable_start))
                 return
             }
         }
@@ -488,7 +485,7 @@ class TelegramClient(private val context: Context) {
 
         fun tryDc(dcIds: List<Int>) {
             if (dcIds.isEmpty()) {
-                callback(null, "Нет ответа от серверов Telegram")
+                callback(null, context.getString(com.p2petrovich.telegramnewsreader.R.string.proxy_no_tg_response))
                 return
             }
             val dc = dcIds.first()

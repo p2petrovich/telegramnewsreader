@@ -365,4 +365,46 @@
     <string name="tts_edge_test_phrase">Привет! Это голос Edge TTS. Качество звучания Microsoft Neural.</string>
     <string name="tts_test_phrase">Привет! Это голос %1$s. Как вам качество звучания?</string>
     <string name="edge_tts_error">Не удалось синтезировать — проверьте интернет</string>
+
+    <string name="tts_error">Ошибка TTS</string>
+    <string name="collected_count">Собрано: %1$d</string>
+    <string name="stat_dupes">дубли: -%1$d</string>
+    <string name="stat_spam">спам: -%1$d</string>
+    <string name="stat_trash">мусор: -%1$d</string>
+    <string name="stat_ai">ИИ: -%1$d</string>
+    <string name="stat_to_synth">к озвучке: %1$d</string>
+    <string name="stat_skipped">пропущено: %1$d</string>
+    <string name="status_tg_init">Инициализация Telegram клиента…</string>
+    <string name="status_client_ready">Клиент готов. Выберите каналы.</string>
+    <string name="status_loading_channels">Загружаем каналы…</string>
+    <string name="status_no_channels">Каналы не найдены</string>
+    <string name="status_collection_stopped">Сбор новостей остановлен</string>
+    <string name="btn_stop_collection">Остановить</string>
+    <string name="status_collection_starting">Начинаем сбор новостей…</string>
+    <string name="status_collection_cancelled">Сбор новостей отменён</string>
+    <string name="news_truncated_warning">Показаны %1$d из %2$d новостей. Сократите период или число каналов.</string>
+    <string name="status_synthesis_starting">Начинаем синтез речи…</string>
+    <string name="status_collection_done">Сбор завершён</string>
+    <string name="backup_save_error">Ошибка при сохранении</string>
+    <string name="restore_confirm_title">Восстановить?</string>
+    <string name="restore_confirm_msg">Текущие настройки будут заменены копией от %1$s.</string>
+    <string name="proxy_connected">Подключен</string>
+    <string name="proxy_unavailable_reason">Недоступен: %1$s</string>
+    <string name="playback_order_changed">Порядок воспроизведения изменён</string>
+    <string name="reset_auth_confirm">Все данные будут удалены. Продолжить?</string>
+    <string name="status_resetting_auth">Сброс авторизации…</string>
+    <string name="auth_reset_done">Авторизация сброшена</string>
+    <string name="channel_hidden">Канал скрыт</string>
+    <string name="channels_restored">Каналы возвращены</string>
+    <string name="status_voice_changed">Голос изменён. Пересоберите новости.</string>
+
+    <string name="gender_male">Мужской голос</string>
+    <string name="gender_female">Женский голос</string>
+    <string name="gender_neutral">Нейтральный голос</string>
+
+    <!-- For TelegramClient.kt -->
+    <string name="db_key_lost_error">Ключ шифрования базы был сброшен системой. Данные очищены — потребуется повторный вход в Telegram.</string>
+    <string name="security_error_keystore_unavailable">Ошибка безопасности: Android Keystore недоступен.</string>
+    <string name="security_error_keystore_unavailable_start">Ошибка безопасности: Android Keystore недоступен. Запуск невозможен.</string>
+    <string name="proxy_no_tg_response">Нет ответа от серверов Telegram</string>
 </resources>

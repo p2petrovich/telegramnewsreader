@@ -1,5 +1,8 @@
 package com.p2petrovich.telegramnewsreader.models
 
+import android.content.Context
+import com.p2petrovich.telegramnewsreader.R
+
 data class VoiceEntry(
     val systemName: String,
     val displayName: String,
@@ -18,9 +21,9 @@ data class VoiceEntry(
         Gender.NEUTRAL -> "🎙️"
     }
 
-    fun getGenderDescription(): String = when (gender) {
-        Gender.MALE -> "Мужской голос"
-        Gender.FEMALE -> "Женский голос"
-        Gender.NEUTRAL -> "Нейтральный голос"
+    fun getGenderDescription(context: Context): String = when (gender) {
+        Gender.MALE -> context.getString(R.string.gender_male)
+        Gender.FEMALE -> context.getString(R.string.gender_female)
+        Gender.NEUTRAL -> context.getString(R.string.gender_neutral)
     }
 }

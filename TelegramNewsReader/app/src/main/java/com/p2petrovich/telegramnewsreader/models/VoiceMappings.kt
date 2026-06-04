@@ -1,5 +1,6 @@
 package com.p2petrovich.telegramnewsreader.models
 
+import android.content.Context
 import android.speech.tts.Voice
 import android.util.Log
 
@@ -21,19 +22,19 @@ object VoiceMappings {
         "ru-RU-SMTm00" to VoiceEntry("ru-RU-SMTm00", "Михаил", VoiceEntry.Gender.MALE)
     )
 
-    fun mapVoice(voice: Voice): VoiceEntry {
+    fun mapVoice(context: Context, voice: android.speech.tts.Voice): VoiceEntry {
         voiceMappings[voice.name]?.let { return it }
-        return createVoiceEntryFromSystemVoice(voice)
+        return createVoiceEntryFromSystemVoice(context, voice)
     }
 
-    fun mapVoices(voices: List<Voice>): List<VoiceEntry> {
+    fun mapVoices(context: Context, voices: List<android.speech.tts.Voice>): List<VoiceEntry> {
         return voices
-            .map { mapVoice(it) }
+            .map { mapVoice(context, it) }
             .distinctBy { it.systemName }
             .sortedWith(compareBy<VoiceEntry> { it.language }.thenBy { it.gender.ordinal }.thenBy { it.displayName })
     }
 
-    private fun createVoiceEntryFromSystemVoice(voice: Voice): VoiceEntry {
+    private fun createVoiceEntryFromSystemVoice(context: Context, voice: android.speech.tts.Voice): VoiceEntry {
         val systemName = voice.name
         val isNetwork = systemName.contains("network", ignoreCase = true)
 
@@ -46,7 +47,7 @@ object VoiceMappings {
             else -> VoiceEntry.Gender.NEUTRAL
         }
 
-        val displayName = generateRussianName(systemName, gender, isNetwork)
+        val displayName = generateRussianName(context, systemName, gender, isNetwork)
 
         return VoiceEntry(
             systemName = systemName,
@@ -58,7 +59,7 @@ object VoiceMappings {
         )
     }
 
-    private fun generateRussianName(systemName: String, gender: VoiceEntry.Gender, isNetwork: Boolean): String {
+    private fun generateRussianName(context: Context, systemName: String, gender: VoiceEntry.Gender, isNetwork: Boolean): String {
         val baseName = when (gender) {
             VoiceEntry.Gender.MALE -> {
                 val names = listOf("Владимир", "Сергей", "Алексей", "Павел", "Игорь", "Петр", "Артем", "Евгений")
@@ -68,7 +69,7 @@ object VoiceMappings {
                 val names = listOf("Ольга", "Татьяна", "Наталья", "Ирина", "Светлана", "Юлия", "Марина", "Людмила")
                 names[Math.abs(systemName.hashCode()) % names.size]
             }
-            VoiceEntry.Gender.NEUTRAL -> "Голос"
+            VoiceEntry.Gender.NEUTRAL -> context.getString(com.p2petrovich.telegramnewsreader.R.string.voice)
         }
         return if (isNetwork) "$baseName HD" else baseName
     }

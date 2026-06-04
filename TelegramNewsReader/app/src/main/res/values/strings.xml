@@ -365,4 +365,46 @@
     <string name="tts_edge_test_phrase">Hello! This is the Edge TTS voice. Microsoft Neural quality.</string>
     <string name="tts_test_phrase">Hello! This is the voice %1$s. How do you like the quality?</string>
     <string name="edge_tts_error">Synthesis failed — check your internet connection</string>
+
+    <string name="tts_error">TTS Error</string>
+    <string name="collected_count">Collected: %1$d</string>
+    <string name="stat_dupes">dupes: -%1$d</string>
+    <string name="stat_spam">spam: -%1$d</string>
+    <string name="stat_trash">trash: -%1$d</string>
+    <string name="stat_ai">AI: -%1$d</string>
+    <string name="stat_to_synth">for TTS: %1$d</string>
+    <string name="stat_skipped">skipped: %1$d</string>
+    <string name="status_tg_init">Initializing Telegram client…</string>
+    <string name="status_client_ready">Client ready. Select channels.</string>
+    <string name="status_loading_channels">Loading channels…</string>
+    <string name="status_no_channels">No channels found</string>
+    <string name="status_collection_stopped">Collection stopped</string>
+    <string name="btn_stop_collection">Stop</string>
+    <string name="status_collection_starting">Starting collection…</string>
+    <string name="status_collection_cancelled">Collection cancelled</string>
+    <string name="news_truncated_warning">Showing %1$d of %2$d news. Reduce period or channels.</string>
+    <string name="status_synthesis_starting">Starting speech synthesis…</string>
+    <string name="status_collection_done">Collection complete</string>
+    <string name="backup_save_error">Save error</string>
+    <string name="restore_confirm_title">Restore?</string>
+    <string name="restore_confirm_msg">Current settings will be replaced with backup from %1$s.</string>
+    <string name="proxy_connected">Connected</string>
+    <string name="proxy_unavailable_reason">Unavailable: %1$s</string>
+    <string name="playback_order_changed">Playback order changed</string>
+    <string name="reset_auth_confirm">All data will be deleted. Continue?</string>
+    <string name="status_resetting_auth">Resetting authorization…</string>
+    <string name="auth_reset_done">Authorization reset</string>
+    <string name="channel_hidden">Channel hidden</string>
+    <string name="channels_restored">Channels restored</string>
+    <string name="status_voice_changed">Voice changed. Re-collect news.</string>
+
+    <string name="gender_male">Male voice</string>
+    <string name="gender_female">Female voice</string>
+    <string name="gender_neutral">Neutral voice</string>
+
+    <!-- For TelegramClient.kt -->
+    <string name="db_key_lost_error">The database encryption key was reset by the system. Data cleared - you will need to log back into Telegram.</string>
+    <string name="security_error_keystore_unavailable">Security error: Android Keystore is unavailable.</string>
+    <string name="security_error_keystore_unavailable_start">Security error: Android Keystore is unavailable. Start is impossible.</string>
+    <string name="proxy_no_tg_response">No response from Telegram servers</string>
 </resources>

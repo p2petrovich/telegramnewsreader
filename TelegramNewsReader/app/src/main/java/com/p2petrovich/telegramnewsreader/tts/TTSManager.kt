@@ -185,7 +185,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     fun getAvailableVoiceEntries(): List<VoiceEntry> {
         val systemVoices = tts?.voices?.toList() ?: emptyList()
-        return VoiceMappings.mapVoices(systemVoices)
+        return VoiceMappings.mapVoices(context, systemVoices)
     }
 
     fun setVoiceByEntry(voiceEntry: VoiceEntry) { setVoiceByName(voiceEntry.systemName) }

@@ -174,7 +174,7 @@ class MainActivity : AppCompatActivity() {
     private val ttsErrorReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action == TTSManager.ACTION_TTS_ERROR) {
-                val message = intent.getStringExtra(TTSManager.EXTRA_ERROR_MESSAGE) ?: "Ошибка TTS"
+                val message = intent.getStringExtra(TTSManager.EXTRA_ERROR_MESSAGE) ?: getString(R.string.tts_error)
                 runOnUiThread {
                     Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
                     val currentStatus = binding.tvStatus.text.toString()
@@ -370,16 +370,16 @@ class MainActivity : AppCompatActivity() {
     private fun updatePipelineStatus() {
         binding.llPipelineStatus.visibility = View.VISIBLE
         val parts = mutableListOf<String>()
-        parts.add("Собрано: $lastTotalCollected")
+        parts.add(getString(R.string.collected_count, lastTotalCollected))
 
         if (lastAfterDedup > 0) {
             val removed = lastTotalCollected - lastAfterDedup
-            if (removed > 0) parts.add("дубли: -$removed")
+            if (removed > 0) parts.add(getString(R.string.stat_dupes, removed))
         }
 
         if (lastAfterFilter > 0 && lastAfterDedup > 0) {
             val removed = lastAfterDedup - lastAfterFilter
-            if (removed > 0) parts.add("спам: -$removed")
+            if (removed > 0) parts.add(getString(R.string.stat_spam, removed))
         }
 
         val baseForTrash = when {
@@ -390,19 +390,19 @@ class MainActivity : AppCompatActivity() {
 
         if (lastToSynthesize > 0) {
             val trashRemoved = baseForTrash - lastToSynthesize
-            if (trashRemoved > 0) parts.add("мусор: -$trashRemoved")
+            if (trashRemoved > 0) parts.add(getString(R.string.stat_trash, trashRemoved))
 
             if (lastAfterAi > 0) {
                 val aiRemoved = lastToSynthesize - lastAfterAi
-                if (aiRemoved > 0) parts.add("ИИ: -$aiRemoved")
-                parts.add("к озвучке: $lastAfterAi")
+                if (aiRemoved > 0) parts.add(getString(R.string.stat_ai, aiRemoved))
+                parts.add(getString(R.string.stat_to_synth, lastAfterAi))
             } else {
-                parts.add("к озвучке: $lastToSynthesize")
+                parts.add(getString(R.string.stat_to_synth, lastToSynthesize))
             }
         }
 
         if (lastSkippedDuplicates > 0) {
-            parts.add("пропущено: $lastSkippedDuplicates")
+            parts.add(getString(R.string.stat_skipped, lastSkippedDuplicates))
         }
 
         binding.tvPipelineStatus.text = parts.joinToString(" → ")
@@ -691,7 +691,7 @@ class MainActivity : AppCompatActivity() {
                 refreshPresetChips()
                 Toast.makeText(this, getString(R.string.preset_n_saved, name), Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("Отмена", null)
+            .setNegativeButton(R.string.cancel, null)
             .show()
     }
 
@@ -813,7 +813,7 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, getString(R.string.preset_n_updated, name), Toast.LENGTH_SHORT).show()
                 showPresetsManagerDialog()
             }
-            .setNegativeButton("Отмена") { _, _ -> showPresetsManagerDialog() }
+            .setNegativeButton(R.string.cancel) { _, _ -> showPresetsManagerDialog() }
             .setOnCancelListener { showPresetsManagerDialog() }
             .show()
     }
@@ -863,14 +863,14 @@ class MainActivity : AppCompatActivity() {
         if (telegramClient.checkAuthState()) {
             readyCallback()
         } else {
-            updateStatus("Инициализация Telegram клиента...")
+            updateStatus(getString(R.string.status_tg_init))
         }
     }
 
     private fun updateUIForReadyClient() {
         binding.btnCollectNews.isEnabled = channelAdapter.getSelectedChannels().isNotEmpty()
         if (binding.tvStatus.text.isEmpty()) {
-            updateStatus("Клиент готов. Выберите каналы.")
+            updateStatus(getString(R.string.status_client_ready))
         }
     }
 
@@ -882,7 +882,7 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnPlay.setOnClickListener {
             if (currentPlaylist.isEmpty()) {
-                Toast.makeText(this, "Сначала соберите новости", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.collect_news_first), Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             startService(
@@ -937,7 +937,7 @@ class MainActivity : AppCompatActivity() {
         if (!isClientReady) return
 
         binding.progressBar.visibility = View.VISIBLE
-        updateStatus("Загружаем каналы...")
+        updateStatus(getString(R.string.status_loading_channels))
 
         telegramClient.loadChannels { channels ->
             runOnUiThread {
@@ -979,7 +979,7 @@ class MainActivity : AppCompatActivity() {
                     loadInitialNewsForChannels(filtered)
                     refreshPresetChips()
                 } else {
-                    updateStatus("Каналы не найдены")
+                    updateStatus(getString(R.string.status_no_channels))
                 }
             }
         }
@@ -1007,13 +1007,13 @@ class MainActivity : AppCompatActivity() {
 
         val selectedChannels = channelAdapter.getSelectedChannels()
         if (selectedChannels.isEmpty()) {
-            Toast.makeText(this, "Выберите хотя бы один канал", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.select_one_channel), Toast.LENGTH_SHORT).show()
             return
         }
 
         if (newsCollectionJob?.isActive == true) {
             newsCollectionJob?.cancel()
-            updateStatus("Сбор новостей остановлен")
+            updateStatus(getString(R.string.status_collection_stopped))
             binding.progressBar.visibility = View.GONE
             binding.btnCollectNews.text = getString(R.string.collect_news)
             binding.btnCollectNews.isEnabled = true
@@ -1034,14 +1034,14 @@ class MainActivity : AppCompatActivity() {
         getDeduplicator()
 
         binding.progressBar.visibility = View.VISIBLE
-        binding.btnCollectNews.text = "Остановить"
+        binding.btnCollectNews.text = getString(R.string.btn_stop_collection)
         binding.btnCollectNews.isEnabled = true
         startTimer()
 
         newsCollectionJob = lifecycleScope.launch {
             try {
-                updateStatus("Собираем новости из ${selectedChannels.size} каналов...")
-                updateDetailedProgress("Начинаем сбор новостей...", 0, 100)
+                updateStatus(getString(R.string.collecting_from_n_channels, selectedChannels.size))
+                updateDetailedProgress(getString(R.string.status_collection_starting), 0, 100)
 
                 val audio = newsService.collectAndSynthesizePlaylist(
                     channels = selectedChannels,
@@ -1066,7 +1066,7 @@ class MainActivity : AppCompatActivity() {
                     binding.progressBar.visibility = View.GONE
                     binding.btnCollectNews.text = getString(R.string.collect_news)
                     binding.btnCollectNews.isEnabled = true
-                    updateStatus("Сбор новостей отменен")
+                    updateStatus(getString(R.string.status_collection_cancelled))
                 }
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error collecting news", e)
@@ -1075,8 +1075,8 @@ class MainActivity : AppCompatActivity() {
                     binding.progressBar.visibility = View.GONE
                     binding.btnCollectNews.text = getString(R.string.collect_news)
                     binding.btnCollectNews.isEnabled = true
-                    updateStatus("Ошибка: ${e.message}")
-                    Toast.makeText(this@MainActivity, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
+                    updateStatus(getString(R.string.error_prefix, e.message))
+                    Toast.makeText(this@MainActivity, getString(R.string.error_prefix, e.message), Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -1147,7 +1147,7 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     Toast.makeText(
                         this@MainActivity,
-                        "Показаны $kept из ${kept + dropped} новостей. Сократите период или число каналов.",
+                        getString(R.string.news_truncated_warning, kept, kept + dropped),
                         Toast.LENGTH_LONG
                     ).show()
                 }
@@ -1171,7 +1171,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onSynthesisStarted(messageCount: Int) {
                 runOnUiThread {
-                    updateDetailedProgress("Начинаем синтез речи...", 50, 100)
+                    updateDetailedProgress(getString(R.string.status_synthesis_starting), 50, 100)
                     totalProgressSteps = messageCount
                     currentProgressStep = 0
                 }
@@ -1188,7 +1188,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onSynthesisCompleted() {
                 runOnUiThread {
-                    updateDetailedProgress("Синтез завершен", 100, 100)
+                    updateDetailedProgress(getString(R.string.synthesis_completed_status), 100, 100)
                     binding.btnCollectNews.isEnabled = true
                     binding.btnCollectNews.text = getString(R.string.collect_news)
                 }
@@ -1200,7 +1200,7 @@ class MainActivity : AppCompatActivity() {
         binding.progressBar.visibility = View.GONE
         binding.btnCollectNews.text = getString(R.string.collect_news)
         binding.btnCollectNews.isEnabled = true
-        updateDetailedProgress("Сбор завершен", 100, 100)
+        updateDetailedProgress(getString(R.string.status_collection_done), 100, 100)
 
         if (audio != null && audio.files.isNotEmpty()) {
             currentPlaylist = audio.files
@@ -1232,7 +1232,7 @@ class MainActivity : AppCompatActivity() {
                 action = AudioPlayerService.ACTION_SET_PLAYLIST
                 putStringArrayListExtra(AudioPlayerService.EXTRA_FILE_PATHS, arrayPaths)
                 putExtra(AudioPlayerService.EXTRA_START_INDEX, 0)
-                putExtra(AudioPlayerService.EXTRA_TITLE, "Новости")
+                putExtra(AudioPlayerService.EXTRA_TITLE, getString(R.string.news_default_title))
                 putExtra(AudioPlayerService.EXTRA_REAL_NEWS_COUNT, currentRealNewsCount)
                 putExtra(AudioPlayerService.EXTRA_NEWS_FILE_INDICES, currentNewsFileIndices.toIntArray())
             })
@@ -1245,8 +1245,8 @@ class MainActivity : AppCompatActivity() {
 
             Toast.makeText(this, getString(R.string.found_messages, audio.realNewsCount), Toast.LENGTH_SHORT).show()
         } else {
-            updateStatus("Новых новостей не найдено")
-            Toast.makeText(this, "Новые новости не найдены", Toast.LENGTH_LONG).show()
+            updateStatus(getString(R.string.no_new_news))
+            Toast.makeText(this, getString(R.string.no_new_news), Toast.LENGTH_LONG).show()
         }
     }
 
@@ -1405,7 +1405,7 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(
                     this@MainActivity,
                     if (createdFileName != null) getString(R.string.backup_saved, createdFileName)
-                    else "Ошибка при сохранении",
+                    else getString(R.string.backup_save_error),
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -1446,13 +1446,13 @@ class MainActivity : AppCompatActivity() {
                 .setItems(labels) { _, index ->
                     val chosen = backups[index]
                     AlertDialog.Builder(this@MainActivity)
-                        .setTitle("Восстановить?")
-                        .setMessage("Текущие настройки будут заменены копией от ${labels[index]}.")
+                        .setTitle(R.string.restore_confirm_title)
+                        .setMessage(getString(R.string.restore_confirm_msg, labels[index]))
                         .setPositiveButton(R.string.restore) { _, _ ->
                             lifecycleScope.launch {
                                 val ok = SettingsBackup.restoreFromUri(this@MainActivity, chosen.uri)
                                 if (ok) {
-                                    Toast.makeText(this@MainActivity, "Настройки восстановлены", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(this@MainActivity, getString(R.string.settings_restored), Toast.LENGTH_SHORT).show()
                                     telegramClient.applyProxySettings() // подхватить восстановленный прокси
                                     recreate()
                                 } else {
@@ -1500,11 +1500,11 @@ class MainActivity : AppCompatActivity() {
                     runOnUiThread {
                         if (ping != null) {
                             val ms = (ping * 1000).toInt()
-                            val status = "Подключен"
+                            val status = getString(R.string.proxy_connected)
                             val color = 0xFF4CAF50.toInt()
                             adapter?.updatePing(proxy.id, status, color)
                         } else {
-                            val status = if (error != null) "Недоступен: $error" else "Недоступен"
+                            val status = if (error != null) getString(R.string.proxy_unavailable_reason, error) else getString(R.string.proxy_unavailable)
                             val color = 0xFFFF5252.toInt()
                             adapter?.updatePing(proxy.id, status, color)
                         }
@@ -1852,7 +1852,7 @@ class MainActivity : AppCompatActivity() {
             PreferenceManager.setNewsOrder(this, selectedOrder)
             dialog.dismiss()
             showSettingsDialog()
-            Toast.makeText(this, "Порядок воспроизведения изменён", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.playback_order_changed), Toast.LENGTH_SHORT).show()
         }
 
         dialog.setOnCancelListener { showSettingsDialog() }
@@ -1875,7 +1875,7 @@ class MainActivity : AppCompatActivity() {
     private fun showResetAuthConfirmation() {
         AlertDialog.Builder(this)
             .setTitle(R.string.reset_auth_title)
-            .setMessage("Все данные будут удалены. Продолжить?")
+            .setMessage(getString(R.string.reset_auth_confirm))
             .setPositiveButton(R.string.yes) { _, _ -> resetAuthorization() }
             .setNegativeButton(R.string.cancel) { _, _ -> showSettingsDialog() }
             .setOnCancelListener { showSettingsDialog() }
@@ -1884,13 +1884,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun resetAuthorization() {
         binding.btnCollectNews.isEnabled = false
-        updateStatus("Сброс авторизации...")
+        updateStatus(getString(R.string.status_resetting_auth))
 
         TelegramClientManager.logoutAndClearDb(this) {
             PreferenceManager.clearAll(this)
             TTSManagerSingleton.clearInstance()
             runOnUiThread {
-                Toast.makeText(this, "Авторизация сброшена", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.auth_reset_done), Toast.LENGTH_SHORT).show()
                 startActivity(Intent(this, AuthActivity::class.java))
                 finish()
             }
@@ -1923,7 +1923,7 @@ class MainActivity : AppCompatActivity() {
             channelAdapter.getAllChannels().filterNot { it.id == channel.id }
         )
         updateChannelStats()
-        Toast.makeText(this, "Канал скрыт", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.channel_hidden), Toast.LENGTH_SHORT).show()
     }
 
     private fun showHiddenManager() {
@@ -1965,7 +1965,7 @@ class MainActivity : AppCompatActivity() {
                 PreferenceManager.saveHiddenUsernames(this, hiddenUsernames)
                 PreferenceManager.saveHiddenIds(this, hiddenIds)
                 loadChannels()
-                Toast.makeText(this, "Каналы возвращены", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.channels_restored), Toast.LENGTH_SHORT).show()
                 showSettingsDialog()
             }
             .setNegativeButton(R.string.cancel) { _, _ -> showSettingsDialog() }
@@ -1989,7 +1989,7 @@ class MainActivity : AppCompatActivity() {
         if (::ttsManager.isInitialized) {
             val currentVoice = PreferenceManager.getTtsVoiceName(this)
             if (lastUsedVoice != null && lastUsedVoice != currentVoice) {
-                updateStatus("Голос изменен. Пересоберите новости.")
+                updateStatus(getString(R.string.status_voice_changed))
             }
             ttsManager.refreshVoice()
         }

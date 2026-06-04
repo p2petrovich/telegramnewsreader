@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
+import com.p2petrovich.telegramnewsreader.R
 import com.p2petrovich.telegramnewsreader.databinding.ActivityPlayerBinding
 import com.p2petrovich.telegramnewsreader.services.AudioPlayerService
 
@@ -16,8 +17,8 @@ class PlayerActivity : AppCompatActivity() {
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        val title = intent.getStringExtra(EXTRA_TITLE) ?: "Новости"
-        binding.tvCurrentChannel.text = "Текущий канал: $title"
+        val title = intent.getStringExtra(EXTRA_TITLE) ?: getString(R.string.news_default_title)
+        binding.tvCurrentChannel.text = getString(R.string.current_channel, title)
         binding.seekBar.isEnabled = false
         binding.tvTimeLabels.text = "0:00 / 0:00"
         binding.tvError.visibility = View.GONE
