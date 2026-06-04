@@ -407,4 +407,8 @@
     <string name="security_error_keystore_unavailable">Security error: Android Keystore is unavailable.</string>
     <string name="security_error_keystore_unavailable_start">Security error: Android Keystore is unavailable. Start is impossible.</string>
     <string name="proxy_no_tg_response">No response from Telegram servers</string>
+    <string name="proxy_error_with_code">%1$s (code %2$d)</string>
+    <string name="proxy_unexpected_response">Unexpected response: %1$s</string>
+
+    <string name="voice_settings_title">Voice Settings</string>
 </resources>

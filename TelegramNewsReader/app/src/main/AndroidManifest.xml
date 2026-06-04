@@ -41,7 +41,7 @@
         <activity
             android:name=".activities.VoiceSelectionActivity"
             android:exported="false"
-            android:label="Настройки голоса"
+            android:label="@string/voice_settings_title"
             android:parentActivityName=".activities.MainActivity" />
 
         <service

@@ -498,13 +498,13 @@ class TelegramClient(private val context: Context) {
                         if (result.code == 400) {
                             tryDc(dcIds.drop(1))
                         } else {
-                            callback(null, "${result.message} (код ${result.code})")
+                            callback(null, context.getString(com.p2petrovich.telegramnewsreader.R.string.proxy_error_with_code, result.message, result.code))
                         }
                     }
                     else -> {
                         val typeName = result?.javaClass?.simpleName ?: "null"
                         Log.e(TAG, "TestProxy unknown result: $typeName")
-                        callback(null, "Неожиданный ответ: $typeName")
+                        callback(null, context.getString(com.p2petrovich.telegramnewsreader.R.string.proxy_unexpected_response, typeName))
                     }
                 }
             }
