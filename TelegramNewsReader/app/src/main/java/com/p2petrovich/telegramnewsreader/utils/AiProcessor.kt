@@ -85,6 +85,12 @@ object AiProcessor {
         }
     }
 
+    private fun isRussian(text: String): Boolean {
+        val cyrillicCount = text.count { it in '\u0400'..'\u04FF' }
+        val latinCount = text.count { it.isLetter() && it !in '\u0400'..'\u04FF' }
+        return cyrillicCount > latinCount
+    }
+
     suspend fun summarizeNews(newsText: String, context: Context): String {
         val (apiUrl, apiKey, modelName) = providerConfig(context)
 
@@ -99,66 +105,126 @@ object AiProcessor {
         val safeText = if (newsText.length > 8000) newsText.take(8000) + "..." else newsText
 
         val style = PreferenceManager.getAiStyle(context)
+        val isRu = isRussian(safeText)
 
+        val prompt = if (isRu) {
+            when (style) {
+                "minimal" -> """
+                    Ты — корректор новостей. Твоя задача — очистить текст от мусора, НЕ СОКРАЩАЯ его.
+    
+                    Правила:
+                    1. Удали рекламу, промо-блоки, призывы подписаться/поставить лайк/перейти по ссылке.
+                    2. Удали ссылки, упоминания каналов (@channel), хэштеги, эмодзи-разделители и декоративные символы (───, ▪️, 🔥 и т.п.).
+                    3. Удали подписи авторов, плашки источников и служебные пометки ("Подробнее →", "Читать далее" и подобные).
+                    4. ВЕСЬ фактический текст новости сохрани дословно: факты, цифры, имена, цитаты, последовательность абзацев.
+                    5. Не добавляй ничего от себя: ни вступлений, ни выводов, ни комментариев.
+                    6. В ответе верни ТОЛЬКО очищенный текст новости, без пояснений. ВЕСЬ ТЕКСТ ДОЛЖЕН БЫТЬ НА РУССКОМ ЯЗЫКЕ.
+    
+                    Текст для обработки:
+                    $safeText
+                """.trimIndent()
+    
+                "extreme" -> """
+                    Ты — редактор экстренной новостной ленты "Молния". Сожми новость до ОДНОГО предложения.
+    
+                    Правила:
+                    1. Не более 20 слов. Постарайся уложиться в 10-15 слов.
+                    2. Только главный факт: кто/что, что произошло.
+                    3. Без вводных ("Сообщается, что…", "Как стало известно…"), без оценок, без эмодзи.
+                    4. Сохрани ключевые цифры и имена собственные, если они и есть суть новости.
+                    5. В ответе верни ТОЛЬКО это одно предложение, без кавычек и пояснений. ОТВЕТ ДОЛЖЕН БЫТЬ НА РУССКОМ ЯЗЫКЕ.
+    
+                    Текст:
+                    $safeText
+                """.trimIndent()
+    
+                "balanced" -> """
+                    Ты — редактор новостного дайджеста. Сделай краткое САММАРИ новости.
+    
+                    Правила:
+                    1. Сократи объём примерно в 2 раза относительно исходника.
+                    2. Сохрани ВСЕ ключевые факты, цифры, имена, даты.
+                    3. Удали рекламу, ссылки, "воду" и повторы.
+                    4. Пиши нейтральным новостным стилем, короткими предложениями. Можно 2 абзаца.
+                    5. Не добавляй своих оценок и выводов.
+                    6. В ответе верни ТОЛЬКО готовое саммари. ОТВЕТ ДОЛЖЕН БЫТЬ НА РУССКОМ ЯЗЫКЕ.
+    
+                    Текст:
+                    $safeText
+                """.trimIndent()
+    
+                else -> """
+                    Ты — редактор новостного дайджеста. Сделай краткое САММАРИ новости.
+    
+                    Правила:
+                    1. Сократи объём примерно в 2 раза.
+                    2. Сохрани ключевые факты и цифры.
+                    3. Удали рекламу и мусор.
+                    4. В ответе верни ТОЛЬКО текст новости НА РУССКОМ ЯЗЫКЕ.
+    
+                    Текст:
+                    $safeText
+                """.trimIndent()
+            }
+        } else {
+            when (style) {
+                "minimal" -> """
+                    You are a news proofreader. Your task is to clean the text from noise without shortening it.
 
+                    Rules:
+                    1. Remove ads, promo blocks, calls to subscribe/like/follow links.
+                    2. Remove links, channel mentions (@channel), hashtags, emoji dividers, and decorative symbols.
+                    3. Remove author signatures, source tags, and service notes ("Read more", "Details here", etc.).
+                    4. Keep ALL factual news text verbatim: facts, figures, names, quotes, paragraph sequence.
+                    5. Do not add anything of your own: no introductions, no conclusions, no comments.
+                    6. Return ONLY the cleaned news text in your response, without explanations. THE RESPONSE MUST BE IN ENGLISH.
 
-        val prompt = when (style) {
-            "minimal" -> """
-                Ты — корректор новостей. Твоя задача — очистить текст от мусора, НЕ СОКРАЩАЯ его.
+                    Text to process:
+                    $safeText
+                """.trimIndent()
 
-                Правила:
-                1. Удали рекламу, промо-блоки, призывы подписаться/поставить лайк/перейти по ссылке.
-                2. Удали ссылки, упоминания каналов (@channel), хэштеги, эмодзи-разделители и декоративные символы (───, ▪️, 🔥 и т.п.).
-                3. Удали подписи авторов, плашки источников и служебные пометки ("Подробнее →", "Читать далее" и подобные).
-                4. ВЕСЬ фактический текст новости сохрани дословно: факты, цифры, имена, цитаты, последовательность абзацев.
-                5. Не добавляй ничего от себя: ни вступлений, ни выводов, ни комментариев.
-                6. В ответе верни ТОЛЬКО очищенный текст новости, без пояснений.
+                "extreme" -> """
+                    You are an editor for an emergency news feed "Flash". Compress the news into ONE sentence.
 
-                Текст для обработки:
-                $safeText
-            """.trimIndent()
+                    Rules:
+                    1. No more than 20 words. Try to keep it within 10-15 words.
+                    2. Only the main fact: who/what, what happened.
+                    3. No introductory phrases ("It is reported that...", "As it became known..."), no evaluations, no emojis.
+                    4. Keep key figures and proper names if they are the essence of the news.
+                    5. Return ONLY this one sentence in your response, without quotes or explanations. THE RESPONSE MUST BE IN ENGLISH.
 
-            "extreme" -> """
-                Ты — редактор экстренной новостной ленты "Молния". Сожми новость до ОДНОГО предложения.
+                    Text:
+                    $safeText
+                """.trimIndent()
 
-                Правила:
-                1. Не более 20 слов. Постарайся уложиться в 10-15 слов.
-                2. Только главный факт: кто/что, что произошло.
-                3. Без вводных ("Сообщается, что…", "Как стало известно…"), без оценок, без эмодзи.
-                4. Сохрани ключевые цифры и имена собственные, если они и есть суть новости.
-                5. В ответе верни ТОЛЬКО это одно предложение, без кавычек и пояснений.
+                "balanced" -> """
+                    You are a news digest editor. Create a brief SUMMARY of the news.
 
-                Текст:
-                $safeText
-            """.trimIndent()
+                    Rules:
+                    1. Reduce the volume by about 2 times relative to the source.
+                    2. Keep ALL key facts, figures, names, dates.
+                    3. Remove ads, links, fluff, and repetitions.
+                    4. Write in a neutral news style with short sentences. 2 paragraphs are allowed.
+                    5. Do not add your own evaluations or conclusions.
+                    6. Return ONLY the finished summary in your response. THE RESPONSE MUST BE IN ENGLISH.
 
-            "balanced" -> """
-                Ты — редактор новостного дайджеста. Сделай краткое САММАРИ новости.
+                    Text:
+                    $safeText
+                """.trimIndent()
 
-                Правила:
-                1. Сократи объём примерно в 2 раза относительно исходника.
-                2. Сохрани ВСЕ ключевые факты, цифры, имена, даты.
-                3. Удали рекламу, ссылки, "воду" и повторы.
-                4. Пиши нейтральным новостным стилем, короткими предложениями. Можно 2 абзаца.
-                5. Не добавляй своих оценок и выводов.
-                6. В ответе верни ТОЛЬКО готовое саммари.
+                else -> """
+                    You are a news digest editor. Create a brief SUMMARY of the news.
 
-                Текст:
-                $safeText
-            """.trimIndent()
+                    Rules:
+                    1. Reduce the volume by about 2 times.
+                    2. Keep key facts and figures.
+                    3. Remove ads and noise.
+                    4. Return ONLY the news text in your response in ENGLISH.
 
-            else -> """
-                Ты — редактор новостного дайджеста. Сделай краткое САММАРИ новости.
-
-                Правила:
-                1. Сократи объём примерно в 2 раза.
-                2. Сохрани ключевые факты и цифры.
-                3. Удали рекламу и мусор.
-                4. В ответе верни ТОЛЬКО текст новости.
-
-                Текст:
-                $safeText
-            """.trimIndent()
+                    Text:
+                    $safeText
+                """.trimIndent()
+            }
         }
 
         val temperature = when (style) {
