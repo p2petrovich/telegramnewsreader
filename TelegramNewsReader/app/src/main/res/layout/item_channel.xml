@@ -42,7 +42,7 @@
             app:layout_constraintStart_toEndOf="@id/ivAvatar"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintVertical_chainStyle="packed"
-            tools:text="Название канала" />
+            tools:text="@string/channel_default_name" />
 
         <TextView
             android:id="@+id/textNewMessages"
@@ -54,7 +54,7 @@
             app:layout_constraintEnd_toEndOf="@id/textChannelName"
             app:layout_constraintStart_toStartOf="@id/textChannelName"
             app:layout_constraintTop_toBottomOf="@id/textChannelName"
-            tools:text="15 новых" />
+            tools:text="15 new" />
 
         <com.google.android.material.checkbox.MaterialCheckBox
             android:id="@+id/checkboxChannel"

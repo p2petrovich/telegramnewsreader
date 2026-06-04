@@ -662,7 +662,7 @@ class MainActivity : AppCompatActivity() {
         spinnerTime.setSelection(currentTimePeriodIndex)
 
         val channelNames = selectedChannels.take(5).joinToString(", ") { it.title }
-        val suffix = if (selectedChannels.size > 5) " и ещё ${selectedChannels.size - 5}" else ""
+        val suffix = if (selectedChannels.size > 5) getString(R.string.and_more_n, selectedChannels.size - 5) else ""
         tvInfo.text = getString(
             R.string.preset_info,
             selectedChannels.size,
