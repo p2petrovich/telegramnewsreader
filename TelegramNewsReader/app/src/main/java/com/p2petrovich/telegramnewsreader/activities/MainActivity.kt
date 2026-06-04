@@ -1902,7 +1902,7 @@ class MainActivity : AppCompatActivity() {
             .setTitle(R.string.hide_channel_title)
             .setMessage(getString(R.string.hide_channel_confirm, channel.title))
             .setPositiveButton(R.string.hide) { _, _ -> hideChannel(channel) }
-            .setNegativeButton("Отмена", null)
+            .setNegativeButton(R.string.cancel, null)
             .show()
     }
 
