@@ -1660,8 +1660,8 @@ class MainActivity : AppCompatActivity() {
         switchEnabled.isChecked = PreferenceManager.isAiSummaryEnabled(this)
 
         val providers = listOf(
-            "openrouter" to "OpenRouter (Бесплатные модели)",
-            "groq"       to "Groq (Очень быстро, 1000/день)"
+            "openrouter" to "OpenRouter",
+            "groq"       to "Groq"
         )
         val providerAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, providers.map { it.second })
         providerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
