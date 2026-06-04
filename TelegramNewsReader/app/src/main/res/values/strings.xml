@@ -411,4 +411,5 @@
     <string name="proxy_unexpected_response">Unexpected response: %1$s</string>
 
     <string name="voice_settings_title">Voice Settings</string>
+    <string name="edge_tts_unavailable_fallback">Edge TTS is temporarily unavailable. Using system voice.</string>
 </resources>

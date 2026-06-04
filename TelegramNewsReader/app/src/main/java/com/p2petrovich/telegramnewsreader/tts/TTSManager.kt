@@ -318,7 +318,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
         
         // Если все попытки провалены — уведомляем UI о необходимости fallback
-        sendTtsError("Edge TTS временно недоступен. Используется системный голос.")
+        sendTtsError(context.getString(com.p2petrovich.telegramnewsreader.R.string.edge_tts_unavailable_fallback))
         return false
     }
 
