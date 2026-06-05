@@ -100,7 +100,7 @@ object AiProcessor {
         }
 
         if (newsText.isBlank()) return ""
-        
+
         // Ограничение длины входного текста для избежания ошибок 400 (Bad Request / Filtered)
         val safeText = if (newsText.length > 8000) newsText.take(8000) + "..." else newsText
 
@@ -191,35 +191,37 @@ object AiProcessor {
                     2. Only the main fact: who/what, what happened.
                     3. No introductory phrases ("It is reported that...", "As it became known..."), no evaluations, no emojis.
                     4. Keep key figures and proper names if they are the essence of the news.
-                    5. Return ONLY this one sentence in your response, without quotes or explanations. THE RESPONSE MUST BE IN ENGLISH.
+                    5. Use ONLY information present in the source text. Do NOT add or invent anything.
+                    6. Return ONLY this one sentence in your response, without quotes or explanations. THE RESPONSE MUST BE IN ENGLISH.
 
                     Text:
                     $safeText
                 """.trimIndent()
 
                 "balanced" -> """
-                    You are a news digest editor. Create a brief SUMMARY of the news.
+                    You are a news editor. Produce a faithful, concise version of the news below.
 
                     Rules:
-                    1. Reduce the volume by about 2 times relative to the source.
-                    2. Keep ALL key facts, figures, names, dates.
+                    1. Use ONLY information present in the source text. Do NOT add facts, context, background, or details that are not explicitly stated.
+                    2. Do NOT invent or infer anything. If unsure, omit it.
                     3. Remove ads, links, fluff, and repetitions.
-                    4. Write in a neutral news style with short sentences. 2 paragraphs are allowed.
-                    5. Do not add your own evaluations or conclusions.
-                    6. Return ONLY the finished summary in your response. THE RESPONSE MUST BE IN ENGLISH.
+                    4. If the news is already short, return it almost unchanged — never expand it.
+                    5. Neutral news style. The result must be equal to or shorter than the source, never longer.
+                    6. Return ONLY the resulting text. THE RESPONSE MUST BE IN ENGLISH.
 
                     Text:
                     $safeText
                 """.trimIndent()
 
                 else -> """
-                    You are a news digest editor. Create a brief SUMMARY of the news.
+                    You are a news editor. Produce a faithful, concise version of the news below.
 
                     Rules:
-                    1. Reduce the volume by about 2 times.
+                    1. Use ONLY information present in the source text. Do NOT add or invent anything.
                     2. Keep key facts and figures.
                     3. Remove ads and noise.
-                    4. Return ONLY the news text in your response in ENGLISH.
+                    4. Never make the text longer than the source.
+                    5. Return ONLY the news text in your response in ENGLISH.
 
                     Text:
                     $safeText
@@ -230,8 +232,17 @@ object AiProcessor {
         val temperature = when (style) {
             "minimal" -> 0.1   // чистка — нужна максимальная точность
             "extreme" -> 0.3   // одно предложение — строго, но можно чуть гибче
-            "balanced" -> 0.3  // саммари — баланс между точностью и сжатием
-            else      -> 0.4
+            "balanced" -> 0.1  // саммари — минимум "творчества", чтобы не досочинять
+            else      -> 0.2
+        }
+
+        // Жёсткий потолок длины ответа: не даём модели раздувать короткие новости.
+        // Грубая оценка: ~1 токен на 3-4 символа. Берём от длины входа.
+        val maxOutputTokens = when (style) {
+            "extreme"  -> 60
+            "balanced" -> (safeText.length / 3).coerceIn(60, 800)
+            "minimal"  -> (safeText.length / 2).coerceIn(100, 1200)
+            else       -> (safeText.length / 3).coerceIn(60, 800)
         }
 
         val json = JSONObject().apply {
@@ -244,6 +255,7 @@ object AiProcessor {
             }
             put("messages", messages)
             put("temperature", temperature)
+            put("max_tokens", maxOutputTokens)
         }
 
         val mediaType = "application/json; charset=utf-8".toMediaType()
