@@ -196,6 +196,7 @@ object PreferenceManager {
 
     fun clearAll(context: Context) {
         getPreferences(context).edit().clear().apply()
+        getAuthPreferences(context).edit().clear().apply()
     }
 
     // Color theme
