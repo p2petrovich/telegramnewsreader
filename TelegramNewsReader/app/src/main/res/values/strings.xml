@@ -292,7 +292,7 @@
     <string name="dedup_description">Skip duplicate messages from different channels</string>
     <string name="dedup_enable">Enable duplicate filtering</string>
     <string name="dedup_threshold_label">Match threshold</string>
-    <string name="dedup_threshold_hint">100%% = exact match, 90%% = minor differences allowed</string>
+    <string name="dedup_threshold_hint">Higher = stricter. High values merge only near-identical news; low values group news about the same event from different channels. Recommended 50–65%%.</string>
     <string name="dedup_history_label">History size</string>
     <string name="dedup_history_hint">How many recent messages to keep for comparison</string>
     <string name="dedup_time_label">Time window</string>
