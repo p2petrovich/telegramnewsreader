@@ -364,6 +364,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         val edge = edgeProvider
         if (edge != null) {
+            //Log.d(TAG, "EDGE INPUT [part=${job.partIndex} header=${NewsService.isChannelHeader(job.partText)} len=${job.partText.length}]: ${job.partText.take(300).replace("\n", "\\n")}")
             val tmp = File(context.cacheDir, "${baseUtteranceId}_part_${job.partIndex}.wav")
             if (trySynthesizeEdge(edge, job.partText, tmp, job.partIndex)) {
                 wav = tmp
@@ -437,12 +438,20 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 val deduped = TextProcessor.deduplicateLines(cleaned)
                 val expanded = TextProcessor.expandAbbreviations(deduped)
                 val normalized = TextProcessor.normalizeNumbers(expanded)
-                val formatted = TextProcessor.formatForIntonation(normalized)
+                var formatted = TextProcessor.formatForIntonation(normalized)
+
+                // Дополнительные паузы между предложениями нужны только Android TTS:
+                // Edge Neural на "..." реагирует ускорением темпа.
+                if (!isEdgeActive) {
+                    formatted = formatted.replace(Regex("(?<=[.!?…])\\s+"), "... ")
+                }
+
                 val finalText = TextProcessor.formatForSpeech(formatted)
                 if (finalText.isNotBlank()) {
                     prepared += PreparedNews(newsIndex, finalText, false)
                 }
             }
+
         }
 
         if (prepared.isEmpty()) {

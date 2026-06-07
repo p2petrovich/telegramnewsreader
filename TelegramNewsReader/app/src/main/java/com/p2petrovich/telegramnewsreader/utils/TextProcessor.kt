@@ -421,7 +421,7 @@ object TextProcessor {
         t = t.replace(Regex(";\\s*(?=\\n{2,})"), ". ")
 
         // Улучшение пауз между предложениями
-        t = t.replace(Regex("(?<=[.!?…])\\s+"), "... ")
+
 
         return t.trim()
     }
