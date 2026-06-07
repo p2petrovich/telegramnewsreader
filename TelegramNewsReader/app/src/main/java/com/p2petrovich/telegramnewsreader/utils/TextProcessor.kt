@@ -8,11 +8,12 @@ object TextProcessor {
 
     private const val TAG = "TextProcessor"
 
-    // Доля общих якорей (числа+аббревиатуры+имена) относительно меньшего набора,
-    // чтобы счесть две новости одним событием.
+    // Дефолтная доля общих якорей (числа+аббревиатуры+имена) относительно меньшего
+    // набора, чтобы счесть две новости одним событием. Используется, если порог
+    // не передан явно (ползунок настроек передаёт своё значение).
     private const val ANCHOR_MATCH_RATIO = 0.6
-    // Запасной порог Jaccard по обычным словам.
-    private const val WORD_JACCARD_THRESHOLD = 0.6
+    // Запасной порог Jaccard по обычным словам (нижняя граница словарного критерия).
+    private const val WORD_JACCARD_MIN = 0.4
     // Минимальное число якорей, при котором вообще пытаемся сравнивать по якорям.
     private const val MIN_ANCHORS = 3
 
@@ -242,7 +243,14 @@ object TextProcessor {
         val anchors: Set<String>
     )
 
-    fun deduplicateAcrossChannels(messages: List<String>): List<String> {
+    /**
+     * Межканальная дедупликация.
+     * @param threshold степень совпадения 0..1 (например, из ползунка настроек).
+     */
+    fun deduplicateAcrossChannels(
+        messages: List<String>,
+        threshold: Double = ANCHOR_MATCH_RATIO
+    ): List<String> {
         if (messages.size <= 1) return messages
 
         val result = mutableListOf<String>()
@@ -264,7 +272,7 @@ object TextProcessor {
                 continue
             }
 
-            val matched = fingerprints.firstOrNull { existing -> isSameEvent(fp, existing) }
+            val matched = fingerprints.firstOrNull { existing -> isSameEvent(fp, existing, threshold) }
 
             if (matched == null) {
                 result.add(msg)
@@ -272,11 +280,11 @@ object TextProcessor {
             } else {
                 removedCount++
                 val common = fp.anchors.intersect(matched.anchors)
-                Logx.d(TAG) { "DEDUP [anchor-match] common=$common len=${msg.length}" }
+                Logx.d(TAG) { "DEDUP [anchor-match thr=$threshold] common=$common len=${msg.length}" }
             }
         }
 
-        Logx.i(TAG) { "dedup: ${messages.size} -> ${result.size} (removed $removedCount)" }
+        Logx.i(TAG) { "dedup: ${messages.size} -> ${result.size} (removed $removedCount, threshold=$threshold)" }
         return result
     }
 
@@ -333,23 +341,29 @@ object TextProcessor {
     /**
      * Две новости — одно событие, если сильно пересекаются якоря,
      * либо высокий Jaccard по обычным словам (запасной критерий).
+     * @param threshold порог совпадения 0..1.
      */
-    fun isSameEvent(a: Fingerprint, b: Fingerprint): Boolean {
+    fun isSameEvent(
+        a: Fingerprint,
+        b: Fingerprint,
+        threshold: Double = ANCHOR_MATCH_RATIO
+    ): Boolean {
         // 1) Якорное совпадение
         if (a.anchors.isNotEmpty() && b.anchors.isNotEmpty()) {
             val common = a.anchors.intersect(b.anchors).size
             val minSize = minOf(a.anchors.size, b.anchors.size)
             if (minSize >= MIN_ANCHORS) {
                 val ratio = common.toDouble() / minSize
-                if (ratio >= ANCHOR_MATCH_RATIO) return true
+                if (ratio >= threshold) return true
             }
         }
 
-        // 2) Запасной критерий — Jaccard по словам
+        // 2) Запасной критерий — Jaccard по словам (не опускаем ниже разумного минимума)
         if (a.words.isNotEmpty() && b.words.isNotEmpty()) {
             val intersection = a.words.intersect(b.words).size
             val union = a.words.union(b.words).size
-            if (union > 0 && intersection.toDouble() / union > WORD_JACCARD_THRESHOLD) return true
+            val wordThreshold = threshold.coerceAtLeast(WORD_JACCARD_MIN)
+            if (union > 0 && intersection.toDouble() / union >= wordThreshold) return true
         }
 
         return false

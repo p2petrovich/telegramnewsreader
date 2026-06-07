@@ -29,7 +29,7 @@ class Deduplicator(
             return false
         }
 
-        val match = history.firstOrNull { TextProcessor.isSameEvent(it.fingerprint, fingerprint) }
+        val match = history.firstOrNull { TextProcessor.isSameEvent(it.fingerprint, fingerprint, matchThreshold.toDouble()) }
         if (match != null) {
             val common = fingerprint.anchors.intersect(match.fingerprint.anchors)
             Logx.d("Deduplicator") { "MATCH (anchors=$common, skipped=$skippedCount)" }
