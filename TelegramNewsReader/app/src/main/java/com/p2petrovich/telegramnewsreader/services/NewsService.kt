@@ -45,6 +45,37 @@ class NewsService(
             "${HEADER_MARKER}${context.getString(com.p2petrovich.telegramnewsreader.R.string.channel_header_format, title)}"
     }
 
+    /**
+     * Логирует "снимок" всех сообщений на конкретном этапе обработки.
+     * Logcat режет строки ~4000 байт, поэтому ограничиваем 300 символами на сообщение.
+     * Если нужен полный текст длинных новостей — используйте версию с chunked() (см. ниже).
+     */
+    private fun logStage(stage: String, messages: List<String>) {
+        val news = messages.count { !isChannelHeader(it) }
+        Log.d(TAG, "═══════ STAGE: $stage (всего=${messages.size}, новостей=$news) ═══════")
+        messages.forEachIndexed { i, msg ->
+            val tag = if (isChannelHeader(msg)) "[HEADER]" else "[NEWS]"
+            Log.d(TAG, "$stage[$i] $tag: ${msg.replace("\n", "\\n").take(300)}")
+        }
+    }
+
+    /**
+     * Альтернатива: печатает полный текст без обрезки, разбивая на куски по 800 символов.
+     * Раскомментируйте и используйте вместо logStage(), если нужны полные тексты длинных новостей.
+     */
+    /*
+    private fun logStageFull(stage: String, messages: List<String>) {
+        val news = messages.count { !isChannelHeader(it) }
+        Log.d(TAG, "═══════ STAGE: $stage (всего=${messages.size}, новостей=$news) ═══════")
+        messages.forEachIndexed { i, msg ->
+            val tag = if (isChannelHeader(msg)) "[HEADER]" else "[NEWS]"
+            msg.chunked(800).forEachIndexed { part, chunk ->
+                Log.d(TAG, "$stage[$i].$part $tag: ${chunk.replace("\n", "\\n")}")
+            }
+        }
+    }
+    */
+
     data class Prepared(
         val preparedMessages: List<String>,
         val totalCollected: Int,
@@ -110,12 +141,12 @@ class NewsService(
                 override fun onProgress(current: Int, total: Int) {
                     progressCallback.onSynthesisProgress(current, total)
                     
-                    // Общий прогресс
+                    //  
                     val overallPercentage = if (list.wasAiEnabled) {
-                        // Если ИИ был, то синтез — это 50..100%
+                        //   ,     50..100%
                         50 + if (total > 0) (current * 50 / total).coerceIn(0, 50) else 0
                     } else {
-                        // Если ИИ не было, то синтез — это 0..100%
+                        //    ,     0..100%
                         if (total > 0) (current * 100 / total).coerceIn(0, 100) else 0
                     }
                     progressCallback.onOverallProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.speech_synthesis_status), overallPercentage)
@@ -173,9 +204,9 @@ class NewsService(
                 val newsPreview = mutableListOf<String>()
                 val order = PreferenceManager.getNewsOrder(context)
 
-                // Обработка порядка воспроизведения
+                //   
                 when (order) {
-                    0 -> { // Поканально: от новых к старым (как было)
+                    0 -> { // :     ( )
                         channelResults.forEach { (channel, messages) ->
                             if (messages.isNotEmpty()) {
                                 allMessages.add(makeChannelHeader(channel.title, context))
@@ -185,7 +216,7 @@ class NewsService(
                             }
                         }
                     }
-                    1 -> { // Поканально: от старых к новым
+                    1 -> { // :    
                         channelResults.forEach { (channel, messages) ->
                             if (messages.isNotEmpty()) {
                                 allMessages.add(makeChannelHeader(channel.title, context))
@@ -195,17 +226,17 @@ class NewsService(
                             }
                         }
                     }
-                    2 -> { // Хронологически: от новых к старым (смешанно, без заголовков)
-                        // Собираем все сообщения в один список с сохранением времени для сортировки
+                    2 -> { // :     (,  )
+                        //           
                         val mixedMessages = channelResults.flatMap { it.second }
-                        // getChannelMessagesPaginated уже возвращает от новых к старым. 
-                        // Сортируем по времени (первые 5 символов "HH:mm")
+                        // getChannelMessagesPaginated      . 
+                        //    ( 5  "HH:mm")
                         val sorted = mixedMessages.sortedByDescending { it.take(5) }
                         allMessages.addAll(sorted)
                         realNewsCount = sorted.size
                         newsPreview.addAll(sorted.take(5))
                     }
-                    3 -> { // Хронологически: от старых к новым (смешанно, без заголовков)
+                    3 -> { // :     (,  )
                         val mixedMessages = channelResults.flatMap { it.second }
                         val sorted = mixedMessages.sortedBy { it.take(5) }
                         allMessages.addAll(sorted)
@@ -213,6 +244,9 @@ class NewsService(
                         newsPreview.addAll(sorted.take(5))
                     }
                 }
+
+                // ───────── ЭТАП 1: СЫРЫЕ НОВОСТИ (как пришли с каналов) ─────────
+                logStage("1_RAW", allMessages)
 
                 val totalCollected = realNewsCount
                 progressCallback.onUpdateNewsPreview(newsPreview)
@@ -229,6 +263,10 @@ class NewsService(
                 val deduplicated = TextProcessor.deduplicateAcrossChannels(allMessages)
                 val dedupNewsCount = deduplicated.count { !isChannelHeader(it) }
                 Log.d(TAG, "After across-channel dedup: ${deduplicated.size} (news: $dedupNewsCount)")
+
+                // ───────── ЭТАП 2: ПОСЛЕ ДЕДУПЛИКАЦИИ МЕЖДУ КАНАЛАМИ ─────────
+                logStage("2_DEDUP", deduplicated)
+
                 progressCallback.onDeduplicationComplete(totalCollected, dedupNewsCount)
 
                 ensureActive()
@@ -240,15 +278,19 @@ class NewsService(
                     onFilterProgress = { _, _ -> },
                     onTruncated = { kept, dropped ->
                         progressCallback.onNewsTruncated(kept, dropped)
-                        Log.w(TAG, "Усечено $dropped новостей сверх лимита (оставлено $kept)")
+                        Log.w(TAG, " $dropped    ( $kept)")
                     }
                 )
                 val filteredNewsCount = preparedMessages.count { !isChannelHeader(it) }
+
+                // ───────── ЭТАП 3: ПОСЛЕ ФИЛЬТРАЦИИ (очистка от мусора/рекламы) ─────────
+                logStage("3_FILTER", preparedMessages)
+
                 progressCallback.onMessageFiltered(dedupNewsCount, filteredNewsCount)
 
                 ensureActive()
 
-                // Дедупликация через Deduplicator (если включена)
+                //   Deduplicator ( )
                 val afterDedup = if (deduplicator != null && deduplicator.isEnabled) {
                     progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.checking_duplicates_status), 0, 100)
                     val filtered = mutableListOf<String>()
@@ -265,16 +307,24 @@ class NewsService(
                     preparedMessages
                 }
 
+                // ───────── ЭТАП 4: ПОСЛЕ Deduplicator (история дублей) ─────────
+                logStage("4_AFTER_DEDUPLICATOR", afterDedup)
+
                 val afterDropTrivial = TextProcessor.dropTrivial(afterDedup)
                 val totalToSynthesizeBeforeAi = afterDropTrivial.count { !isChannelHeader(it) }
 
+                // ───────── ЭТАП 5: ПОСЛЕ dropTrivial (удаление коротких/тривиальных) ─────────
+                logStage("5_DROP_TRIVIAL", afterDropTrivial)
+
                 ensureActive()
                 
-                // Параллельная обработка через ИИ с ограничением параллелизма
+                //       
                 val finalMessages = if (isAiEnabled) {
                     progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_summarization_status), 0, totalToSynthesizeBeforeAi)
-                    
-                    val semaphore = Semaphore(3) // Ограничиваем 3 одновременными запросами
+
+                    Log.d(TAG, "═══════ AI ОБРАБОТКА ВКЛЮЧЕНА (на вход: $totalToSynthesizeBeforeAi новостей) ═══════")
+
+                    val semaphore = Semaphore(3) //  3  
                     var processedCount = 0
                     
                     val results = afterDropTrivial.map { msg ->
@@ -283,17 +333,22 @@ class NewsService(
                                 msg
                             } else {
                                 semaphore.withPermit {
-                                    // Сохраняем временной префикс "ЧЧ:ММ — " перед отправкой в ИИ
-                                    val timePrefix = Regex("^\\d{2}:\\d{2}\\s*—\\s*").find(msg)?.value ?: ""
+                                    //    ":  "    
+                                    val timePrefix = Regex("^\\d{2}:\\d{2}\\s*\\s*").find(msg)?.value ?: ""
                                     val msgWithoutPrefix = if (timePrefix.isNotEmpty()) msg.removePrefix(timePrefix) else msg
 
                                     val rawResult = AiProcessor.summarizeNews(msgWithoutPrefix, context)
                                     val summarized = timePrefix + AiProcessor.stripErrorPrefix(rawResult)
+
+                                    // ───────── ЭТАП AI: пара ВХОД → ВЫХОД ─────────
+                                    Log.d(TAG, "AI_IN : ${msgWithoutPrefix.replace("\n", "\\n").take(300)}")
+                                    Log.d(TAG, "AI_OUT: ${summarized.replace("\n", "\\n").take(300)}")
+
                                     synchronized(this@NewsService) {
                                         processedCount++
                                         progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_summarization_status), processedCount, totalToSynthesizeBeforeAi)
                                         
-                                        // Общий прогресс (первая фаза: 0..50%)
+                                        //   ( : 0..50%)
                                         val overallPercentage = if (totalToSynthesizeBeforeAi > 0) {
                                             (processedCount * 50 / totalToSynthesizeBeforeAi).coerceIn(0, 50)
                                         } else 0
@@ -307,7 +362,7 @@ class NewsService(
                     
                     val filteredResults = results.filter { it.isNotBlank() }
                     
-                    // Обновляем превью после ИИ-обработки
+                    //    -
                     val summarizedPreview = filteredResults.take(5)
                     progressCallback.onUpdateNewsPreview(summarizedPreview)
 
@@ -316,10 +371,14 @@ class NewsService(
                     progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_processing_completed_status), 100, 100)
                     filteredResults
                 } else {
+                    Log.d(TAG, "═══════ AI ОБРАБОТКА ОТКЛЮЧЕНА ═══════")
                     afterDropTrivial
                 }
                 
                 val finalToSynthesize = finalMessages.count { !isChannelHeader(it) }
+
+                // ───────── ЭТАП 6: ФИНАЛ (то, что уйдёт в синтез TTS) ─────────
+                logStage("6_FINAL_FOR_TTS", finalMessages)
 
                 progressCallback.onUpdateCounters(totalCollected, finalToSynthesize, 0)
                 progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.prepared_for_synthesis_status), 100, 100)
