@@ -292,7 +292,7 @@
     <string name="dedup_description">Не озвучивать повторяющиеся сообщения из разных каналов</string>
     <string name="dedup_enable">Включить фильтрацию дублей</string>
     <string name="dedup_threshold_label">Степень совпадения</string>
-    <string name="dedup_threshold_hint">Чем выше — тем строже. Высокое значение склеивает только почти одинаковые новости, низкое — объединяет новости об одном событии из разных каналов. Рекомендуется 50–65%%.</string>
+    <string name="dedup_threshold_hint">Чем выше — тем строже.  Рекомендуется 50–65%%.</string>
     <string name="dedup_history_label">Размер истории</string>
     <string name="dedup_history_hint">Сколько последних сообщений помнить для сравнения</string>
     <string name="dedup_time_label">Временное окно</string>

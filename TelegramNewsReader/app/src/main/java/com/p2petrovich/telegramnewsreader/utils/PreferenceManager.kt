@@ -253,7 +253,7 @@ object PreferenceManager {
     }
 
     fun getDedupThreshold(context: Context): Float =
-        getPreferences(context).getFloat(KEY_DEDUP_THRESHOLD, 0.9f)
+        getPreferences(context).getFloat(KEY_DEDUP_THRESHOLD, 0.6f)
 
     fun setDedupThreshold(context: Context, threshold: Float) {
         getPreferences(context).edit().putFloat(KEY_DEDUP_THRESHOLD, threshold).apply()
