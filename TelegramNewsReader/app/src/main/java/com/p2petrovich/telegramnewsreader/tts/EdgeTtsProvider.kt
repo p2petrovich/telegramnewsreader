@@ -96,6 +96,19 @@ class EdgeTtsProvider(
 
         fun formatRatePct(rate: Int): String = if (rate >= 0) "+${rate}%" else "${rate}%"
         fun formatPitchHz(pitch: Int): String = if (pitch >= 0) "+${pitch}Hz" else "${pitch}Hz"
+
+        // ─── Страховочная очистка перед SSML ────────────────────────────────
+        // Основная чистка делается в prepareForSpeech (TTSManager) ДО вызова
+        // провайдера. Здесь — только защита от символов, которые ломают SSML
+        // или вызывают паузы/ошибки в Microsoft Neural, если что-то просочилось.
+        private val SSML_GEOMETRIC_PATTERN = Regex(
+            "[\\u25A0-\\u25FF\\u2B00-\\u2BFF▪▫◻◼◽◾◦‣⁃•·∙▸▹►▻🔹🔸🔶🔷🔺🔻🟠🟡🟢🟣🟤🟥🟦🟧🟨🟩🟪🟫⬛⬜]"
+        )
+        private val SSML_VARIATION_SELECTOR_PATTERN = Regex("[\\uFE00-\\uFE0F\\u200D]")
+        private val SSML_EMOJI_PATTERN = Regex("[\\p{So}\\p{Sk}]")
+        // Управляющие символы C0/C1, кроме допустимых \t \n \r (XML 1.0 их запрещает)
+        private val SSML_CONTROL_PATTERN = Regex("[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F-\\u009F]")
+        private val SSML_MULTI_SPACE_PATTERN = Regex("[ \\t]{2,}")
     }
 
     // ─── Публичный метод: текст → WAV файл ───────────────────────────────────
@@ -341,11 +354,25 @@ class EdgeTtsProvider(
     /**
      * SSML в формате rany2/edge-tts: одна строка, одинарные кавычки, xml:lang='en-US',
      * атрибуты в порядке pitch → rate → volume.
+     *
+     * Перед экранированием — страховочная очистка: убираем эмодзи/геометрию/
+     * управляющие символы, которые могли просочиться мимо prepareForSpeech и
+     * вызвать паузу или ошибку парсинга SSML в Microsoft Neural.
      */
     private fun buildSsml(text: String): String {
         val rateStr  = formatRatePct(ratePct)
         val pitchStr = formatPitchHz(pitchHz)
-        val escaped  = text
+
+        // Страховка (дублирует prepareForSpeech, но это дёшево и безопасно):
+        var safe = text
+        safe = SSML_GEOMETRIC_PATTERN.replace(safe, " ")
+        safe = SSML_VARIATION_SELECTOR_PATTERN.replace(safe, "")
+        safe = SSML_EMOJI_PATTERN.replace(safe, " ")
+        safe = SSML_CONTROL_PATTERN.replace(safe, "")
+        safe = SSML_MULTI_SPACE_PATTERN.replace(safe, " ").trim()
+
+        // XML-экранирование (порядок важен: & первым, иначе испортит &amp;/&lt;)
+        val escaped = safe
             .replace("&", "&amp;")
             .replace("<", "&lt;")
             .replace(">", "&gt;")
