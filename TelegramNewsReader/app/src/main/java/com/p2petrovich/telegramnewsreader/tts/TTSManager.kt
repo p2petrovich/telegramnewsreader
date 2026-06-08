@@ -12,6 +12,7 @@ import com.p2petrovich.telegramnewsreader.models.VoiceEntry
 import com.p2petrovich.telegramnewsreader.models.VoiceMappings
 import com.p2petrovich.telegramnewsreader.services.NewsService
 import com.p2petrovich.telegramnewsreader.utils.AudioUtils
+import com.p2petrovich.telegramnewsreader.utils.EdgeConfig // [FIX] для предварительного refresh версии Chromium
 import com.p2petrovich.telegramnewsreader.utils.NewsCache
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.TextProcessor
@@ -66,7 +67,9 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         // Количество попыток синтеза через Edge перед fallback на Android TTS.
         // Сетевые сбои WebSocket — норма, обычно вторая попытка проходит.
-        private const val EDGE_RETRY_ATTEMPTS = 2
+        // [FIX] Поднято с 2 до 3: в логах падения частые, третья попытка
+        // заметно снижает уход в Android-fallback.
+        private const val EDGE_RETRY_ATTEMPTS = 3
         private const val EDGE_RETRY_DELAY_MS = 500L
 
         // Лог финального текста перед синтезом (после prepareForSpeech).
@@ -302,6 +305,34 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     }
 
     /**
+     * [FIX] Единая точка расчёта ключа кэша.
+     *
+     * Раньше ключ считался в двух местах (synthesizePlaylist и synthesizeOnePart)
+     * с риском разойтись по символам — тогда запись и чтение кэша не совпадали бы.
+     * Теперь обе точки используют этот helper.
+     *
+     * Ключ привязан к ФАКТИЧЕСКОМУ движку: Edge-аудио → "edge:<voice>",
+     * Android-fallback → системный voiceName. Это не даёт fallback-аудио
+     * лечь под Edge-ключ и подменить голос при следующем запуске.
+     */
+    private fun cacheHashFor(
+        text: String,
+        useEdge: Boolean,
+        voiceName: String,
+        cachePitch: Float,
+        cacheRate: Float
+    ): String {
+        return if (useEdge) {
+            val ev = PreferenceManager.getEdgeVoice(context)
+            val er = PreferenceManager.getEdgeRate(context)
+            val ep = PreferenceManager.getEdgePitch(context)
+            NewsCache.messageHash(text, "edge:$ev", ep.toFloat(), er.toFloat())
+        } else {
+            NewsCache.messageHash(text, voiceName, cachePitch, cacheRate)
+        }
+    }
+
+    /**
      * Логирует финальный текст части перед синтезом — то, что реально пойдёт в TTS
      * после prepareForSpeech и splitByParagraphs. Разбивает на куски по 800 символов,
      * чтобы Logcat не обрезал длинные сообщения.
@@ -340,7 +371,9 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             Log.w(TAG, "Edge attempt $attempt failed for part $partIndex")
             if (outFile.exists()) outFile.delete()
             if (attempt < EDGE_RETRY_ATTEMPTS) {
-                delay(EDGE_RETRY_DELAY_MS)
+                // [FIX] Экспоненциальная задержка вместо фиксированной: 500мс, 1000мс, 2000мс...
+                // Снижает шанс попасть под rate-limit Microsoft при серии сбоев подряд.
+                delay(EDGE_RETRY_DELAY_MS * (1L shl (attempt - 1)))
             }
         }
 
@@ -407,13 +440,17 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         val meta = readWavMeta(finalWav) ?: return null
 
-        // Кэшируем только если фактический движок совпал с ожидаемым.
-        val expectedEdge = isEdgeActive
-        if (expectedEdge == actuallyUsedEdge) {
-            NewsCache.saveWavToCache(context, job.hash, finalWav)
-        } else {
-            Log.w(TAG, "Skip caching part ${job.partIndex}: expectedEdge=$expectedEdge, actualEdge=$actuallyUsedEdge")
-        }
+        // [FIX] Кэшируем ВСЕГДА (а не только при совпадении ожидаемого и фактического
+        // движка, как было раньше), но под ключом ФАКТИЧЕСКОГО движка.
+        //
+        // Раньше тут стоял "Skip caching ... expectedEdge!=actualEdge", из-за чего
+        // fallback-куски не кэшировались вовсе и при каждом запуске синтезировались
+        // заново. Теперь fallback-аудио ложится под Android-ключ: при повторном
+        // падении Edge оно возьмётся из кэша, а не пойдёт на третий синтез.
+        // Привязка ключа к реальному движку исключает подмену голоса:
+        // в Edge-режиме поиск идёт по Edge-ключу, и Android-кэш туда не попадёт.
+        val cacheHash = cacheHashFor(job.partText, actuallyUsedEdge, voiceName, cachePitch, cacheRate)
+        NewsCache.saveWavToCache(context, cacheHash, finalWav)
 
         return PartResult(job, finalWav, meta, actuallyUsedEdge, isFromCache = false)
     }
@@ -437,6 +474,15 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         val cachePitch = currentAppliedPitch ?: PreferenceManager.getTtsPitch(context)
         val cacheRate = currentAppliedRate ?: PreferenceManager.getTtsRate(context)
         val isEdgeActive = edgeProvider != null
+
+        // [FIX] Освежаем версию Chromium ДО старта синтеза, а не только реактивно
+        // после первого 403 в onFailure. Это снижает частоту самого первого
+        // "Edge attempt 1 failed" из-за устаревшего Sec-MS-GEC-Version.
+        // refreshIfNeeded сам решает, нужно ли обновление (по таймауту 24ч),
+        // так что лишних сетевых запросов не будет.
+        if (isEdgeActive) {
+            try { EdgeConfig.refreshIfNeeded(context) } catch (_: Exception) {}
+        }
 
         data class PreparedNews(
             val originalIndex: Int,
@@ -482,14 +528,11 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             val parts = TextProcessor.splitByParagraphs(item.textForSplitting, 2800)
             parts.forEachIndexed { pIdx, text ->
                 val partIndex = ((item.originalIndex + 1) * 1000 + (pIdx + 1))
-                val hash = if (isEdgeActive) {
-                    val ev = PreferenceManager.getEdgeVoice(context)
-                    val er = PreferenceManager.getEdgeRate(context)
-                    val ep = PreferenceManager.getEdgePitch(context)
-                    NewsCache.messageHash(text, "edge:$ev", ep.toFloat(), er.toFloat())
-                } else {
-                    NewsCache.messageHash(text, voiceName, cachePitch, cacheRate)
-                }
+                // [FIX] Расчёт ключа вынесен в общий helper cacheHashFor, чтобы
+                // запись (synthesizeOnePart) и чтение использовали ИДЕНТИЧНУЮ логику.
+                // Поведение для Edge-режима не изменилось: ключ всё так же
+                // "edge:<voice>|pitch|rate|text".
+                val hash = cacheHashFor(text, isEdgeActive, voiceName, cachePitch, cacheRate)
                 jobs.add(PartJob(chIdx, pIdx, text, partIndex, hash))
             }
         }
