@@ -32,6 +32,14 @@ class TelegramClient(private val context: Context) {
     @Volatile
     private var isReady = false
 
+    // [FIX reset] Флаг «идёт выход из аккаунта». Во время LogOut TDLib возвращает
+    // авторизацию в WaitTdlibParameters (готовится принять следующего пользователя),
+    // и без этого флага обработчик повторно вызывал setTdlibParameters(), из-за чего
+    // клиент «оживал» между LogOut и Close. Это и приводило к необходимости нажимать
+    // «Сбросить авторизацию» дважды.
+    @Volatile
+    private var isLoggingOut = false
+
     private var authorizationState: TdApi.AuthorizationState? = null
 
     private val TAG = "TelegramClient"
@@ -77,8 +85,13 @@ class TelegramClient(private val context: Context) {
                             onClientReady?.invoke()
                         }
                         is TdApi.AuthorizationStateWaitTdlibParameters -> {
-                            setTdlibParameters()
-                            applyProxySettings()
+                            // [FIX reset] Во время выхода НЕ переинициализируем клиент:
+                            // ждём перехода LogOut -> Close -> Closed. Иначе старый клиент
+                            // успевает заново открыть базу прямо перед удалением каталогов.
+                            if (!isLoggingOut) {
+                                setTdlibParameters()
+                                applyProxySettings()
+                            }
                         }
                         is TdApi.AuthorizationStateWaitPhoneNumber -> {
                             isAuthorized = false
@@ -401,6 +414,9 @@ class TelegramClient(private val context: Context) {
     }
 
     fun logoutAndReset(callback: () -> Unit) {
+        // [FIX reset] Поднимаем флаг ДО отправки LogOut, чтобы обработчик
+        // WaitTdlibParameters не переинициализировал клиент во время выхода.
+        isLoggingOut = true
         client?.send(TdApi.LogOut()) {
             isInitialized = false
             isAuthorized = false

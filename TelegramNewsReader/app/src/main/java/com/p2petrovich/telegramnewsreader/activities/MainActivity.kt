@@ -1886,13 +1886,27 @@ class MainActivity : AppCompatActivity() {
         binding.btnCollectNews.isEnabled = false
         updateStatus(getString(R.string.status_resetting_auth))
 
+        // [FIX reset] Останавливаем аудиоплеер до выхода: сервис на START_STICKY
+        // иначе продолжит играть текущий трек (и может быть перезапущен системой)
+        // уже после сброса авторизации и очистки настроек.
+        try {
+            startService(
+                Intent(this, AudioPlayerService::class.java)
+                    .setAction(AudioPlayerService.ACTION_STOP)
+            )
+        } catch (_: Exception) {}
+
         TelegramClientManager.logoutAndClearDb(this) {
             PreferenceManager.clearAll(this)
             TTSManagerSingleton.clearInstance()
             runOnUiThread {
-                Toast.makeText(this, getString(R.string.auth_reset_done), Toast.LENGTH_SHORT).show()
-                startActivity(Intent(this, AuthActivity::class.java))
-                finish()
+                // [FIX reset] Навигацию выполняем только если Activity ещё жива —
+                // колбэк может прийти после поворота/ухода в фон.
+                if (!isFinishing && !isDestroyed) {
+                    Toast.makeText(this, getString(R.string.auth_reset_done), Toast.LENGTH_SHORT).show()
+                    startActivity(Intent(this, AuthActivity::class.java))
+                    finish()
+                }
             }
         }
     }
