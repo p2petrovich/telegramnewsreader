@@ -73,7 +73,12 @@ object TextProcessor {
     private val TTS_MAX_CHANNEL_TAIL_PATTERN = Regex(
         "(?im)^.*\\bв\\s+(?:нашем\\s+)?канале?\\s+в\\s+[\"«]?макс[а-я]*[\"»]?\\.?\\s*$"
     )
-    private val TTS_PHONE_PATTERN = Regex("\\+?\\d{1,3}[\\s-]?\\(?\\d{1,4}\\)?[\\s-]?\\d{1,4}[\\s-]?\\d{1,4}[\\s-]?\\d{1,4}")
+    // Два варианта: слитный международный (+79161234567) и разделённый (8 800 555-35-35).
+    // (?!\d) после первого блока исключает диапазоны лет вида 2027-2028.
+    private val TTS_PHONE_PATTERN = Regex(
+        "(?:\\+\\d{1,3}\\d{7,10}" +
+        "|(?<!\\d)\\+?\\d{1,3}(?!\\d)[\\s-]?\\(?\\d{1,4}\\)?[\\s-]?\\d{1,4}[\\s-]?\\d{1,4}[\\s-]?\\d{1,4}(?!\\d))"
+    )
     private val TTS_EMOJI_PATTERN = Regex("[\\p{So}\\p{Sk}]")
     private val TTS_MARKDOWN_PATTERN = Regex("[*_`]+")
     private val TTS_QUOTES_PATTERN = Regex("[«»]")
