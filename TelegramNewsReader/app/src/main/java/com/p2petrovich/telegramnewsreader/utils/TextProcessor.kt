@@ -69,6 +69,10 @@ object TextProcessor {
     private val TTS_RBK_APP_PATTERN = Regex(
         "(?im)^\\s*[\\p{So}\\p{Sk}]?\\s*приложение\\s+рбк\\s+для\\s+(ios|android)(\\s*(и|/|\\|)\\s*(ios|android))?\\s*$"
     )
+    // "Больше инфографики/дайджестов/видео — в нашем канале в «Максе»."
+    private val TTS_MAX_CHANNEL_TAIL_PATTERN = Regex(
+        "(?im)^.*\\bв\\s+(?:нашем\\s+)?канале?\\s+в\\s+[\"«]?макс[а-я]*[\"»]?\\.?\\s*$"
+    )
     private val TTS_PHONE_PATTERN = Regex("\\+?\\d{1,3}[\\s-]?\\(?\\d{1,4}\\)?[\\s-]?\\d{1,4}[\\s-]?\\d{1,4}[\\s-]?\\d{1,4}")
     private val TTS_EMOJI_PATTERN = Regex("[\\p{So}\\p{Sk}]")
     private val TTS_MARKDOWN_PATTERN = Regex("[*_`]+")
@@ -456,6 +460,7 @@ object TextProcessor {
         t = TTS_RBK_PATTERN.replace(t, "")
         t = TTS_RBK_MAX_PATTERN.replace(t, "")
         t = TTS_RBK_APP_PATTERN.replace(t, "")
+        t = TTS_MAX_CHANNEL_TAIL_PATTERN.replace(t, "")
         t = TTS_BAZA_FOOTER_PATTERN.replace(t, "")
         t = TTS_SUBSCRIBE_INLINE_PATTERN.replace(t, "")
         t = TTS_AI_ERROR_PATTERN.replace(t, "")
