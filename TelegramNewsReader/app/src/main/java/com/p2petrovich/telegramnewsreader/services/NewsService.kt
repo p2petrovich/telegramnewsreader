@@ -262,23 +262,9 @@ class NewsService(
 
                 ensureActive()
 
-                progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.deduplication_status), 0, 100)
-                // ПОРОГ совпадения берётся из ползунка настроек — управляет якорной дедупликацией
-                val crossThreshold = PreferenceManager.getDedupThreshold(context).toDouble()
-                val deduplicated = TextProcessor.deduplicateAcrossChannels(allMessages, crossThreshold)
-                val dedupNewsCount = deduplicated.count { !isChannelHeader(it) }
-                Log.d(TAG, "After across-channel dedup: ${deduplicated.size} (news: $dedupNewsCount, threshold=$crossThreshold)")
-
-                // ───────── ЭТАП 2: ПОСЛЕ ДЕДУПЛИКАЦИИ МЕЖДУ КАНАЛАМИ ─────────
-                logStage("2_DEDUP", deduplicated)
-
-                progressCallback.onDeduplicationComplete(totalCollected, dedupNewsCount)
-
-                ensureActive()
-
                 progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.filtering_status), 0, 100)
-                val preparedMessages = TextProcessor.filterMessages(
-                    deduplicated,
+                val filteredMessages = TextProcessor.filterMessages(
+                    allMessages,
                     maxNews = TextProcessor.MAX_NEWS_DEFAULT,
                     onFilterProgress = { _, _ -> },
                     onTruncated = { kept, dropped ->
@@ -286,12 +272,27 @@ class NewsService(
                         Log.w(TAG, "truncated $dropped news (kept $kept)")
                     }
                 )
-                val filteredNewsCount = preparedMessages.count { !isChannelHeader(it) }
+                val filteredNewsCount = filteredMessages.count { !isChannelHeader(it) }
 
-                // ───────── ЭТАП 3: ПОСЛЕ ФИЛЬТРАЦИИ ─────────
-                logStage("3_FILTER", preparedMessages)
+                // ───────── ЭТАП 2: ПОСЛЕ ФИЛЬТРАЦИИ ─────────
+                logStage("2_FILTER", filteredMessages)
 
-                progressCallback.onMessageFiltered(dedupNewsCount, filteredNewsCount)
+                ensureActive()
+
+                progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.deduplication_status), 0, 100)
+                // ПОРОГ совпадения берётся из ползунка настроек — управляет якорной дедупликацией
+                val crossThreshold = PreferenceManager.getDedupThreshold(context).toDouble()
+                val deduplicated = TextProcessor.deduplicateAcrossChannels(filteredMessages, crossThreshold)
+                val dedupNewsCount = deduplicated.count { !isChannelHeader(it) }
+                Log.d(TAG, "After across-channel dedup: ${deduplicated.size} (news: $dedupNewsCount, threshold=$crossThreshold)")
+
+                // ───────── ЭТАП 3: ПОСЛЕ ДЕДУПЛИКАЦИИ МЕЖДУ КАНАЛАМИ ─────────
+                logStage("3_DEDUP", deduplicated)
+
+                progressCallback.onDeduplicationComplete(totalCollected, dedupNewsCount)
+
+                val preparedMessages = deduplicated
+                progressCallback.onMessageFiltered(filteredNewsCount, dedupNewsCount)
 
                 ensureActive()
 
