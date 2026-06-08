@@ -89,6 +89,14 @@ object TextProcessor {
 
     private val TRIVIAL_PATTERN = Regex("^(фото|видео|аудио|ссылка|репост)\\b.*$", RegexOption.IGNORE_CASE)
 
+    // ─── Анонс видеовыпуска с тайм-кодами ───────────────────────────
+    // Строки вида "00:00-04:10 — Иран нарушил…" — это оглавление видео РБК,
+    // на слух бессмысленно ("ноль-ноль ноль-ноль дефис ноль-четыре десять").
+    // Если в сообщении есть такая разметка тайм-кодов — дропаем новость целиком.
+    private val TIMECODE_ANNOUNCE_PATTERN = Regex(
+        "(?m)^\\s*\\d{1,2}:\\d{2}\\s*[–—-]\\s*\\d{1,2}:\\d{2}\\b"
+    )
+
     private val SUBSCRIBE_CHECK_PATTERN = Regex(
         "(?i)^\\s*(?:\\d{2}:\\d{2}\\s*—\\s*)?(подписывай(ся|тесь)?|подпишись|подписка на канал)\\b[\\s\\S]{0,80}$"
     )
@@ -531,6 +539,14 @@ object TextProcessor {
         t = t.replace(Regex("(\\d+[,.]?\\d*)%-е")) { "${it.groupValues[1]}-процентные" }
         t = t.replace(Regex("\\b(\\d+[,.]?\\d*)\\s?%\\b")) { "${it.groupValues[1]} процентов" }
 
+        // ── Диапазоны чисел: "27–29", "2-7", "100 — 200" → "от 27 до 29" ──
+        // Выполняется ПОСЛЕ обработки процентов/валют, но ДО координат,
+        // чтобы не задеть "2024-2025" (4-значные годы остаются в formatForIntonation).
+        // Ограничиваем 1–3 значными числами, чтобы не трогать годы и телефоны.
+        t = t.replace(Regex("\\b(\\d{1,3})\\s*[–—-]\\s*(\\d{1,3})\\b")) {
+            "от ${it.groupValues[1]} до ${it.groupValues[2]}"
+        }
+
         t = t.replace(
             Regex("([+-]?\\d+[,.]?\\d*)\\s?°\\s?с\\.?\\s?ш\\.?", RegexOption.IGNORE_CASE)
         ) { "${it.groupValues[1]} градусов северной широты" }
@@ -598,6 +614,13 @@ object TextProcessor {
         if (NewsService.isChannelHeader(text)) return text
 
         var t = text
+
+        // ── Составные единицы (раскрываем ДО одиночных, иначе "кв." и "мм рт. ст."
+        //    разорвутся на отдельные сокращения и TTS вставит лишние паузы) ──
+        t = t.replace(Regex("\\bмм\\s*рт\\.?\\s*ст\\.?", RegexOption.IGNORE_CASE), "миллиметров ртутного столба")
+        t = t.replace(Regex("\\bкв\\.?\\s*м\\b", RegexOption.IGNORE_CASE), "квадратных метров")
+        t = t.replace(Regex("\\bм/с\\b", RegexOption.IGNORE_CASE), "метров в секунду")
+
         val maps = mapOf(
             Regex("\\bг\\.\\b") to "город",
             Regex("\\bобл\\.\\b") to "область",
@@ -614,9 +637,10 @@ object TextProcessor {
             t = t.replace(regex, replacement)
         }
 
+        // США намеренно НЕ раскрываем: замена на "Соединённые Штаты" ломала падеж
+        // ("из Соединённые Штаты"). TTS-движок читает "США" корректно как есть.
         val newsAbbreviations = listOf(
             Regex("\\bРФ\\b")                               to "Россия",
-            Regex("\\bСША\\b")                              to "Соединённые Штаты",
             Regex("\\bЕС\\b(?![а-яёА-ЯЁ])")                to "Евросоюз",
             Regex("\\bООН\\b")                              to "Организация Объединённых Наций",
             Regex("\\bЦБ\\b")                               to "Центробанк",
@@ -717,6 +741,7 @@ object TextProcessor {
         var droppedTrivial = 0
         var droppedSubscribe = 0
         var droppedSpam = 0
+        var droppedTimecode = 0
 
         val result = texts.filter { text ->
             if (NewsService.isChannelHeader(text)) return@filter true
@@ -729,6 +754,12 @@ object TextProcessor {
                 withoutTimePrefix.length < 8 -> {
                     droppedShort++
                     Logx.d(TAG) { "DROP [<8chars] len=${withoutTimePrefix.length}" }
+                    false
+                }
+                // Анонс видеовыпуска РБК с тайм-кодами ("00:00-04:10 — …") — дропаем целиком
+                TIMECODE_ANNOUNCE_PATTERN.containsMatchIn(withoutTimePrefix) -> {
+                    droppedTimecode++
+                    Logx.d(TAG) { "DROP [timecode_announce] len=${withoutTimePrefix.length}" }
                     false
                 }
                 TRIVIAL_PATTERN.containsMatchIn(withoutTimePrefix) -> {
@@ -751,7 +782,7 @@ object TextProcessor {
         }
 
         if (texts.size != result.size) {
-            Logx.i(TAG) { "dropTrivial: ${texts.size} -> ${result.size} (short=$droppedShort trivial=$droppedTrivial subscribe=$droppedSubscribe spam=$droppedSpam)" }
+            Logx.i(TAG) { "dropTrivial: ${texts.size} -> ${result.size} (short=$droppedShort trivial=$droppedTrivial subscribe=$droppedSubscribe spam=$droppedSpam timecode=$droppedTimecode)" }
         }
 
         return result
