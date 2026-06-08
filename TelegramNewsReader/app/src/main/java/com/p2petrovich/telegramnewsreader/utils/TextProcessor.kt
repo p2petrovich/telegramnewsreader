@@ -1,20 +1,13 @@
 package com.p2petrovich.telegramnewsreader.utils
 
-import android.util.Log
 import com.p2petrovich.telegramnewsreader.services.NewsService
-import com.p2petrovich.telegramnewsreader.utils.Logx
 
 object TextProcessor {
 
     private const val TAG = "TextProcessor"
 
-    // Дефолтная доля общих якорей (числа+аббревиатуры+имена) относительно меньшего
-    // набора, чтобы счесть две новости одним событием. Используется, если порог
-    // не передан явно (ползунок настроек передаёт своё значение).
     private const val ANCHOR_MATCH_RATIO = 0.6
-    // Запасной порог Jaccard по обычным словам (нижняя граница словарного критерия).
     private const val WORD_JACCARD_MIN = 0.4
-    // Минимальное число якорей, при котором вообще пытаемся сравнивать по якорям.
     private const val MIN_ANCHORS = 3
 
     private val PROMO_PATTERNS = listOf(
@@ -47,6 +40,16 @@ object TextProcessor {
         Regex("(?im)^\\s*[\\p{So}\\p{Sk}]*\\s*все\\s+наши\\s+каналы\\b.*$"),
     )
 
+    // ─── Символьный мусор (расширено) ───────────────────────────────
+    // Все геометрические фигуры (квадраты/круги/ромбы/треугольники), буллеты,
+    // цветные квадраты-эмодзи. Покрывает ◻ ◼ ▪ ▫ ⬜ ⬛ 🟥 и т.п.
+    private val GEOMETRIC_SHAPES_PATTERN = Regex(
+        "[\\u25A0-\\u25FF\\u2B00-\\u2BFF▪▫◻◼◽◾◦‣⁃•·∙▸▹►▻🔹🔸🔶🔷🔺🔻🟠🟡🟢🟣🟤🟥🟦🟧🟨🟩🟪🟫⬛⬜]"
+    )
+    // Вариационные селекторы и zero-width joiner (HEADER_MARKER проверяется
+    // через isChannelHeader ДО чистки, поэтому тут безопасно).
+    private val VARIATION_SELECTOR_PATTERN = Regex("[\\uFE00-\\uFE0F\\u200D]")
+
     private val TTS_URL_PATTERN = Regex("(https?://|www\\.)\\S+")
     private val TTS_HASHTAG_PATTERN = Regex("(^|\\s)[#@][\\p{L}0-9_]+")
     private val TTS_FORWARD_PATTERN = Regex("(?im)^переслано из:?\\s.*$")
@@ -60,17 +63,13 @@ object TextProcessor {
         "^[\\p{So}\\p{Sk}]?\\s*(Читать РБК в Telegram|Следить за новостями РБК в Telegram|(Другие видео|Картина дня).*в телеграм-канале РБК).*$",
         setOf(RegexOption.MULTILINE, RegexOption.IGNORE_CASE)
     )
-
-    // ─── Дополнительные хвосты РБК (Макс, мобильные приложения) ────────────────
     private val TTS_RBK_MAX_PATTERN = Regex(
         "(?im)^\\s*[\\p{So}\\p{Sk}]?\\s*канал\\s+рбк\\s+в\\s+[\"«\"']?макс[а-я]*[\"»\"']?\\s*$"
     )
     private val TTS_RBK_APP_PATTERN = Regex(
         "(?im)^\\s*[\\p{So}\\p{Sk}]?\\s*приложение\\s+рбк\\s+для\\s+(ios|android)(\\s*(и|/|\\|)\\s*(ios|android))?\\s*$"
     )
-
     private val TTS_PHONE_PATTERN = Regex("\\+?\\d{1,3}[\\s-]?\\(?\\d{1,4}\\)?[\\s-]?\\d{1,4}[\\s-]?\\d{1,4}[\\s-]?\\d{1,4}")
-    private val TTS_COLORED_SQUARES_PATTERN = Regex("[🟩🟨🟥🟦🟪🟫⬛⬜]")
     private val TTS_EMOJI_PATTERN = Regex("[\\p{So}\\p{Sk}]")
     private val TTS_MARKDOWN_PATTERN = Regex("[*_`]+")
     private val TTS_QUOTES_PATTERN = Regex("[«»]")
@@ -81,6 +80,13 @@ object TextProcessor {
     private val TTS_MULTI_NEWLINE = Regex("\\n{3,}")
     private val TTS_AI_ERROR_PATTERN = Regex("(?i)\\[AI Error.*?\\]")
 
+    // Висячее тире/дефис в начале строки (остаётся после среза префикса времени)
+    private val LEADING_DASH_PATTERN = Regex("(?m)^\\s*[—–-]\\s+")
+    // Пробельные строки после удаления маркеров
+    private val BLANK_LINES_PATTERN = Regex("(?m)^[ \\t]+$")
+    // Пробел перед знаками препинания (появляется после чисток)
+    private val SPACE_BEFORE_PUNCT_PATTERN = Regex("\\s+([,.;:!?…])")
+
     private val TRIVIAL_PATTERN = Regex("^(фото|видео|аудио|ссылка|репост)\\b.*$", RegexOption.IGNORE_CASE)
 
     private val SUBSCRIBE_CHECK_PATTERN = Regex(
@@ -89,6 +95,9 @@ object TextProcessor {
     private val SPAM_CHECK_PATTERN = Regex(
         "(?i)^\\s*(?:\\d{2}:\\d{2}\\s*—\\s*)?(лайк|репост|поделись|нажми|кликни|переходи по ссылке)\\b[\\s\\S]{0,60}$"
     )
+
+    // Префикс времени — единое определение, используется везде
+    private val TIME_PREFIX_PATTERN = Regex("^\\d{2}:\\d{2}\\s*—?\\s*")
 
     // ============ Стоп-слова (RU + EN) ============
 
@@ -106,6 +115,22 @@ object TextProcessor {
         "those", "he", "she", "they", "we", "you", "his", "her",
         "their", "our", "your", "has", "have", "had", "will", "would",
         "not", "no", "so", "than", "then", "into", "over", "after"
+    )
+
+    // ─── Шумовые якоря ──────────────────────────────────────────────
+    // Слова/аббревиатуры, которые встречаются почти в каждой второй новости
+    // текущего потока и потому НЕ должны служить основанием для склейки
+    // разных событий. "бпла"/"дрон"/"атака" объединяли Крым и Новороссийск —
+    // теперь не объединяют. Числовые якоря (310 и т.п.) при этом сохраняются
+    // и продолжают корректно склеивать реальные дубли.
+    private val NOISE_ANCHORS = setOf(
+        "бпла", "бпла", "дрон", "дрона", "дронов", "дроны",
+        "беспилотник", "беспилотника", "беспилотников",
+        "атака", "атаки", "атаку", "удар", "удары", "удара",
+        "россии", "россия", "рф", "украины", "украина", "украинских",
+        "минобороны", "пво", "сообщает", "сообщили", "данным",
+        "регион", "региона", "регионов", "регионам",
+        "ночь", "ночью", "утра", "утром", "канал", "канала", "новости"
     )
 
     private fun isRussianText(text: String): Boolean {
@@ -235,18 +260,21 @@ object TextProcessor {
         return limited
     }
 
-    // ============ Дедупликация между каналами (якорная, языконезависимая) ============
-
-    /** Отпечаток новости: значимые слова + "якоря" (числа, аббревиатуры, имена). */
-    data class Fingerprint(
-        val words: Set<String>,
-        val anchors: Set<String>
-    )
+    // ============ Дедупликация (якорная, языконезависимая) ============
 
     /**
-     * Межканальная дедупликация.
-     * @param threshold степень совпадения 0..1 (например, из ползунка настроек).
+     * Отпечаток новости с раздельными типами якорей.
+     * - numbers: числа-события (310, 50%, 12.2k) — точные, сильные сигналы.
+     * - strongAnchors: имена собственные + аббревиатуры, КРОМЕ шумовых.
+     * - words: значимые слова для запасного Jaccard-критерия.
      */
+    data class Fingerprint(
+        val words: Set<String>,
+        val anchors: Set<String>,        // сохранено для обратной совместимости (numbers + strong)
+        val numbers: Set<String> = emptySet(),
+        val strongAnchors: Set<String> = emptySet()
+    )
+
     fun deduplicateAcrossChannels(
         messages: List<String>,
         threshold: Double = ANCHOR_MATCH_RATIO
@@ -265,7 +293,6 @@ object TextProcessor {
 
             val fp = extractFingerprint(msg)
 
-            // Слишком мало признаков — не рискуем, считаем уникальным
             if (fp.words.size < 3) {
                 result.add(msg)
                 fingerprints.add(fp)
@@ -279,8 +306,9 @@ object TextProcessor {
                 fingerprints.add(fp)
             } else {
                 removedCount++
-                val common = fp.anchors.intersect(matched.anchors)
-                Logx.d(TAG) { "DEDUP [anchor-match thr=$threshold] common=$common len=${msg.length}" }
+                val common = fp.strongAnchors.intersect(matched.strongAnchors) +
+                             fp.numbers.intersect(matched.numbers)
+                Logx.d(TAG) { "DEDUP [match thr=$threshold] common=$common len=${msg.length}" }
             }
         }
 
@@ -288,57 +316,45 @@ object TextProcessor {
         return result
     }
 
-    /**
-     * Языконезависимый отпечаток.
-     * Якоря: числа (разряды через пробел/запятую склеиваются), аббревиатуры из
-     * заглавных букв (ЦИК/NATO/США/US), имена собственные по заглавной не в начале
-     * предложения. Стоп-слова выбираются по языку текста.
-     */
     fun extractFingerprint(text: String): Fingerprint {
         val stop = stopWordsFor(text)
 
-        // Убираем префикс времени "HH:mm — "
-        val body = text.replace(Regex("^\\d{2}:\\d{2}\\s*—\\s*"), "")
+        val body = TIME_PREFIX_PATTERN.replace(text, "")
 
-        // ── ЯКОРЯ-ЧИСЛА ──────────────────────────────────────────────
-        // Склеиваем разрядные числа: "1 476 597" / "1,476,697" -> "1476597".
+        // ── ЧИСЛА ────────────────────────────────────────────────────
         var joinedDigits = body.replace(Regex("(?<=\\d)[\\s\u00A0](?=\\d{3}\\b)"), "")
         joinedDigits = joinedDigits.replace(Regex("(?<=\\d),(?=\\d{3}\\b)"), "")
 
-        // Числа и проценты. Большие числа (от 4 значащих цифр) огрубляем до первых 3
-        // разрядов с суффиксом "k", чтобы расхождения/опечатки в источниках
-        // (1 476 597 vs 1 476 697) давали один и тот же якорь.
-        // Проценты и небольшие числа оставляем точными — это сильные точные признаки.
-        val numberAnchors = Regex("\\d+(?:[.,]\\d+)?")
+        val numbers = Regex("\\d+(?:[.,]\\d+)?")
             .findAll(joinedDigits)
             .map { it.value.replace(',', '.') }
             .filter { it.length >= 2 }
             .map { num ->
                 val intPart = num.substringBefore('.')
                 if (!num.contains('.') && intPart.length >= 4) {
-                    // 1476597 -> "147k", 1476697 -> "147k" (совпадут)
                     intPart.take(3) + "k"
                 } else {
-                    num // проценты (58.97) и числа до 3 цифр — точные
+                    num
                 }
             }
             .toSet()
 
-        // ── ЯКОРЯ-АББРЕВИАТУРЫ (кросс-язычные: ЦИК, ВСУ, США, US, NATO) ──
+        // ── АББРЕВИАТУРЫ (кросс-язычные), исключая шум ──────────────
         val abbreviations = Regex("\\b\\p{Lu}{2,6}\\b")
             .findAll(body)
             .map { it.value.lowercase() }
-            .filter { it !in stop }
+            .filter { it !in stop && it !in NOISE_ANCHORS }
             .toSet()
 
-        // ── ЯКОРЯ-ИМЕНА (заглавная не в начале предложения) ──────────
+        // ── ИМЕНА (заглавная не в начале предложения), исключая шум ──
         val properNames = Regex("(?<![.!?…]\\s)(?<!^)\\b\\p{Lu}\\p{Ll}{2,}\\b", RegexOption.MULTILINE)
             .findAll(body)
             .map { it.value.lowercase() }
-            .filter { it !in stop }
+            .filter { it !in stop && it !in NOISE_ANCHORS }
             .toSet()
 
-        val anchors = numberAnchors + abbreviations + properNames
+        val strongAnchors = abbreviations + properNames
+        val anchors = numbers + strongAnchors
 
         // ── ОБЫЧНЫЕ СЛОВА ────────────────────────────────────────────
         val cleaned = body.lowercase().replace(Regex("[^\\p{L}\\s]"), " ")
@@ -346,30 +362,41 @@ object TextProcessor {
             .filter { it.length > 3 && it !in stop }
             .toSet()
 
-        return Fingerprint(words, anchors)
+        return Fingerprint(words, anchors, numbers, strongAnchors)
     }
 
     /**
-     * Две новости — одно событие, если сильно пересекаются якоря,
-     * либо высокий Jaccard по обычным словам (запасной критерий).
-     * @param threshold порог совпадения 0..1.
+     * Две новости — одно событие, если выполняется одно из:
+     *  A) совпали ≥2 сильных якоря (имена/аббревиатуры), ИЛИ
+     *  B) совпал ≥1 сильный якорь И совпало ≥1 число-событие, ИЛИ
+     *  C) совпали ≥2 числа-события (редкий, но точный случай), ИЛИ
+     *  D) высокий Jaccard по словам (запасной критерий).
+     *
+     * Порог threshold масштабирует требования: при высоком пороге требуем
+     * более полного совпадения сильных якорей.
      */
     fun isSameEvent(
         a: Fingerprint,
         b: Fingerprint,
         threshold: Double = ANCHOR_MATCH_RATIO
     ): Boolean {
-        // 1) Якорное совпадение
-        if (a.anchors.isNotEmpty() && b.anchors.isNotEmpty()) {
-            val common = a.anchors.intersect(b.anchors).size
-            val minSize = minOf(a.anchors.size, b.anchors.size)
-            if (minSize >= MIN_ANCHORS) {
-                val ratio = common.toDouble() / minSize
-                if (ratio >= threshold) return true
-            }
-        }
+        val strongCommon = a.strongAnchors.intersect(b.strongAnchors).size
+        val numberCommon = a.numbers.intersect(b.numbers).size
+        val strongMin = minOf(a.strongAnchors.size, b.strongAnchors.size)
 
-        // 2) Запасной критерий — Jaccard по словам (не опускаем ниже разумного минимума)
+        // Доля совпавших сильных якорей относительно меньшего набора
+        val strongRatio = if (strongMin > 0) strongCommon.toDouble() / strongMin else 0.0
+
+        // A) Два и более сильных якоря совпали — и это заметная доля
+        if (strongCommon >= 2 && strongRatio >= threshold) return true
+
+        // B) Один сильный якорь + хотя бы одно общее число-событие
+        if (strongCommon >= 1 && numberCommon >= 1) return true
+
+        // C) Два и более общих числа (например "310" + "98") при очень коротких текстах
+        if (numberCommon >= 2) return true
+
+        // D) Запасной Jaccard по словам
         if (a.words.isNotEmpty() && b.words.isNotEmpty()) {
             val intersection = a.words.intersect(b.words).size
             val union = a.words.union(b.words).size
@@ -380,12 +407,35 @@ object TextProcessor {
         return false
     }
 
+    // ============ Единый речевой конвейер ============
+
+    /**
+     * Полная подготовка текста к синтезу. Применяется к КАЖДОЙ новости
+     * непосредственно перед TTS — и при включённом AI, и при выключенном —
+     * чтобы результат был идентичным независимо от режима.
+     *
+     * Вставка межфразовых пауз ("...") НЕ входит сюда: она нужна только
+     * Android TTS и добавляется отдельным шагом в TTSManager.
+     */
+    fun prepareForSpeech(text: String): String {
+        if (NewsService.isChannelHeader(text)) return text
+        var t = cleanForTts(text)
+        t = deduplicateLines(t)
+        t = expandAbbreviations(t)
+        t = normalizeNumbers(t)
+        t = formatForIntonation(t)
+        t = formatForSpeech(t)
+        return t.trim()
+    }
+
     // ============ TTS очистка ============
 
     fun cleanForTts(text: String): String {
         if (NewsService.isChannelHeader(text)) return text
 
         var t = text
+
+        // 1) Структурный мусор (строки целиком)
         t = TTS_URL_PATTERN.replace(t, " ")
         t = TTS_HASHTAG_PATTERN.replace(t, " ")
         t = TTS_FORWARD_PATTERN.replace(t, "")
@@ -398,17 +448,32 @@ object TextProcessor {
         t = TTS_RBK_PATTERN.replace(t, "")
         t = TTS_RBK_MAX_PATTERN.replace(t, "")
         t = TTS_RBK_APP_PATTERN.replace(t, "")
+        t = TTS_BAZA_FOOTER_PATTERN.replace(t, "")
+        t = TTS_SUBSCRIBE_INLINE_PATTERN.replace(t, "")
+        t = TTS_AI_ERROR_PATTERN.replace(t, "")
+
+        // 2) Телефоны
         t = TTS_PHONE_PATTERN.replace(t, "")
-        t = TTS_COLORED_SQUARES_PATTERN.replace(t, "")
+
+        // 3) Символьный мусор: геометрия → селекторы → общий проход So/Sk
+        t = GEOMETRIC_SHAPES_PATTERN.replace(t, " ")
+        t = VARIATION_SELECTOR_PATTERN.replace(t, "")
         t = TTS_EMOJI_PATTERN.replace(t, " ")
+
+        // 4) Висячие тире в начале строк (после среза маркеров/времени)
+        t = LEADING_DASH_PATTERN.replace(t, "")
+
+        // 5) Markdown, кавычки, многоточие
         t = TTS_MARKDOWN_PATTERN.replace(t, "")
         t = TTS_QUOTES_PATTERN.replace(t, "\"")
-        t = TTS_SUBSCRIBE_INLINE_PATTERN.replace(t, "")
-        t = TTS_BAZA_FOOTER_PATTERN.replace(t, "")
         t = TTS_ELLIPSIS_PATTERN.replace(t, "…")
+
+        // 6) Нормализация пробелов и переносов
+        t = BLANK_LINES_PATTERN.replace(t, "")
         t = TTS_MULTI_SPACE_PATTERN.replace(t, " ")
         t = TTS_MULTI_NEWLINE.replace(t, "\n\n")
-        t = TTS_AI_ERROR_PATTERN.replace(t, "")
+        t = SPACE_BEFORE_PUNCT_PATTERN.replace(t, "$1")
+
         return t.trim()
     }
 
@@ -436,7 +501,6 @@ object TextProcessor {
 
         t = t.replace(Regex("\\b(\\d+[\\d\\s]*)(?:₽|руб\\.?|р\\.)\\b", RegexOption.IGNORE_CASE), "$1 рублей")
 
-        // Валюты с масштабом
         t = t.replace(
             Regex("\\$\\s?(\\d[\\d\\s,.]*)\\s*(млн|млрд)\\b", RegexOption.IGNORE_CASE)
         ) { m ->
@@ -458,7 +522,6 @@ object TextProcessor {
             val scale = if (m.groupValues[2].lowercase() == "млн") "миллионов" else "миллиардов"
             "$num $scale фунтов"
         }
-        // Валюты без масштаба
         t = t.replace(Regex("\\$\\s?(\\d+)"), "$1 долларов")
         t = t.replace(Regex("€(\\d+)"), "$1 евро")
         t = t.replace(Regex("£(\\d+)"), "$1 фунтов")
@@ -468,7 +531,6 @@ object TextProcessor {
         t = t.replace(Regex("(\\d+[,.]?\\d*)%-е")) { "${it.groupValues[1]}-процентные" }
         t = t.replace(Regex("\\b(\\d+[,.]?\\d*)\\s?%\\b")) { "${it.groupValues[1]} процентов" }
 
-        // ─── Градусы и координаты ──────────────────────────────────
         t = t.replace(
             Regex("([+-]?\\d+[,.]?\\d*)\\s?°\\s?с\\.?\\s?ш\\.?", RegexOption.IGNORE_CASE)
         ) { "${it.groupValues[1]} градусов северной широты" }
@@ -496,16 +558,18 @@ object TextProcessor {
         t = t.replace(" в нем", " в нём")
         t = t.replace(Regex("\\s*‼‼‼\\s*"), "Главное... ")
 
-        t = Regex("\\b(\\d{1,2})\\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\\b")
-            .replace(t) { match ->
-                val day = match.groupValues[1].toIntOrNull() ?: return@replace match.value
-                "${numberToOrdinalRu(day)} ${match.groupValues[2]}"
-            }
-
+        // СНАЧАЛА — дата С ГОДОМ (более специфичное правило, иначе год оставался голым)
         t = Regex("\\b(\\d{1,2})\\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\\s+(\\d{4})\\b")
             .replace(t) { match ->
                 val day = match.groupValues[1].toIntOrNull() ?: return@replace match.value
                 "${numberToOrdinalRu(day)} ${match.groupValues[2]} ${match.groupValues[3]} года"
+            }
+
+        // ПОТОМ — дата без года
+        t = Regex("\\b(\\d{1,2})\\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\\b")
+            .replace(t) { match ->
+                val day = match.groupValues[1].toIntOrNull() ?: return@replace match.value
+                "${numberToOrdinalRu(day)} ${match.groupValues[2]}"
             }
 
         t = t.replace(Regex("(\\d{4})/(\\d{4})")) { "${it.groupValues[1]} – ${it.groupValues[2]}" }
@@ -518,7 +582,8 @@ object TextProcessor {
         t = t.replace(Regex("\\b(\\d+)\\s?\\*\\s?(\\d+)\\b")) { "${it.groupValues[1]} умножить на ${it.groupValues[2]}" }
 
         t = t.replace(Regex("^[•·∙▪▫◦‣⁃]\\s+", RegexOption.MULTILINE)) { "— " }
-        t = t.replace(Regex("[◻️◻⬜▫□]+"), "")
+        // Страховочный проход по геометрии (на случай прямого вызова без cleanForTts)
+        t = GEOMETRIC_SHAPES_PATTERN.replace(t, "")
 
         t = t.replace(Regex("(?m)^[-•]\\s+"), "— ")
         t = t.replace(Regex(" - "), " — ")
@@ -658,7 +723,7 @@ object TextProcessor {
 
             val trimmed = text.trim()
 
-            val withoutTimePrefix = trimmed.replace(Regex("^\\d{2}:\\d{2}\\s*—\\s*"), "").trim()
+            val withoutTimePrefix = TIME_PREFIX_PATTERN.replace(trimmed, "").trim()
 
             when {
                 withoutTimePrefix.length < 8 -> {

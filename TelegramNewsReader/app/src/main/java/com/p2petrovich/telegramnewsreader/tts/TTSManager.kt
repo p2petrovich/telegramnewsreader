@@ -64,8 +64,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         const val ACTION_TTS_ERROR = "com.p2petrovich.telegramnewsreader.TTS_ERROR"
         const val EXTRA_ERROR_MESSAGE = "extra_error_message"
 
-        // Количество попыток синтеза через Edge перед fallback на Android TTS.
-        // Сетевые сбои WebSocket — норма, обычно вторая попытка проходит.
         private const val EDGE_RETRY_ATTEMPTS = 2
         private const val EDGE_RETRY_DELAY_MS = 500L
     }
@@ -73,8 +71,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     private var tts: TextToSpeech? = null
     private var ttsInitialized = AtomicBoolean(false)
 
-    // Список ожидающих инициализации корутин — чтобы несколько вызовов waitInit()
-    // не перетирали друг друга.
     private val initWaiters = mutableListOf<CancellableContinuation<Boolean>>()
     private val initLock = Any()
 
@@ -85,7 +81,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     private val androidTtsMutex = Mutex()
     private val progressLock = Any()
 
-    // Edge TTS провайдер (null = используем Android TTS)
     @Volatile private var edgeProvider: EdgeTtsProvider? = null
 
     init {
@@ -103,7 +98,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             Log.e(TAG, "TTS init failed, status=$status")
         }
 
-        // Разбудить всех ожидающих
         val waiters = synchronized(initLock) {
             val copy = initWaiters.toList()
             initWaiters.clear()
@@ -123,7 +117,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             tts?.language = matchedVoice.locale
             tts?.voice = matchedVoice
         }
-        // Если сохранённого голоса нет — оставляем системный дефолт (язык телефона)
 
         applyVoiceParametersOnce()
     }
@@ -144,17 +137,12 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         voiceParametersApplied = true
     }
 
-    /**
-     * Ждёт инициализации Android TTS. Безопасно вызывать из нескольких корутин одновременно —
-     * каждая получит результат, никто не потеряется.
-     */
     suspend fun waitInit(): Boolean {
         if (ttsInitialized.get()) return true
         if (tts == null) return false
 
         return withTimeoutOrNull(5000L) {
             suspendCancellableCoroutine<Boolean> { continuation ->
-                // Если успели проинициализироваться, пока заходили — сразу резюмим
                 if (ttsInitialized.get()) {
                     continuation.resume(true)
                     return@suspendCancellableCoroutine
@@ -200,7 +188,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         currentAppliedRate = rate
     }
 
-    /** Пересоздаёт Edge TTS провайдер по текущим настройкам. Вызывать при смене движка/голоса. */
     fun refreshEdgeProvider() {
         edgeProvider = if (PreferenceManager.getTtsEngine(context) == "edge") {
             EdgeTtsProvider(
@@ -214,21 +201,17 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
-    /** Возвращает true если сейчас выбран Edge TTS движок. */
     fun isEdgeEngineActive(): Boolean = edgeProvider != null
 
     private fun applyLanguageByText(text: String) {
         val cyrillicCount = text.count { it in '\u0400'..'\u04FF' }
         val latinCount = text.count { it.isLetter() && it !in '\u0400'..'\u04FF' }
 
-        // Если букв нет (только цифры/знаки), не меняем язык
         if (cyrillicCount == 0 && latinCount == 0) return
 
         val detectedLocale = if (cyrillicCount > latinCount) Locale("ru") else Locale.ENGLISH
         val currentVoice = tts?.voice
 
-        // Если текущий голос уже имеет нужный язык — ничего не делаем,
-        // чтобы не сбросить конкретный голос (например, Анна) на системный дефолт.
         if (currentVoice != null && currentVoice.locale.language == detectedLocale.language) {
             return
         }
@@ -296,10 +279,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         return text.replace("\u200B", "").replace("\u200C", "").trim()
     }
 
-    /**
-     * Синтезирует одну часть через Edge TTS с повторными попытками.
-     * Возвращает true если получилось, false если все попытки провалились.
-     */
     private suspend fun trySynthesizeEdge(
         edge: EdgeTtsProvider,
         text: String,
@@ -325,8 +304,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 delay(EDGE_RETRY_DELAY_MS)
             }
         }
-        
-        // Если все попытки провалены — уведомляем UI о необходимости fallback
+
         sendTtsError(context.getString(com.p2petrovich.telegramnewsreader.R.string.edge_tts_unavailable_fallback))
         return false
     }
@@ -364,7 +342,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         val edge = edgeProvider
         if (edge != null) {
-            //Log.d(TAG, "EDGE INPUT [part=${job.partIndex} header=${NewsService.isChannelHeader(job.partText)} len=${job.partText.length}]: ${job.partText.take(300).replace("\n", "\\n")}")
             val tmp = File(context.cacheDir, "${baseUtteranceId}_part_${job.partIndex}.wav")
             if (trySynthesizeEdge(edge, job.partText, tmp, job.partIndex)) {
                 wav = tmp
@@ -373,7 +350,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
 
         if (wav == null) {
-            // Android Fallback - MUST BE SERIALIZED
             wav = androidTtsMutex.withLock {
                 if (voiceName != "default") {
                     setVoiceByName(voiceName)
@@ -387,7 +363,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         val meta = readWavMeta(finalWav) ?: return null
 
-        // Кэшируем только если фактический движок совпал с ожидаемым.
         val expectedEdge = isEdgeActive
         if (expectedEdge == actuallyUsedEdge) {
             NewsCache.saveWavToCache(context, job.hash, finalWav)
@@ -434,24 +409,19 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                     prepared += PreparedNews(newsIndex, "$cleanTitle...", true)
                 }
             } else {
-                val cleaned = TextProcessor.cleanForTts(raw)
-                val deduped = TextProcessor.deduplicateLines(cleaned)
-                val expanded = TextProcessor.expandAbbreviations(deduped)
-                val normalized = TextProcessor.normalizeNumbers(expanded)
-                var formatted = TextProcessor.formatForIntonation(normalized)
+                // Единый конвейер чистки — одинаковый результат с AI и без AI.
+                var finalText = TextProcessor.prepareForSpeech(raw)
 
-                // Дополнительные паузы между предложениями нужны только Android TTS:
+                // Доп. паузы между предложениями нужны только Android TTS:
                 // Edge Neural на "..." реагирует ускорением темпа.
                 if (!isEdgeActive) {
-                    formatted = formatted.replace(Regex("(?<=[.!?…])\\s+"), "... ")
+                    finalText = finalText.replace(Regex("(?<=[.!?…])\\s+"), "... ")
                 }
 
-                val finalText = TextProcessor.formatForSpeech(formatted)
                 if (finalText.isNotBlank()) {
                     prepared += PreparedNews(newsIndex, finalText, false)
                 }
             }
-
         }
 
         if (prepared.isEmpty()) {
@@ -460,7 +430,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
 
         val actualNewsCount = prepared.count { !it.isHeader }
-        
+
         // ФАЗА 1: Подготовка списка задач
         val jobs = mutableListOf<PartJob>()
         prepared.forEachIndexed { chIdx, item ->
@@ -478,14 +448,14 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 jobs.add(PartJob(chIdx, pIdx, text, partIndex, hash))
             }
         }
-        
+
         val totalParts = jobs.size
         progressCallback?.onActualCounts(actualNewsCount, totalParts)
         Log.d(TAG, "Playlist: news=$actualNewsCount, parts=$totalParts, chapters=${prepared.size}")
 
         val baseUtteranceId = "tts_${System.currentTimeMillis()}"
         val cachedWavPaths = mutableSetOf<String>()
-        
+
         // ФАЗА 2: Синтез частей (Параллельно для Edge)
         val partResults: List<PartResult?> = coroutineScope {
             if (isEdgeActive) {
@@ -524,7 +494,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         var baselineFormat: WavMeta? = null
         val chapterFiles = mutableListOf<File>()
         val newsFileIndices = mutableSetOf<Int>()
-        
+
         val resultsByChapter = partResults.filterNotNull().groupBy { it.job.chapterIdx }
 
         prepared.forEachIndexed { idx, item ->
@@ -537,7 +507,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 cleanupChapterFiles(chapterFiles, cachedWavPaths)
                 return null
             }
-            
+
             val partWavs = mutableListOf<File>()
 
             for (res in chapterPartResults) {
@@ -717,12 +687,12 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                     raf.seek(pos)
                     raf.readFully(chunkHeader)
                     val id = String(chunkHeader, 0, 4, Charsets.US_ASCII)
-                    
+
                     buffer.clear()
                     buffer.put(chunkHeader, 4, 4)
                     buffer.flip()
                     val sz = buffer.int.toLong() and 0xFFFFFFFFL
-                    
+
                     when (id) {
                         "fmt " -> {
                             val fmt = ByteArray(16)
@@ -738,7 +708,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                         }
                     }
                     if (id == "data") break
-                    pos += 8 + sz + (sz and 1L) // Чанки выровнены по 2 байта
+                    pos += 8 + sz + (sz and 1L)
                 }
 
                 if (sampleRate == 0 || channels == 0 || bits == 0) return null
@@ -778,7 +748,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     fun shutdown() {
         ttsInitialized.set(false)
 
-        // Разбудить ожидающих со статусом false
         val waiters = synchronized(initLock) {
             val copy = initWaiters.toList()
             initWaiters.clear()

@@ -40,15 +40,15 @@ class NewsService(
 
         private const val HEADER_MARKER = "\u200B\u200C\u200B"
 
+        // Захватывает время вместе с возможным тире/дефисом и пробелами.
+        private val TIME_PREFIX_WITH_DASH = Regex("^\\d{2}:\\d{2}\\s*—?\\s*")
+        private val TIME_ONLY = Regex("^\\d{2}:\\d{2}")
+
         fun isChannelHeader(text: String): Boolean = text.contains(HEADER_MARKER)
-        fun makeChannelHeader(title: String, context: android.content.Context): String = 
+        fun makeChannelHeader(title: String, context: android.content.Context): String =
             "${HEADER_MARKER}${context.getString(com.p2petrovich.telegramnewsreader.R.string.channel_header_format, title)}"
     }
 
-    /**
-     * Логирует "снимок" всех сообщений на конкретном этапе обработки.
-     * Logcat режет строки ~4000 байт, поэтому ограничиваем 300 символами на сообщение.
-     */
     private fun logStage(stage: String, messages: List<String>) {
         val news = messages.count { !isChannelHeader(it) }
         Log.d(TAG, "═══════ STAGE: $stage (всего=${messages.size}, новостей=$news) ═══════")
@@ -57,22 +57,6 @@ class NewsService(
             Log.d(TAG, "$stage[$i] $tag: ${msg.replace("\n", "\\n").take(300)}")
         }
     }
-
-    /**
-     * Альтернатива: печатает полный текст без обрезки, разбивая на куски по 800 символов.
-     */
-    /*
-    private fun logStageFull(stage: String, messages: List<String>) {
-        val news = messages.count { !isChannelHeader(it) }
-        Log.d(TAG, "═══════ STAGE: $stage (всего=${messages.size}, новостей=$news) ═══════")
-        messages.forEachIndexed { i, msg ->
-            val tag = if (isChannelHeader(msg)) "[HEADER]" else "[NEWS]"
-            msg.chunked(800).forEachIndexed { part, chunk ->
-                Log.d(TAG, "$stage[$i].$part $tag: ${chunk.replace("\n", "\\n")}")
-            }
-        }
-    }
-    */
 
     data class Prepared(
         val preparedMessages: List<String>,
@@ -250,7 +234,6 @@ class NewsService(
                 ensureActive()
 
                 progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.deduplication_status), 0, 100)
-                // ПОРОГ совпадения берётся из ползунка настроек — управляет якорной дедупликацией
                 val crossThreshold = PreferenceManager.getDedupThreshold(context).toDouble()
                 val deduplicated = TextProcessor.deduplicateAcrossChannels(allMessages, crossThreshold)
                 val dedupNewsCount = deduplicated.count { !isChannelHeader(it) }
@@ -323,11 +306,13 @@ class NewsService(
                                 msg
                             } else {
                                 semaphore.withPermit {
-                                    val timePrefix = Regex("^\\d{2}:\\d{2}\\s*\\s*").find(msg)?.value ?: ""
-                                    val msgWithoutPrefix = if (timePrefix.isNotEmpty()) msg.removePrefix(timePrefix) else msg
+                                    // Отделяем время вместе с возможным тире, переклеиваем чистое время.
+                                    val matched = TIME_PREFIX_WITH_DASH.find(msg)?.value ?: ""
+                                    val msgWithoutPrefix = if (matched.isNotEmpty()) msg.removePrefix(matched) else msg
+                                    val cleanTimePrefix = TIME_ONLY.find(matched)?.value?.let { "$it " } ?: ""
 
                                     val rawResult = AiProcessor.summarizeNews(msgWithoutPrefix, context)
-                                    val summarized = timePrefix + AiProcessor.stripErrorPrefix(rawResult)
+                                    val summarized = cleanTimePrefix + AiProcessor.stripErrorPrefix(rawResult)
 
                                     Log.d(TAG, "AI_IN : ${msgWithoutPrefix.replace("\n", "\\n").take(300)}")
                                     Log.d(TAG, "AI_OUT: ${summarized.replace("\n", "\\n").take(300)}")
