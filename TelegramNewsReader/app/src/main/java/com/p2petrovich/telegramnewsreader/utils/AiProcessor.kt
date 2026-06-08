@@ -132,7 +132,10 @@ object AiProcessor {
                     2. Только главный факт: кто/что, что произошло.
                     3. Без вводных ("Сообщается, что…", "Как стало известно…"), без оценок, без эмодзи.
                     4. Сохрани ключевые цифры и имена собственные, если они и есть суть новости.
-                    5. В ответе верни ТОЛЬКО это одно предложение, без кавычек и пояснений. ОТВЕТ ДОЛЖЕН БЫТЬ НА РУССКОМ ЯЗЫКЕ.
+                    5. Используй ТОЛЬКО факты из текста. Ничего не добавляй и не домысливай: не добавляй должности, статусы, титулы и расшифровки аббревиатур, если их нет в тексте.
+                    6. Сохрани, КТО является источником утверждения (кто заявил/сообщил/отметил). Не приписывай высказывание другому лицу и не превращай чужую реплику в свершившийся факт.
+                    7. Не меняй причинно-следственные связи и порядок событий: что было причиной — оставь причиной, что было требованием до действия — не делай мотивом действия.
+                    8. В ответе верни ТОЛЬКО это одно предложение, без кавычек и пояснений. ОТВЕТ ДОЛЖЕН БЫТЬ НА РУССКОМ ЯЗЫКЕ.
     
                     Текст:
                     $safeText
@@ -191,8 +194,10 @@ object AiProcessor {
                     2. Only the main fact: who/what, what happened.
                     3. No introductory phrases ("It is reported that...", "As it became known..."), no evaluations, no emojis.
                     4. Keep key figures and proper names if they are the essence of the news.
-                    5. Use ONLY information present in the source text. Do NOT add or invent anything.
-                    6. Return ONLY this one sentence in your response, without quotes or explanations. THE RESPONSE MUST BE IN ENGLISH.
+                    5. Use ONLY information present in the source text. Do NOT add or invent anything: do NOT add titles, positions, statuses, or expand abbreviations that are not in the text.
+                    6. Preserve WHO is the source of a statement (who said/reported/noted). Do NOT attribute a quote to another person and do NOT turn someone's statement into an accomplished fact.
+                    7. Do NOT change cause-and-effect or the order of events: keep a cause as a cause; a demand made before an action must not become the motive of that action.
+                    8. Return ONLY this one sentence in your response, without quotes or explanations. THE RESPONSE MUST BE IN ENGLISH.
 
                     Text:
                     $safeText
@@ -231,7 +236,7 @@ object AiProcessor {
 
         val temperature = when (style) {
             "minimal" -> 0.1   // чистка — нужна максимальная точность
-            "extreme" -> 0.3   // одно предложение — строго, но можно чуть гибче
+            "extreme" -> 0.15  // одно предложение — строго, минимум переформулировок и смещения акцента
             "balanced" -> 0.1  // саммари — минимум "творчества", чтобы не досочинять
             else      -> 0.2
         }
