@@ -88,6 +88,8 @@ object TextProcessor {
     private val TTS_MULTI_SPACE_PATTERN = Regex("[ \\t]{2,}")
     private val TTS_MULTI_NEWLINE = Regex("\\n{3,}")
     private val TTS_AI_ERROR_PATTERN = Regex("(?i)\\[AI Error.*?\\]")
+    // Заглушки-ссылки вида [Read Full Article], [Full Story] и т.п.
+    private val TTS_READ_MORE_PATTERN = Regex("(?im)^\\s*\\[\\s*(read\\s+(full\\s+)?article|full\\s+story|watch\\s+video|more|source)\\s*\\]\\s*$")
 
     // Висячее тире/дефис в начале строки (остаётся после среза префикса времени)
     private val LEADING_DASH_PATTERN = Regex("(?m)^\\s*[—–-]\\s+")
@@ -469,6 +471,7 @@ object TextProcessor {
         t = TTS_BAZA_FOOTER_PATTERN.replace(t, "")
         t = TTS_SUBSCRIBE_INLINE_PATTERN.replace(t, "")
         t = TTS_AI_ERROR_PATTERN.replace(t, "")
+        t = TTS_READ_MORE_PATTERN.replace(t, "")
 
         // 2) Телефоны
         t = TTS_PHONE_PATTERN.replace(t, "")
@@ -723,8 +726,12 @@ object TextProcessor {
 
         var t = text
 
+        // IT обрабатываем отдельно: исключаем .it (домены типа cnn.it/...)
+        // и IT внутри слов/URL. Остальные аббревиатуры — стандартно.
+        t = t.replace(Regex("(?<![.\\w])IT(?![/\\w])")) { "Ай-Ти" }
+
         val techAbbreviations = mapOf(
-            "IT" to "Ай-Ти", "AI" to "искусственный интеллект",
+            "AI" to "искусственный интеллект",
             "VR" to "виртуальная реальность", "AR" to "дополненная реальность",
             "GPS" to "Джи-Пи-Эс", "USB" to "ЮСБ", "WIFI" to "Вай-Фай"
         )
