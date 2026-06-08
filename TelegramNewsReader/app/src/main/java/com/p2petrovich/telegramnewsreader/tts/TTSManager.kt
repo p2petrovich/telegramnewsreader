@@ -342,6 +342,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         val edge = edgeProvider
         if (edge != null) {
+            Log.d(TAG, "EDGE INPUT [part=${job.partIndex} header=${NewsService.isChannelHeader(job.partText)} len=${job.partText.length}]: ${job.partText.take(300).replace("\n", "\\n")}")
             val tmp = File(context.cacheDir, "${baseUtteranceId}_part_${job.partIndex}.wav")
             if (trySynthesizeEdge(edge, job.partText, tmp, job.partIndex)) {
                 wav = tmp
