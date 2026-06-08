@@ -18,20 +18,12 @@ object AiProcessor {
     private const val OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
     private const val GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-    private const val MAX_INPUT_CHARS = 8000
-
     private val client = HttpClients.shared
 
     private val testClient = HttpClients.shared.newBuilder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(90, TimeUnit.SECONDS)
         .build()
-
-    /** Результат саммаризации: позволяет вызывающему коду отличать успех от ошибки. */
-    sealed interface SummaryResult {
-        data class Success(val text: String) : SummaryResult
-        data class Failure(val original: String, val reason: String) : SummaryResult
-    }
 
     private fun providerConfig(context: Context): Triple<String, String, String> {
         val provider = PreferenceManager.getAiProvider(context)
@@ -42,268 +34,287 @@ object AiProcessor {
         }
     }
 
-    private fun Request.Builder.addProviderHeaders(context: Context): Request.Builder {
-        if (PreferenceManager.getAiProvider(context) == "openrouter") {
-            addHeader("HTTP-Referer", "https://github.com/p2petrovich/TelegramNewsReader")
-            addHeader("X-Title", "TelegramNewsReader")
-        }
-        return this
-    }
-
     /**
      * Проверяет доступность выбранной модели, отправляя пустой запрос.
      * Возвращает Pair(успех, сообщение)
      */
     suspend fun testModelAvailability(modelName: String, context: Context): Pair<Boolean, String> {
         val (apiUrl, apiKey, _) = providerConfig(context)
-        if (apiKey.isBlank()) {
-            return false to context.getString(
-                com.p2petrovich.telegramnewsreader.R.string.ai_api_key_missing
-            )
-        }
+        if (apiKey.isBlank()) return false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_api_key_missing)
 
         val json = JSONObject().apply {
             put("model", modelName)
-            put("messages", JSONArray().apply {
+            val messages = JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "user")
                     put("content", "ping")
                 })
-            })
+            }
+            put("messages", messages)
             put("max_tokens", 5) // Минимум токенов для проверки
         }
 
         val mediaType = "application/json; charset=utf-8".toMediaType()
         val body = json.toString().toRequestBody(mediaType)
 
-        val request = Request.Builder()
+        val requestBuilder = Request.Builder()
             .url(apiUrl)
             .addHeader("Authorization", "Bearer $apiKey")
             .post(body)
-            .addProviderHeaders(context)
-            .build()
+
+        if (PreferenceManager.getAiProvider(context) == "openrouter") {
+            requestBuilder
+                .addHeader("HTTP-Referer", "https://github.com/p2petrovich/TelegramNewsReader")
+                .addHeader("X-Title", "TelegramNewsReader")
+        }
+
+        val request = requestBuilder.build()
 
         return try {
-            val response = withContext(Dispatchers.IO) {
+            val response = withContext(kotlinx.coroutines.Dispatchers.IO) {
                 testClient.newCall(request).execute()
             }
-            response.use {
-                if (it.isSuccessful) {
-                    true to context.getString(
-                        com.p2petrovich.telegramnewsreader.R.string.ai_model_available
-                    )
-                } else {
-                    val errorMsg = it.body?.string() ?: it.message
-                    false to context.getString(
-                        com.p2petrovich.telegramnewsreader.R.string.ai_error_format,
-                        it.code,
-                        errorMsg
-                    )
-                }
+            if (response.isSuccessful) {
+                true to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_model_available)
+            } else {
+                val errorMsg = response.body?.string() ?: response.message
+                false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_error_format, response.code, errorMsg)
             }
         } catch (e: Exception) {
-            false to context.getString(
-                com.p2petrovich.telegramnewsreader.R.string.ai_network_unavailable,
-                e.message
-            )
+            false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_network_unavailable, e.message)
         }
     }
 
-    /**
-     * Системный промпт строится без угадывания языка: модель сама отвечает
-     * на языке исходного текста. Во всех стилях запрещено придумывать детали.
-     */
-    private fun buildSystemPrompt(style: String): String = when (style) {
-        "minimal" -> """
-            You are a news proofreader / корректор новостей.
-            Your task is to clean the text from noise WITHOUT shortening it.
-
-            Rules:
-            1. Remove ads, promo blocks, calls to subscribe/like/follow links.
-            2. Remove links, channel mentions (@channel), hashtags, emoji dividers and decorative symbols (───, ▪️, 🔥, etc.).
-            3. Remove author signatures, source tags and service notes ("Read more →", "Подробнее →", etc.).
-            4. Keep ALL factual news text VERBATIM: facts, figures, names, quotes, paragraph order.
-            5. Do NOT add anything of your own: no introductions, no conclusions, no comments, no invented details.
-            6. Use ONLY information present in the source text. Never add facts, context or background that is not explicitly stated.
-            7. Return ONLY the cleaned news text, without explanations.
-            8. CRITICAL: Always reply in the SAME LANGUAGE as the source text (Russian source → Russian answer, English source → English answer).
-        """.trimIndent()
-
-        "extreme" -> """
-            You are an editor for an emergency news feed "Flash" / "Молния".
-            Compress the news into ONE sentence.
-
-            Rules:
-            1. No more than 20 words. Try to keep it within 10–15 words.
-            2. Only the main fact: who/what, what happened.
-            3. No introductory phrases ("It is reported that…", "Сообщается, что…"), no evaluations, no emojis.
-            4. Keep key figures and proper names if they are the essence of the news.
-            5. Use ONLY information present in the source text. Do NOT add, infer or invent anything.
-            6. Return ONLY this one sentence, without quotes or explanations.
-            7. CRITICAL: Always reply in the SAME LANGUAGE as the source text (Russian source → Russian answer, English source → English answer).
-        """.trimIndent()
-
-        "balanced" -> """
-            You are a news editor / редактор дайджеста.
-            Produce a faithful, concise summary of the news.
-
-            Rules:
-            1. Use ONLY information present in the source text. Do NOT add facts, context, background or details that are not explicitly stated.
-            2. Do NOT invent or infer anything. If unsure, omit it.
-            3. Keep ALL key facts, figures, names and dates.
-            4. Remove ads, links, fluff and repetitions.
-            5. Aim to roughly halve the length. If the news is already short, return it almost unchanged — never expand it.
-            6. Neutral news style, short sentences. The result must be equal to or shorter than the source, never longer. No personal opinions or conclusions.
-            7. Return ONLY the resulting text.
-            8. CRITICAL: Always reply in the SAME LANGUAGE as the source text (Russian source → Russian answer, English source → English answer).
-        """.trimIndent()
-
-        else -> """
-            You are a news editor / редактор дайджеста.
-            Produce a faithful, concise version of the news.
-
-            Rules:
-            1. Use ONLY information present in the source text. Do NOT add or invent anything.
-            2. Keep key facts and figures.
-            3. Remove ads and noise.
-            4. Never make the text longer than the source.
-            5. Return ONLY the news text.
-            6. CRITICAL: Always reply in the SAME LANGUAGE as the source text (Russian source → Russian answer, English source → English answer).
-        """.trimIndent()
+    private fun isRussian(text: String): Boolean {
+        val cyrillicCount = text.count { it in '\u0400'..'\u04FF' }
+        val latinCount = text.count { it.isLetter() && it !in '\u0400'..'\u04FF' }
+        return cyrillicCount > latinCount
     }
 
-    /**
-     * Основной метод: возвращает типизированный результат.
-     */
-    suspend fun summarizeNewsResult(newsText: String, context: Context): SummaryResult {
+    suspend fun summarizeNews(newsText: String, context: Context): String {
         val (apiUrl, apiKey, modelName) = providerConfig(context)
 
         if (apiKey.isBlank()) {
             Log.e(TAG, "AI API Key is missing for ${PreferenceManager.getAiProvider(context)}!")
-            return SummaryResult.Failure(newsText, "Key missing")
+            return "[AI Error: Key missing] $newsText"
         }
 
-        if (newsText.isBlank()) return SummaryResult.Success("")
+        if (newsText.isBlank()) return ""
 
-        // Ограничение длины входа для избежания 400 (Bad Request / Filtered).
-        val safeText = if (newsText.length > MAX_INPUT_CHARS) {
-            Log.w(TAG, "Input truncated from ${newsText.length} to $MAX_INPUT_CHARS chars")
-            newsText.take(MAX_INPUT_CHARS) + "..."
-        } else {
-            newsText
-        }
+        // Ограничение длины входного текста для избежания ошибок 400 (Bad Request / Filtered)
+        val safeText = if (newsText.length > 8000) newsText.take(8000) + "..." else newsText
 
         val style = PreferenceManager.getAiStyle(context)
-        val systemPrompt = buildSystemPrompt(style)
+        val isRu = isRussian(safeText)
+
+        val prompt = if (isRu) {
+            when (style) {
+                "minimal" -> """
+                    Ты — корректор новостей. Твоя задача — очистить текст от мусора, НЕ СОКРАЩАЯ его.
+    
+                    Правила:
+                    1. Удали рекламу, промо-блоки, призывы подписаться/поставить лайк/перейти по ссылке.
+                    2. Удали ссылки, упоминания каналов (@channel), хэштеги, эмодзи-разделители и декоративные символы (───, ▪️, 🔥 и т.п.).
+                    3. Удали подписи авторов, плашки источников и служебные пометки ("Подробнее →", "Читать далее" и подобные).
+                    4. ВЕСЬ фактический текст новости сохрани дословно: факты, цифры, имена, цитаты, последовательность абзацев.
+                    5. Не добавляй ничего от себя: ни вступлений, ни выводов, ни комментариев.
+                    6. В ответе верни ТОЛЬКО очищенный текст новости, без пояснений. ВЕСЬ ТЕКСТ ДОЛЖЕН БЫТЬ НА РУССКОМ ЯЗЫКЕ.
+    
+                    Текст для обработки:
+                    $safeText
+                """.trimIndent()
+    
+                "extreme" -> """
+                    Ты — редактор экстренной новостной ленты "Молния". Сожми новость до ОДНОГО предложения.
+    
+                    Правила:
+                    1. Не более 20 слов. Постарайся уложиться в 10-15 слов.
+                    2. Только главный факт: кто/что, что произошло.
+                    3. Без вводных ("Сообщается, что…", "Как стало известно…"), без оценок, без эмодзи.
+                    4. Сохрани ключевые цифры и имена собственные, если они и есть суть новости.
+                    5. В ответе верни ТОЛЬКО это одно предложение, без кавычек и пояснений. ОТВЕТ ДОЛЖЕН БЫТЬ НА РУССКОМ ЯЗЫКЕ.
+    
+                    Текст:
+                    $safeText
+                """.trimIndent()
+    
+                "balanced" -> """
+                    Ты — редактор новостного дайджеста. Сделай краткое САММАРИ новости.
+    
+                    Правила:
+                    1. Сократи объём примерно в 2 раза относительно исходника.
+                    2. Сохрани ВСЕ ключевые факты, цифры, имена, даты.
+                    3. Удали рекламу, ссылки, "воду" и повторы.
+                    4. Пиши нейтральным новостным стилем, короткими предложениями. Можно 2 абзаца.
+                    5. Не добавляй своих оценок и выводов.
+                    6. В ответе верни ТОЛЬКО готовое саммари. ОТВЕТ ДОЛЖЕН БЫТЬ НА РУССКОМ ЯЗЫКЕ.
+    
+                    Текст:
+                    $safeText
+                """.trimIndent()
+    
+                else -> """
+                    Ты — редактор новостного дайджеста. Сделай краткое САММАРИ новости.
+    
+                    Правила:
+                    1. Сократи объём примерно в 2 раза.
+                    2. Сохрани ключевые факты и цифры.
+                    3. Удали рекламу и мусор.
+                    4. В ответе верни ТОЛЬКО текст новости НА РУССКОМ ЯЗЫКЕ.
+    
+                    Текст:
+                    $safeText
+                """.trimIndent()
+            }
+        } else {
+            when (style) {
+                "minimal" -> """
+                    You are a news proofreader. Your task is to clean the text from noise without shortening it.
+
+                    Rules:
+                    1. Remove ads, promo blocks, calls to subscribe/like/follow links.
+                    2. Remove links, channel mentions (@channel), hashtags, emoji dividers, and decorative symbols.
+                    3. Remove author signatures, source tags, and service notes ("Read more", "Details here", etc.).
+                    4. Keep ALL factual news text verbatim: facts, figures, names, quotes, paragraph sequence.
+                    5. Do not add anything of your own: no introductions, no conclusions, no comments.
+                    6. Return ONLY the cleaned news text in your response, without explanations. THE RESPONSE MUST BE IN ENGLISH.
+
+                    Text to process:
+                    $safeText
+                """.trimIndent()
+
+                "extreme" -> """
+                    You are an editor for an emergency news feed "Flash". Compress the news into ONE sentence.
+
+                    Rules:
+                    1. No more than 20 words. Try to keep it within 10-15 words.
+                    2. Only the main fact: who/what, what happened.
+                    3. No introductory phrases ("It is reported that...", "As it became known..."), no evaluations, no emojis.
+                    4. Keep key figures and proper names if they are the essence of the news.
+                    5. Use ONLY information present in the source text. Do NOT add or invent anything.
+                    6. Return ONLY this one sentence in your response, without quotes or explanations. THE RESPONSE MUST BE IN ENGLISH.
+
+                    Text:
+                    $safeText
+                """.trimIndent()
+
+                "balanced" -> """
+                    You are a news editor. Produce a faithful, concise version of the news below.
+
+                    Rules:
+                    1. Use ONLY information present in the source text. Do NOT add facts, context, background, or details that are not explicitly stated.
+                    2. Do NOT invent or infer anything. If unsure, omit it.
+                    3. Remove ads, links, fluff, and repetitions.
+                    4. If the news is already short, return it almost unchanged — never expand it.
+                    5. Neutral news style. The result must be equal to or shorter than the source, never longer.
+                    6. Return ONLY the resulting text. THE RESPONSE MUST BE IN ENGLISH.
+
+                    Text:
+                    $safeText
+                """.trimIndent()
+
+                else -> """
+                    You are a news editor. Produce a faithful, concise version of the news below.
+
+                    Rules:
+                    1. Use ONLY information present in the source text. Do NOT add or invent anything.
+                    2. Keep key facts and figures.
+                    3. Remove ads and noise.
+                    4. Never make the text longer than the source.
+                    5. Return ONLY the news text in your response in ENGLISH.
+
+                    Text:
+                    $safeText
+                """.trimIndent()
+            }
+        }
 
         val temperature = when (style) {
             "minimal" -> 0.1   // чистка — нужна максимальная точность
             "extreme" -> 0.3   // одно предложение — строго, но можно чуть гибче
-            "balanced" -> 0.1  // саммари — минимум «творчества»
-            else -> 0.2
+            "balanced" -> 0.1  // саммари — минимум "творчества", чтобы не досочинять
+            else      -> 0.2
         }
 
-        // Жёсткий потолок длины ответа: не даём раздувать короткие новости.
-        // Грубо: ~1 токен на 3–4 символа.
+        // Жёсткий потолок длины ответа: не даём модели раздувать короткие новости.
+        // Грубая оценка: ~1 токен на 3-4 символа. Берём от длины входа.
         val maxOutputTokens = when (style) {
-            "extreme" -> 60
+            "extreme"  -> 60
             "balanced" -> (safeText.length / 3).coerceIn(60, 800)
-            "minimal" -> (safeText.length / 2).coerceIn(100, 1200)
-            else -> (safeText.length / 3).coerceIn(60, 800)
+            "minimal"  -> (safeText.length / 2).coerceIn(100, 1200)
+            else       -> (safeText.length / 3).coerceIn(60, 800)
         }
 
         val json = JSONObject().apply {
             put("model", modelName)
-            put("messages", JSONArray().apply {
-                // Правила — отдельно от данных: лучше следование + защита от инъекций.
-                put(JSONObject().apply {
-                    put("role", "system")
-                    put("content", systemPrompt)
-                })
+            val messages = JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "user")
-                    put("content", safeText)
+                    put("content", prompt)
                 })
-            })
+            }
+            put("messages", messages)
             put("temperature", temperature)
             put("max_tokens", maxOutputTokens)
         }
 
         val mediaType = "application/json; charset=utf-8".toMediaType()
-        val bodyString = json.toString()
-        var lastFailure: SummaryResult.Failure? = null
-
+        var lastAttemptResponse: String? = null
+        
         return withContext(Dispatchers.IO) {
-            // Повторные попытки при 429 (Rate Limit) и сетевых сбоях.
+            // Повторные попытки при 429 (Rate Limit) и сетевых сбоях
             for (attempt in 1..3) {
                 try {
-                    val body = bodyString.toRequestBody(mediaType)
-                    val request = Request.Builder()
+                    val body = json.toString().toRequestBody(mediaType)
+                    val requestBuilder = Request.Builder()
                         .url(apiUrl)
                         .addHeader("Authorization", "Bearer $apiKey")
                         .post(body)
-                        .addProviderHeaders(context)
-                        .build()
 
-                    client.newCall(request).execute().use { response ->
-                        val responseBody = response.body?.string()
+                    if (PreferenceManager.getAiProvider(context) == "openrouter") {
+                        requestBuilder
+                            .addHeader("HTTP-Referer", "https://github.com/p2petrovich/TelegramNewsReader")
+                            .addHeader("X-Title", "TelegramNewsReader")
+                    }
 
-                        when {
-                            response.isSuccessful && responseBody != null -> {
-                                val choices = JSONObject(responseBody).optJSONArray("choices")
-                                if (choices != null && choices.length() > 0) {
-                                    val summarized = choices.getJSONObject(0)
-                                        .getJSONObject("message")
-                                        .getString("content")
-                                        .trim()
-                                    return@withContext if (summarized.isBlank()) {
-                                        SummaryResult.Success(safeText)
-                                    } else {
-                                        SummaryResult.Success(summarized)
-                                    }
-                                } else {
-                                    return@withContext SummaryResult.Failure(safeText, "Empty Response")
-                                }
-                            }
+                    val request = requestBuilder.build()
+                    val response = client.newCall(request).execute()
+                    val responseBody = response.body?.string()
 
-                            response.code == 429 -> {
-                                Log.w(TAG, "Rate limit hit (429), attempt $attempt/3. Waiting...")
-                                lastFailure = SummaryResult.Failure(safeText, "Error 429: Rate Limit")
-                                if (attempt < 3) {
-                                    delay(2000L * attempt) // нарастающая задержка
-                                }
-                            }
+                    if (response.isSuccessful && responseBody != null) {
+                        val jsonResponse = JSONObject(responseBody)
+                        val choices = jsonResponse.getJSONArray("choices")
+                        if (choices.length() > 0) {
+                            val summarized = choices.getJSONObject(0)
+                                .getJSONObject("message")
+                                .getString("content")
+                                .trim()
 
-                            else -> {
-                                val provider = PreferenceManager.getAiProvider(context)
-                                Log.e(TAG, "$provider error: ${response.code}")
-                                return@withContext SummaryResult.Failure(
-                                    safeText,
-                                    "Error ${response.code}"
-                                )
-                            }
+                            return@withContext if (summarized.isBlank()) safeText else summarized
+                        } else return@withContext "[AI Empty Response] $safeText"
+                    } else if (response.code == 429) {
+                        Log.w(TAG, "Rate limit hit (429), attempt $attempt/3. Waiting...")
+                        lastAttemptResponse = "[AI Error 429: Rate Limit] $safeText"
+                        if (attempt < 3) {
+                            delay(2000L * attempt) // Экспоненциальная задержка
+                            continue
                         }
+                    } else {
+                        val provider = PreferenceManager.getAiProvider(context)
+                        Log.e(TAG, "$provider error: ${response.code}")
+                        return@withContext "[AI Error ${response.code}] $safeText"
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Network error on attempt $attempt: ${e.message}")
-                    lastFailure = SummaryResult.Failure(safeText, "Network Error")
+                    lastAttemptResponse = "[AI Network Error] $safeText"
                     if (attempt < 3) {
                         delay(2000L * attempt)
+                        continue
                     }
+                    return@withContext lastAttemptResponse ?: safeText
                 }
             }
-            lastFailure ?: SummaryResult.Failure(safeText, "Unknown")
-        }
-    }
-
-    /**
-     * Обратная совместимость со старым строковым API.
-     * При ошибке возвращает текст с техническим префиксом, как раньше.
-     */
-    suspend fun summarizeNews(newsText: String, context: Context): String {
-        return when (val result = summarizeNewsResult(newsText, context)) {
-            is SummaryResult.Success -> result.text
-            is SummaryResult.Failure -> "[AI ${result.reason}] ${result.original}"
+            lastAttemptResponse ?: safeText
         }
     }
 
