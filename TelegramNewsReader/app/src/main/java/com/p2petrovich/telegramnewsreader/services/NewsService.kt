@@ -49,12 +49,41 @@ class NewsService(
             "${HEADER_MARKER}${context.getString(com.p2petrovich.telegramnewsreader.R.string.channel_header_format, title)}"
     }
 
+    /**
+     * Логирует "снимок" всех сообщений на конкретном этапе обработки.
+     * Logcat режет строки ~4000 байт, поэтому раньше ограничивали 300 символами.
+     * Сейчас делегирует в logStageFull — печатает полный текст кусками по 800.
+     */
     private fun logStage(stage: String, messages: List<String>) {
+        logStageFull(stage, messages)
+    }
+
+    /**
+     * Краткая версия: печатает каждое сообщение, обрезая до 300 символов.
+     * Оставлена на случай, когда нужен компактный лог без длинных хвостов.
+     */
+    private fun logStageShort(stage: String, messages: List<String>) {
         val news = messages.count { !isChannelHeader(it) }
         Log.d(TAG, "═══════ STAGE: $stage (всего=${messages.size}, новостей=$news) ═══════")
         messages.forEachIndexed { i, msg ->
             val tag = if (isChannelHeader(msg)) "[HEADER]" else "[NEWS]"
             Log.d(TAG, "$stage[$i] $tag: ${msg.replace("\n", "\\n").take(300)}")
+        }
+    }
+
+    /**
+     * Полная версия: печатает текст без обрезки, разбивая на куски по 800 символов.
+     * Часть .0 — начало сообщения, .1, .2 — продолжение. Позволяет увидеть хвост
+     * сообщения (подписки, ссылки, мусор), который не виден при обрезке до 300.
+     */
+    private fun logStageFull(stage: String, messages: List<String>) {
+        val news = messages.count { !isChannelHeader(it) }
+        Log.d(TAG, "═══════ STAGE: $stage (всего=${messages.size}, новостей=$news) ═══════")
+        messages.forEachIndexed { i, msg ->
+            val tag = if (isChannelHeader(msg)) "[HEADER]" else "[NEWS]"
+            msg.chunked(800).forEachIndexed { part, chunk ->
+                Log.d(TAG, "$stage[$i].$part $tag: ${chunk.replace("\n", "\\n")}")
+            }
         }
     }
 
@@ -234,6 +263,7 @@ class NewsService(
                 ensureActive()
 
                 progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.deduplication_status), 0, 100)
+                // ПОРОГ совпадения берётся из ползунка настроек — управляет якорной дедупликацией
                 val crossThreshold = PreferenceManager.getDedupThreshold(context).toDouble()
                 val deduplicated = TextProcessor.deduplicateAcrossChannels(allMessages, crossThreshold)
                 val dedupNewsCount = deduplicated.count { !isChannelHeader(it) }
@@ -306,7 +336,8 @@ class NewsService(
                                 msg
                             } else {
                                 semaphore.withPermit {
-                                    // Отделяем время вместе с возможным тире, переклеиваем чистое время.
+                                    // Отделяем время вместе с возможным тире, переклеиваем чистое время
+                                    // обратно к результату — чтобы тире не уходило ни в AI, ни в финал.
                                     val matched = TIME_PREFIX_WITH_DASH.find(msg)?.value ?: ""
                                     val msgWithoutPrefix = if (matched.isNotEmpty()) msg.removePrefix(matched) else msg
                                     val cleanTimePrefix = TIME_ONLY.find(matched)?.value?.let { "$it " } ?: ""
