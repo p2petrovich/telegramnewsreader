@@ -94,7 +94,7 @@ class AuthActivity : AppCompatActivity() {
             }
 
             showLoading(true)
-            telegramClient.setPhoneNumber(phone) { success ->
+            telegramClient.setPhoneNumber(phone) { success, errorMessage ->
                 runOnUiThread {
                     showLoading(false)
                     if (success) {
@@ -102,7 +102,12 @@ class AuthActivity : AppCompatActivity() {
                         binding.etCode.visibility = View.VISIBLE
                         binding.btnVerify.visibility = View.VISIBLE
                     } else {
-                        showError(getString(R.string.code_send_error))
+                        val finalError = if (errorMessage != null) {
+                            getString(R.string.error_prefix, errorMessage)
+                        } else {
+                            getString(R.string.code_send_error)
+                        }
+                        showError(finalError)
                     }
                 }
             }

@@ -174,16 +174,27 @@ class TelegramClient(private val context: Context) {
             android.os.Build.MODEL, // deviceModel
             "2.0", // applicationVersion
             android.os.Build.VERSION.RELEASE // systemVersion
-        )) {}
+        )) { result ->
+            if (result is TdApi.Error) {
+                Log.e(TAG, "SetTdlibParameters error: ${result.message} (code: ${result.code})")
+            } else {
+                Log.d(TAG, "SetTdlibParameters success")
+            }
+        }
     }
 
     fun checkAuthState(): Boolean = isReady && isAuthorized
 
     fun setOnLoggedOutListener(listener: () -> Unit) { onLoggedOut = listener }
 
-    fun setPhoneNumber(phoneNumber: String, callback: (Boolean) -> Unit) {
+    fun setPhoneNumber(phoneNumber: String, callback: (Boolean, String?) -> Unit) {
         client?.send(TdApi.SetAuthenticationPhoneNumber(phoneNumber, null)) { result ->
-            callback(result is TdApi.Ok)
+            if (result is TdApi.Error) {
+                Log.e(TAG, "SetPhoneNumber error: ${result.message} (code: ${result.code})")
+                callback(false, result.message)
+            } else {
+                callback(result is TdApi.Ok, null)
+            }
         }
     }
 
