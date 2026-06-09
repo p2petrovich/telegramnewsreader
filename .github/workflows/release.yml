@@ -37,7 +37,7 @@ jobs:
       - name: Decode keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d \
-            > TelegramNewsReader/app/release.jks
+            > TelegramNewsReader/app/app/release.jks
 
       # ── 5. Сборка подписанного APK
       #       OPENROUTER_API_KEY и GROQ_API_KEY намеренно НЕ передаются —
