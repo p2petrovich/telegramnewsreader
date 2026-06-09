@@ -7,7 +7,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Color
-import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -32,7 +31,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
-import androidx.core.graphics.toColorInt
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.chip.Chip
@@ -181,7 +179,7 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
                     val currentStatus = binding.tvStatus.text.toString()
-                    binding.tvStatus.text = "$message\n$currentStatus"
+                    binding.tvStatus.text = getString(R.string.status_combined, message, currentStatus)
                 }
             }
         }
@@ -233,7 +231,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun resetDeduplicator() {
-        android.util.Log.d("MainActivity", "resetDeduplicator called")
+        Log.d("MainActivity", "resetDeduplicator called")
         deduplicator?.reset()
         deduplicator = null
     }
@@ -1271,9 +1269,9 @@ class MainActivity : AppCompatActivity() {
         val hours = elapsedMs / (1000 * 60 * 60)
         
         val timeStr = if (hours > 0) {
-            String.format("%02d:%02d:%02d", hours, minutes, seconds)
+            String.format(java.util.Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
         } else {
-            String.format("%02d:%02d", minutes, seconds)
+            String.format(java.util.Locale.US, "%02d:%02d", minutes, seconds)
         }
         
         //          ,   .
@@ -1489,7 +1487,7 @@ class MainActivity : AppCompatActivity() {
         val swAuto = dialogView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switch_auto_proxy)
         val spinnerInterval = dialogView.findViewById<Spinner>(R.id.spinner_proxy_interval)
 
-        var proxies = PreferenceManager.getProxyList(this).toMutableList()
+        val proxies = PreferenceManager.getProxyList(this).toMutableList()
 
         val updateEmptyState = {
             if (proxies.isEmpty()) {
@@ -1510,8 +1508,8 @@ class MainActivity : AppCompatActivity() {
                 telegramClient.testProxy(proxy.host, proxy.port, proxy.secret) { ping, error ->
                     runOnUiThread {
                         if (ping != null) {
-                            val ms = (ping * 1000).toInt()
-                            val status = getString(R.string.proxy_connected)
+                            val pingMs = (ping * 1000).toInt()
+                            val status = getString(R.string.proxy_connected_ping, pingMs)
                             val color = 0xFF4CAF50.toInt()
                             adapter?.updatePing(proxy.id, status, color)
                         } else {
@@ -1708,7 +1706,7 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        var currentModels = getModelsForProvider(currentProvider).toMutableList()
+        val currentModels = getModelsForProvider(currentProvider).toMutableList()
         val modelStatuses = mutableMapOf<String, String>()
         
         val modelAdapter = object : android.widget.ArrayAdapter<Pair<String, String>>(
@@ -1731,8 +1729,8 @@ class MainActivity : AppCompatActivity() {
                 tvStatus.text = status
                 
                 when (status) {
-                    "" -> tvStatus.setTextColor(Color.GREEN)
-                    "" -> tvStatus.setTextColor(Color.RED)
+                    "✅" -> tvStatus.setTextColor(Color.GREEN)
+                    "❌" -> tvStatus.setTextColor(Color.RED)
                     else -> tvStatus.setTextColor(Color.GRAY)
                 }
                 return view

@@ -387,6 +387,8 @@
     <string name="news_truncated_warning">Showing %1$d of %2$d news. Reduce period or channels.</string>
     <string name="status_synthesis_starting">Starting speech synthesis…</string>
     <string name="status_collection_done">Collection complete</string>
+    <string name="status_combined">%1$s\n%2$s</string>
+    <string name="proxy_connected_ping">Connected (%1$d ms)</string>
     <string name="backup_save_error">Save error</string>
     <string name="restore_confirm_title">Restore?</string>
     <string name="restore_confirm_msg">Current settings will be replaced with backup from %1$s.</string>

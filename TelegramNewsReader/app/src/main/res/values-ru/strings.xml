@@ -387,6 +387,8 @@
     <string name="news_truncated_warning">Показаны %1$d из %2$d новостей. Сократите период или число каналов.</string>
     <string name="status_synthesis_starting">Начинаем синтез речи…</string>
     <string name="status_collection_done">Сбор завершён</string>
+    <string name="status_combined">%1$s\n%2$s</string>
+    <string name="proxy_connected_ping">Подключен (%1$d мс)</string>
     <string name="backup_save_error">Ошибка при сохранении</string>
     <string name="restore_confirm_title">Восстановить?</string>
     <string name="restore_confirm_msg">Текущие настройки будут заменены копией от %1$s.</string>
