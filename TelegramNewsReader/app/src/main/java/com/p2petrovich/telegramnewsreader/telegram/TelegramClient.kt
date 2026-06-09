@@ -144,6 +144,7 @@ class TelegramClient(private val context: Context) {
                 ApiConfig.tdlibFilesDir(context).deleteRecursively()
                 // Сообщаем пользователю, что потребуется повторный вход.
                 onFatalError?.invoke(context.getString(com.p2petrovich.telegramnewsreader.R.string.db_key_lost_error))
+                Log.w(TAG, "Attempting retry after wipe...")
                 // Генерируем свежий ключ для чистой БД.
                 when (val retry = SecurityManager.getDatabaseEncryptionKeyChecked(context)) {
                     is SecurityManager.KeyResult.Ok -> retry.key
