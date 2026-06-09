@@ -1662,9 +1662,9 @@ class MainActivity : AppCompatActivity() {
         val btnTestManual = dialogView.findViewById<android.widget.Button>(R.id.btn_test_ai_model)
         val tvStatusManual = dialogView.findViewById<android.widget.TextView>(R.id.tv_ai_test_status)
 
-        //    ,     
-        btnTestManual?.visibility = View.GONE
-        tvStatusManual?.visibility = View.GONE
+        // Включаем кнопки проверки
+        btnTestManual?.visibility = View.VISIBLE
+        tvStatusManual?.visibility = View.VISIBLE
 
         switchEnabled.isChecked = PreferenceManager.isAiSummaryEnabled(this)
 
@@ -1756,7 +1756,7 @@ class MainActivity : AppCompatActivity() {
                 currentModels.map { modelPair ->
                     async {
                         val result = AiProcessor.testModelAvailability(modelPair.first, this@MainActivity)
-                        modelStatuses[modelPair.first] = if (result.first) "" else ""
+                        modelStatuses[modelPair.first] = if (result.first) "✅" else "❌"
                         withContext(Dispatchers.Main) { modelAdapter.notifyDataSetChanged() }
                     }
                 }.awaitAll()
@@ -1776,6 +1776,30 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+
+        btnTestManual?.setOnClickListener {
+            val selectedModel = currentModels[spinnerModel.selectedItemPosition].first
+            
+            // Сохраняем ключи перед проверкой, чтобы AiProcessor их увидел
+            PreferenceManager.saveOpenRouterApiKey(this, etOpenRouterKey?.text?.toString()?.trim() ?: "")
+            PreferenceManager.saveGroqApiKey(this, etGroqKey?.text?.toString()?.trim() ?: "")
+
+            tvStatusManual?.visibility = View.VISIBLE
+            tvStatusManual?.text = getString(R.string.proxy_status_checking)
+            tvStatusManual?.setTextColor(Color.GRAY)
+
+            lifecycleScope.launch {
+                val result = AiProcessor.testModelAvailability(selectedModel, this@MainActivity)
+                runOnUiThread {
+                    tvStatusManual?.text = if (result.first) getString(R.string.ai_model_available) else result.second
+                    tvStatusManual?.setTextColor(if (result.first) Color.GREEN else Color.RED)
+                    
+                    // Обновляем и иконку в списке
+                    modelStatuses[selectedModel] = if (result.first) "✅" else "❌"
+                    modelAdapter.notifyDataSetChanged()
+                }
+            }
         }
 
         val styles = listOf(
