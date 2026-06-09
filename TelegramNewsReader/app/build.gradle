@@ -69,6 +69,18 @@ android {
         manifestPlaceholders = [appName: "News Reader"]
     }
 
+    signingConfigs {
+        release {
+            // Параметры берутся из env-переменных CI (GitHub Secrets).
+            // Локально переменные не установлены — для локальной release-сборки
+            // добавь их в Run/Debug Configurations → Environment variables.
+            storeFile     file(System.getenv("KEYSTORE_PATH")     ?: "release.jks")
+            storePassword System.getenv("KEYSTORE_PASSWORD")      ?: ""
+            keyAlias      System.getenv("KEY_ALIAS")              ?: ""
+            keyPassword   System.getenv("KEY_PASSWORD")           ?: ""
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix ".debug"
@@ -81,6 +93,7 @@ android {
             // FFmpeg-kit удалён из зависимостей (см. секцию dependencies ниже).
             minifyEnabled true
             shrinkResources true
+            signingConfig signingConfigs.getByName("release")
             manifestPlaceholders = [appName: "News Reader"]
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
