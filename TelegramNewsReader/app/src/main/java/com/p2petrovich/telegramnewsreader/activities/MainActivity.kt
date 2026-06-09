@@ -1944,7 +1944,7 @@ class MainActivity : AppCompatActivity() {
      * fallback: если браузера нет — короткое уведомление.
      */
     private fun openDonationPage() {
-        val url = "https://boosty.to/p2petrovich" // ← TODO: подставить реальный адрес Boosty
+        val url = "https://boosty.to/telegramnewsreader" // ← TODO: подставить реальный адрес Boosty
         try {
             startActivity(
                 Intent(Intent.ACTION_VIEW, Uri.parse(url))
