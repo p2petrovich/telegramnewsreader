@@ -6,6 +6,8 @@ import android.util.Base64
 import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import java.io.File
+import java.security.KeyStore
 import java.security.SecureRandom
 
 /**
@@ -13,6 +15,7 @@ import java.security.SecureRandom
  * Использует Android Keystore для хранения мастер-ключа.
  */
 object SecurityManager {
+    private const val TAG = "SecurityManager"
     private const val PREFS_NAME = "secret_prefs"
     private const val KEY_DB_ENCRYPTION = "db_encryption_key"
     // Флаг-маркер в ОБЫЧНЫХ (не шифрованных) prefs: ключ когда-либо создавался.
@@ -37,26 +40,29 @@ object SecurityManager {
         val prefs = try {
             buildEncryptedPrefs(context)
         } catch (e: Exception) {
-            Log.e("SecurityManager", "EncryptedSharedPreferences недоступны", e)
-            // Keystore сломан. Если ключ когда-то существовал — БД зашифрована потерянным ключом.
+            Log.e(TAG, "EncryptedSharedPreferences недоступны", e)
             return if (keyWasCreatedBefore) {
-                recreateEncryptedPrefs(context)?.let { return generateAndStore(it, markerPrefs) }
+                // Ключ был — пробуем восстановить
+                recreateEncryptedPrefs(context)
+                    ?.let { generateAndStore(it, markerPrefs) }
                     ?: KeyResult.LostNeedsWipe
             } else {
-                // Если ключа никогда не было, но мы даже создать prefs не можем — это фатально.
-                KeyResult.Unavailable
+                // Первый запуск, но prefs не создаются — пробуем восстановить
+                recreateEncryptedPrefs(context)
+                    ?.let { generateAndStore(it, markerPrefs) }
+                    ?: KeyResult.Unavailable
             }
         }
 
         val savedKeyBase64 = try {
             prefs.getString(KEY_DB_ENCRYPTION, null)
         } catch (e: Exception) {
-            Log.e("SecurityManager", "Не удалось прочитать ключ (повреждение)", e)
+            Log.e(TAG, "Не удалось прочитать ключ (повреждение)", e)
             return if (keyWasCreatedBefore) {
                 KeyResult.LostNeedsWipe
             } else {
-                // повреждение на чистой установке — пересоздаём prefs и генерируем
-                recreateEncryptedPrefs(context)?.let { p -> generateAndStore(p, markerPrefs) }
+                recreateEncryptedPrefs(context)
+                    ?.let { p -> generateAndStore(p, markerPrefs) }
                     ?: KeyResult.Unavailable
             }
         }
@@ -65,7 +71,7 @@ object SecurityManager {
             try {
                 KeyResult.Ok(Base64.decode(savedKeyBase64, Base64.DEFAULT))
             } catch (e: Exception) {
-                Log.e("SecurityManager", "Ошибка декодирования ключа", e)
+                Log.e(TAG, "Ошибка декодирования ключа", e)
                 if (keyWasCreatedBefore) KeyResult.LostNeedsWipe else KeyResult.Unavailable
             }
         } else if (keyWasCreatedBefore) {
@@ -83,16 +89,17 @@ object SecurityManager {
             val success = prefs.edit()
                 .putString(KEY_DB_ENCRYPTION, Base64.encodeToString(newKey, Base64.DEFAULT))
                 .commit()
-            
+
             if (success) {
                 markerPrefs.edit().putBoolean(KEY_MARKER, true).commit()
+                Log.d(TAG, "Ключ успешно создан и сохранён")
                 KeyResult.Ok(newKey)
             } else {
-                Log.e("SecurityManager", "Не удалось сохранить ключ через commit()")
+                Log.e(TAG, "Не удалось сохранить ключ через commit()")
                 KeyResult.Unavailable
             }
         } catch (e: Exception) {
-            Log.e("SecurityManager", "Ошибка при генерации/сохранении ключа", e)
+            Log.e(TAG, "Ошибка при генерации/сохранении ключа", e)
             KeyResult.Unavailable
         }
     }
@@ -108,15 +115,43 @@ object SecurityManager {
         )
     }
 
-    // При повреждении: удаляем файл prefs и пробуем создать заново.
+    /**
+     * Полное восстановление: удаляем файл prefs с диска И мастер-ключ из Keystore,
+     * затем пересоздаём с нуля.
+     *
+     * ИСПРАВЛЕНО: старый код делал clear() через обычный (незашифрованный) SharedPreferences
+     * с тем же именем — это не удаляло зашифрованный файл, и buildEncryptedPrefs снова падал.
+     * Теперь удаляем физический файл и чистим Keystore.
+     */
     private fun recreateEncryptedPrefs(context: Context): SharedPreferences? {
         return try {
-            // Удаляем файл вручную, так как deleteSharedPreferences может не сработать для Encrypted
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().clear().commit()
-            // В современных версиях это также может потребовать удаления файла из /shared_prefs/
-            buildEncryptedPrefs(context)
+            // 1. Удаляем физический файл зашифрованных prefs
+            val prefsFile = File(context.filesDir.parentFile, "shared_prefs/${PREFS_NAME}.xml")
+            if (prefsFile.exists()) {
+                val deleted = prefsFile.delete()
+                Log.d(TAG, "Удалён файл prefs ($deleted): ${prefsFile.absolutePath}")
+            }
+
+            // 2. Удаляем мастер-ключ из Android Keystore
+            try {
+                val keyStore = KeyStore.getInstance("AndroidKeyStore")
+                keyStore.load(null)
+                val alias = MasterKey.DEFAULT_MASTER_KEY_ALIAS
+                if (keyStore.containsAlias(alias)) {
+                    keyStore.deleteEntry(alias)
+                    Log.d(TAG, "MasterKey удалён из Keystore (alias=$alias)")
+                }
+            } catch (e: Exception) {
+                // Не критично — buildEncryptedPrefs создаст новый ключ поверх
+                Log.w(TAG, "Не удалось очистить Keystore (продолжаем)", e)
+            }
+
+            // 3. Пересоздаём — теперь нет ни файла, ни старого ключа
+            buildEncryptedPrefs(context).also {
+                Log.d(TAG, "EncryptedSharedPreferences успешно пересозданы")
+            }
         } catch (e: Exception) {
-            Log.e("SecurityManager", "Пересоздание prefs не удалось", e)
+            Log.e(TAG, "Пересоздание prefs не удалось", e)
             null
         }
     }
