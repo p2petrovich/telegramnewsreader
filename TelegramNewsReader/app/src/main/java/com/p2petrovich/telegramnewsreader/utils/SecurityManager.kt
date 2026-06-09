@@ -37,17 +37,19 @@ object SecurityManager {
         val markerPrefs = context.getSharedPreferences(MARKER_PREFS, Context.MODE_PRIVATE)
         val keyWasCreatedBefore = markerPrefs.getBoolean(KEY_MARKER, false)
 
+        Log.d(TAG, "getDatabaseEncryptionKeyChecked: keyWasCreatedBefore=$keyWasCreatedBefore")
+
         val prefs = try {
-            buildEncryptedPrefs(context)
+            buildEncryptedPrefs(context).also {
+                Log.d(TAG, "buildEncryptedPrefs: SUCCESS")
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "EncryptedSharedPreferences недоступны", e)
+            Log.e(TAG, "buildEncryptedPrefs: FAILED", e)
             return if (keyWasCreatedBefore) {
-                // Ключ был — пробуем восстановить
                 recreateEncryptedPrefs(context)
                     ?.let { generateAndStore(it, markerPrefs) }
                     ?: KeyResult.LostNeedsWipe
             } else {
-                // Первый запуск, но prefs не создаются — пробуем восстановить
                 recreateEncryptedPrefs(context)
                     ?.let { generateAndStore(it, markerPrefs) }
                     ?: KeyResult.Unavailable
@@ -55,7 +57,9 @@ object SecurityManager {
         }
 
         val savedKeyBase64 = try {
-            prefs.getString(KEY_DB_ENCRYPTION, null)
+            prefs.getString(KEY_DB_ENCRYPTION, null).also {
+                Log.d(TAG, "savedKeyBase64: ${if (it != null) "FOUND (len=${it.length})" else "NULL"}")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Не удалось прочитать ключ (повреждение)", e)
             return if (keyWasCreatedBefore) {
@@ -81,6 +85,21 @@ object SecurityManager {
             // Действительно первый запуск.
             generateAndStore(prefs, markerPrefs)
         }
+    }
+
+    /**
+     * Сбрасывает маркер "ключ когда-то существовал".
+     * Вызывать ТОЛЬКО вместе с удалением базы TDLib (wipe),
+     * чтобы следующий getDatabaseEncryptionKeyChecked сгенерировал свежий ключ
+     * для чистой базы, а не пытался восстановить старый.
+     *
+     * Без этого вызова при wipe возникает бесконечный цикл:
+     * KEY_MARKER=true → LostNeedsWipe → wipe → retry → KEY_MARKER всё ещё true → LostNeedsWipe...
+     */
+    fun resetKeyMarker(context: Context) {
+        context.getSharedPreferences(MARKER_PREFS, Context.MODE_PRIVATE)
+            .edit().remove(KEY_MARKER).commit()
+        Log.d(TAG, "KEY_MARKER сброшен")
     }
 
     private fun generateAndStore(prefs: SharedPreferences, markerPrefs: SharedPreferences): KeyResult {
@@ -116,12 +135,13 @@ object SecurityManager {
     }
 
     /**
-     * Полное восстановление: удаляем файл prefs с диска И мастер-ключ из Keystore,
-     * затем пересоздаём с нуля.
+     * Полное восстановление: удаляем физический файл prefs с диска И мастер-ключ
+     * из Keystore, затем пересоздаём с нуля.
      *
-     * ИСПРАВЛЕНО: старый код делал clear() через обычный (незашифрованный) SharedPreferences
-     * с тем же именем — это не удаляло зашифрованный файл, и buildEncryptedPrefs снова падал.
-     * Теперь удаляем физический файл и чистим Keystore.
+     * ИСПРАВЛЕНО по сравнению с оригиналом: старый код делал clear() через обычный
+     * (незашифрованный) SharedPreferences с тем же именем — это не удаляло зашифрованный
+     * файл, и buildEncryptedPrefs снова падал. Теперь удаляем физический файл и чистим
+     * Keystore.
      */
     private fun recreateEncryptedPrefs(context: Context): SharedPreferences? {
         return try {

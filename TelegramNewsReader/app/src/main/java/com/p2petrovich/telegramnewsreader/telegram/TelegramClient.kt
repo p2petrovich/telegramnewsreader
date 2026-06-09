@@ -7,6 +7,7 @@ import android.util.Log
 import org.drinkless.tdlib.Client
 import org.drinkless.tdlib.TdApi
 import com.p2petrovich.telegramnewsreader.ApiConfig
+import com.p2petrovich.telegramnewsreader.R
 import com.p2petrovich.telegramnewsreader.models.Channel
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.SecurityManager
@@ -143,19 +144,29 @@ class TelegramClient(private val context: Context) {
                 ApiConfig.tdlibDatabaseDir(context).deleteRecursively()
                 ApiConfig.tdlibFilesDir(context).deleteRecursively()
                 // Сообщаем пользователю, что потребуется повторный вход.
-                onFatalError?.invoke(context.getString(com.p2petrovich.telegramnewsreader.R.string.db_key_lost_error))
+                onFatalError?.invoke(context.getString(R.string.db_key_lost_error))
+
+                // [FIX] Сбрасываем маркер ПЕРЕД retry, иначе getDatabaseEncryptionKeyChecked
+                // снова увидит KEY_MARKER=true и вернёт LostNeedsWipe — бесконечный цикл.
+                // Маркер нужно сбросить именно здесь, синхронно с удалением базы TDLib,
+                // чтобы новый ключ соответствовал новой (пустой) базе.
+                SecurityManager.resetKeyMarker(context)
+
                 Log.w(TAG, "Attempting retry after wipe...")
-                // Генерируем свежий ключ для чистой БД.
                 when (val retry = SecurityManager.getDatabaseEncryptionKeyChecked(context)) {
-                    is SecurityManager.KeyResult.Ok -> retry.key
+                    is SecurityManager.KeyResult.Ok -> {
+                        Log.w(TAG, "Retry succeeded, key length=${retry.key.size}")
+                        retry.key
+                    }
                     else -> {
-                        onFatalError?.invoke(context.getString(com.p2petrovich.telegramnewsreader.R.string.security_error_keystore_unavailable))
+                        Log.e(TAG, "Retry FAILED: $retry")
+                        onFatalError?.invoke(context.getString(R.string.security_error_keystore_unavailable))
                         return
                     }
                 }
             }
             is SecurityManager.KeyResult.Unavailable -> {
-                onFatalError?.invoke(context.getString(com.p2petrovich.telegramnewsreader.R.string.security_error_keystore_unavailable_start))
+                onFatalError?.invoke(context.getString(R.string.security_error_keystore_unavailable_start))
                 return
             }
         }
@@ -521,7 +532,7 @@ class TelegramClient(private val context: Context) {
 
     fun testProxy(host: String, port: Int, secret: String, callback: (Double?, String?) -> Unit) {
         if (client == null) {
-            callback(null, context.getString(com.p2petrovich.telegramnewsreader.R.string.lib_not_ready))
+            callback(null, context.getString(R.string.lib_not_ready))
             return
         }
 
@@ -530,7 +541,7 @@ class TelegramClient(private val context: Context) {
 
         fun tryDc(dcIds: List<Int>) {
             if (dcIds.isEmpty()) {
-                callback(null, context.getString(com.p2petrovich.telegramnewsreader.R.string.proxy_no_tg_response))
+                callback(null, context.getString(R.string.proxy_no_tg_response))
                 return
             }
             val dc = dcIds.first()
@@ -543,18 +554,18 @@ class TelegramClient(private val context: Context) {
                         if (result.code == 400) {
                             tryDc(dcIds.drop(1))
                         } else {
-                            callback(null, context.getString(com.p2petrovich.telegramnewsreader.R.string.proxy_error_with_code, result.message, result.code))
+                            callback(null, context.getString(R.string.proxy_error_with_code, result.message, result.code))
                         }
                     }
                     else -> {
                         val typeName = result?.javaClass?.simpleName ?: "null"
                         Log.e(TAG, "TestProxy unknown result: $typeName")
-                        callback(null, context.getString(com.p2petrovich.telegramnewsreader.R.string.proxy_unexpected_response, typeName))
+                        callback(null, context.getString(R.string.proxy_unexpected_response, typeName))
                     }
                 }
             }
         }
-        
+
         // Перебираем основные дата-центры (Европа, США, Азия)
         tryDc(listOf(2, 1, 3))
     }
