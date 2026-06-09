@@ -2,8 +2,6 @@ package com.p2petrovich.telegramnewsreader.tts
 
 import android.content.Context
 import android.util.Log
-import com.arthenica.ffmpegkit.FFmpegKit
-import com.arthenica.ffmpegkit.ReturnCode
 import com.p2petrovich.telegramnewsreader.ApiConfig
 import com.p2petrovich.telegramnewsreader.utils.EdgeConfig
 import com.p2petrovich.telegramnewsreader.utils.HttpClients
@@ -31,13 +29,18 @@ import kotlin.coroutines.resume
  *
  * Использует неофициальный WebSocket API, тот же что Edge браузер.
  * Голоса: ru-RU-DmitryNeural (муж), ru-RU-SvetlanaNeural (жен).
- * Выходной формат: WAV (riff-24khz-16bit-mono-pcm) — совместим с текущим пайплайном.
+ * Выходной формат: WAV (raw-24khz-16bit-mono-pcm) — совместим с текущим пайплайном.
  * Бесплатно, без API ключа.
  *
  * Алгоритм Sec-MS-GEC и SSML — повторяют эталон rany2/edge-tts.
  *
  * Важно: в новой версии протокола Microsoft turn.end может приходить как бинарный фрейм
  * (с заголовком Path:turn.end), а не как текстовый. Бинарный обработчик это учитывает.
+ *
+ * [FFmpeg removed] Раньше Edge запрашивался в формате
+ * audio-24khz-48kbitrate-mono-mp3 и декодировался в WAV через FFmpegKit.
+ * Теперь запрашивается сразу raw-24khz-16bit-mono-pcm — MP3-декодер не нужен,
+ * к голым PCM-байтам просто приписывается WAV-заголовок (writePcmToWav).
  */
 class EdgeTtsProvider(
     private val context: Context,
@@ -227,7 +230,9 @@ class EdgeTtsProvider(
                 Log.d(TAG, "finish: success=$success, reason=$reason, audioSize=${audioBuf.size()}")
                 try { ws?.close(1000, "done") } catch (_: Exception) {}
                 val bytes = synchronized(audioBuf) { audioBuf.toByteArray() }
-                val ok = if (success) writeMp3ToWav(bytes, outputFile) else false
+                // [FFmpeg removed] Раньше: writeMp3ToWav (декод MP3 через FFmpeg).
+                // Теперь Edge отдаёт голый PCM — просто приписываем WAV-заголовок.
+                val ok = if (success) writePcmToWav(bytes, outputFile) else false
                 if (continuation.isActive) continuation.resume(ok)
             }
 
@@ -337,9 +342,12 @@ class EdgeTtsProvider(
         val header = "X-Timestamp:$timestamp\r\n" +
                      "Content-Type:application/json; charset=utf-8\r\n" +
                      "Path:speech.config\r\n\r\n"
+        // [FFmpeg removed] Формат изменён с audio-24khz-48kbitrate-mono-mp3
+        // на raw-24khz-16bit-mono-pcm: Microsoft присылает голый PCM без
+        // MP3-контейнера, что снимает необходимость в декодере (FFmpeg).
         val body = """{"context":{"synthesis":{"audio":{"metadataoptions":""" +
                    """{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},""" +
-                   """"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}"""
+                   """"outputFormat":"raw-24khz-16bit-mono-pcm"}}}}"""
         return header + body
     }
 
@@ -388,37 +396,37 @@ class EdgeTtsProvider(
     // ─── WAV утилиты ─────────────────────────────────────────────────────────
 
     /**
-     * Сохраняет MP3-байты во временный файл, конвертирует в WAV через FFmpegKit,
-     * удаляет временный MP3. Выход: 24kHz / 16bit / mono — совместим с пайплайном.
+     * [FFmpeg removed] Сохраняет голые PCM-байты во WAV-файл.
+     *
+     * Раньше этот метод назывался writeMp3ToWav: он сохранял MP3 во временный
+     * файл и декодировал в WAV через FFmpegKit. После перехода Edge на формат
+     * raw-24khz-16bit-mono-pcm декодировать нечего — Microsoft присылает уже
+     * готовый 16-bit PCM поток, к которому достаточно приписать стандартный
+     * 44-байтный RIFF-заголовок. Выход: 24kHz / 16bit / mono — совместим
+     * с остальным пайплайном (Android TTS нормализуется к тому же формату).
      */
-    private fun writeMp3ToWav(mp3Bytes: ByteArray, outputFile: File): Boolean {
-        if (mp3Bytes.isEmpty()) {
-            Log.e(TAG, "writeMp3ToWav: empty MP3 buffer for ${outputFile.name}")
+    private fun writePcmToWav(pcmBytes: ByteArray, outputFile: File): Boolean {
+        if (pcmBytes.isEmpty()) {
+            Log.e(TAG, "writePcmToWav: empty PCM buffer for ${outputFile.name}")
             return false
         }
-        val mp3Tmp = File(outputFile.parentFile, "${outputFile.nameWithoutExtension}_raw.mp3")
         return try {
-            mp3Tmp.writeBytes(mp3Bytes)
-            Log.d(TAG, "writeMp3ToWav: saved ${mp3Bytes.size} bytes to ${mp3Tmp.name}, converting...")
-
-            val cmd = arrayOf(
-                "-y",
-                "-i", mp3Tmp.absolutePath,
-                "-ar", "24000",
-                "-ac", "1",
-                "-sample_fmt", "s16",
-                outputFile.absolutePath
+            val header = buildWavHeader(
+                pcmSize = pcmBytes.size,
+                sampleRate = 24000,
+                channels = 1,
+                bitsPerSample = 16
             )
-            val session = FFmpegKit.executeWithArguments(cmd)
-            val ok = ReturnCode.isSuccess(session.returnCode) &&
-                     outputFile.exists() && outputFile.length() > 44
-            Log.d(TAG, "writeMp3ToWav: FFmpeg ok=$ok, outSize=${outputFile.length()}")
+            FileOutputStream(outputFile).use { os ->
+                os.write(header)
+                os.write(pcmBytes)
+            }
+            val ok = outputFile.exists() && outputFile.length() > 44
+            Log.d(TAG, "writePcmToWav: wrote ${pcmBytes.size} PCM bytes, outSize=${outputFile.length()}, ok=$ok")
             ok
         } catch (e: Exception) {
-            Log.e(TAG, "writeMp3ToWav failed: ${e.message}")
+            Log.e(TAG, "writePcmToWav failed: ${e.message}")
             false
-        } finally {
-            try { mp3Tmp.delete() } catch (_: Exception) {}
         }
     }
 

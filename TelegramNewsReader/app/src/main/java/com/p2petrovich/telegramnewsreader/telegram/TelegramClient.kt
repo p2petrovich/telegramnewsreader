@@ -314,6 +314,12 @@ class TelegramClient(private val context: Context) {
 
     /**
      * ПАТЧ 1: рекурсивная пагинация + caption'ы из медиа + префикс HH:mm — текст.
+     *
+     * [FIX] Раньше OpenChat вызывался без парного CloseChat: TDLib держал чат
+     * "открытым" и продолжал тратить ресурсы на синхронизацию истории в фоне.
+     * Теперь CloseChat встроен в resumeOnce и invokeOnCancellation, поэтому
+     * закрытие гарантированно происходит один раз при ЛЮБОМ исходе:
+     * успех, ошибка, пустая страница или отмена корутины.
      */
     suspend fun getChannelMessagesPaginated(
         channelId: Long,
@@ -333,16 +339,28 @@ class TelegramClient(private val context: Context) {
         val messages = mutableListOf<String>()
         val isCancelled = AtomicBoolean(false)
         val isResumed = AtomicBoolean(false)
+        val isChatClosed = AtomicBoolean(false)
         var loadedTotal = 0
         val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
+        // [FIX] Парный CloseChat к OpenChat выше. Идемпотентен (срабатывает один раз
+        // благодаря getAndSet). Вызывается из resumeOnce (нормальное завершение) и
+        // из invokeOnCancellation (отмена корутины), чтобы чат не оставался открытым
+        // ни при каком исходе и TDLib не тратил ресурсы на фоновую синхронизацию.
+        fun closeChatOnce() {
+            if (isChatClosed.getAndSet(true)) return
+            try { client?.send(TdApi.CloseChat(channelId)) { } } catch (_: Exception) {}
+        }
 
         continuation.invokeOnCancellation {
             Log.d(TAG, "History canceled for channel $channelId")
             isCancelled.set(true)
+            closeChatOnce()
         }
 
         fun resumeOnce(result: List<String>) {
             if (isResumed.getAndSet(true)) return
+            closeChatOnce()
             if (continuation.isActive) continuation.resume(result)
         }
 
@@ -431,13 +449,12 @@ class TelegramClient(private val context: Context) {
     }
 
     /**
-     * Очищает локальный кэш сообщений TDLib.
+     * Очищает локальный кэш сообщений TDLib через оптимизацию хранилища.
      * Помогает заставить библиотеку запросить историю с сервера заново.
      */
     fun clearTtsRelatedCache(callback: (Boolean) -> Unit) {
         Log.d(TAG, "Full TDLib cache reset started...")
-        // 1. Очищаем историю всех чатов локально
-        // 2. Оптимизируем хранилище
+        // Оптимизируем хранилище: TDLib удаляет старые/неиспользуемые файлы кэша.
         client?.send(TdApi.OptimizeStorage(
             0L, -1, -1, -1, null, null, null, true, 0
         )) { result ->

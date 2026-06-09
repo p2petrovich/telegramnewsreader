@@ -60,19 +60,11 @@ android {
         def telegramApiId = System.getenv("TELEGRAM_API_ID") ?: localProperties.getProperty("telegram.api.id", "0")
         def telegramApiHash = System.getenv("TELEGRAM_API_HASH") ?: localProperties.getProperty("telegram.api.hash", "")
 
-        // [FIX] P3-12: ключ OpenRouter. Имя env-переменной: OPENROUTER_API_KEY,
-        // имя property в local.properties: openrouter.api.key
-        def openRouterApiKey = System.getenv("OPENROUTER_API_KEY")
-                ?: localProperties.getProperty("openrouter.api.key", "")
-
-        def groqApiKey = System.getenv("GROQ_API_KEY")
-                ?: localProperties.getProperty("groq.api.key", "")
+        // AI API-ключи (OpenRouter, Groq) вынесены из BuildConfig в EncryptedSharedPreferences.
+        // Пользователь вводит их вручную в диалоге AI-настроек — в APK они не попадают.
 
         buildConfigField "Integer", "TELEGRAM_API_ID", telegramApiId
         buildConfigField "String", "TELEGRAM_API_HASH", "\"${telegramApiHash}\""
-        // [FIX] P3-12: новое имя поля BuildConfig — используется в AiProcessor.kt
-        buildConfigField "String", "OPENROUTER_API_KEY", "\"${openRouterApiKey}\""
-        buildConfigField "String", "GROQ_API_KEY", "\"${groqApiKey}\""
 
         manifestPlaceholders = [appName: "News Reader"]
     }
@@ -84,7 +76,9 @@ android {
         }
         release {
             // [FIX] P0-2: включены минификация и удаление неиспользуемых ресурсов.
-            // Требует наличия app/proguard-rules.pro с keep-правилами для TDLib/FFmpeg/Room/Gson.
+            // Требует наличия app/proguard-rules.pro с keep-правилами для TDLib/Room/Gson.
+            // [FFmpeg removed] Keep-правила для com.arthenica.** больше не нужны —
+            // FFmpeg-kit удалён из зависимостей (см. секцию dependencies ниже).
             minifyEnabled true
             shrinkResources true
             manifestPlaceholders = [appName: "News Reader"]
@@ -141,9 +135,19 @@ dependencies {
     // TDLib
     implementation files('libs/tdlib-android.aar')
 
-    // FFmpeg
-    implementation(files("libs/ffmpeg-kit-full-gpl-6.0-2.LTS.aar"))
-    implementation("com.arthenica:smart-exception-java:0.2.1")
+    // [FFmpeg removed] FFmpeg-kit удалён из проекта.
+    // Раньше здесь были:
+    //   implementation(files("libs/ffmpeg-kit-full-gpl-6.0-2.LTS.aar"))
+    //   implementation("com.arthenica:smart-exception-java:0.2.1")
+    // Причины удаления:
+    //   1) Лицензия: GPLv3-сборка FFmpeg несовместима с PolyForm Noncommercial.
+    //   2) ffmpeg-kit архивирован автором — бинарники постепенно недоступны.
+    //   3) −73 МБ в APK и репозитории.
+    // Весь аудио-пайплайн переведён на нативную (чистый Kotlin) обработку WAV:
+    //   - Edge TTS запрашивается как raw-24khz-16bit-mono-pcm (без MP3-декода);
+    //   - выход Android System TTS нормализуется через utils/PcmResampler;
+    //   - склейка глав делается в utils/AudioUtils без перекодирования.
+    // Также удалите файл app/libs/ffmpeg-kit-full-gpl-6.0-2.LTS.aar вручную.
 
     // Image loading
     implementation "io.coil-kt:coil:2.6.0"

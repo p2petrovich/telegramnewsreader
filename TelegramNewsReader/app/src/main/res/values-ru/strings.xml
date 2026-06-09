@@ -77,7 +77,7 @@
 
     <!-- About dialog -->
     <string name="app_description">Приложение для чтения новостей из Telegram-каналов с озвучкой.\n\nРазработчик: p2petrovich\n© 2025</string>
-
+    <string name="support_developer">Поддержать разработчика</string>
     <string name="settings_restored">Настройки восстановлены</string>
     <string name="file_read_error">Ошибка при чтении файла</string>
     <string name="settings_saved">Настройки сохранены</string>
@@ -283,6 +283,8 @@
     <string name="ai_model_nemotron_free">Nemotron-3 Super (Стабильный) — FREE</string>
 
     <string name="ai_settings_saved">Настройки ИИ сохранены</string>
+    <string name="openrouter_api_key_hint">API-ключ OpenRouter</string>
+    <string name="groq_api_key_hint">API-ключ Groq</string>
 
     <string name="min_short">мин</string>
     <string name="proxy_server">Прокси-сервер</string>
@@ -412,4 +414,11 @@
 
     <string name="voice_settings_title">Настройки голоса</string>
     <string name="edge_tts_unavailable_fallback">Edge TTS временно недоступен. Используется системный голос.</string>
+
+    <!-- UpdateChecker -->
+    <string name="update_available_title">Доступно обновление: %1$s</string>
+    <string name="update_download_apk">Скачать APK</string>
+    <string name="update_open_release">Открыть страницу релиза</string>
+    <string name="update_later">Позже</string>
+    <string name="update_check_updates">Проверить обновления</string>
 </resources>

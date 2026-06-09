@@ -19,12 +19,16 @@
 -dontwarn org.drinkless.tdlib.**
 
 # ============================================================
-#  FFmpeg-kit (com.arthenica) — нативные вызовы через JNI
+#  FFmpeg-kit (com.arthenica) — УДАЛЕНО
 # ============================================================
--keep class com.arthenica.ffmpegkit.** { *; }
--keep class com.arthenica.smartexception.** { *; }
--keepclassmembers class com.arthenica.** { *; }
--dontwarn com.arthenica.**
+# [FFmpeg removed] FFmpeg-kit полностью убран из проекта (см. build.gradle).
+# Раньше здесь были keep-правила для нативных JNI-вызовов:
+#   -keep class com.arthenica.ffmpegkit.** { *; }
+#   -keep class com.arthenica.smartexception.** { *; }
+#   -keepclassmembers class com.arthenica.** { *; }
+#   -dontwarn com.arthenica.**
+# Теперь они не нужны: аудио-обработка (WAV PCM) ведётся на чистом Kotlin
+# в utils/AudioUtils и utils/PcmResampler, без нативных библиотек.
 
 # ============================================================
 #  Room

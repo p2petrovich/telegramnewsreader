@@ -2,6 +2,8 @@ package com.p2petrovich.telegramnewsreader.utils
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.p2petrovich.telegramnewsreader.models.ProxyEntry
@@ -46,6 +48,11 @@ object PreferenceManager {
     private const val KEY_EDGE_VOICE  = "edge_tts_voice"
     private const val KEY_EDGE_RATE   = "edge_tts_rate_pct"  // Int, -50..+100
     private const val KEY_EDGE_PITCH  = "edge_tts_pitch_hz"  // Int, -200..+200
+
+    // AI API Keys (encrypted)
+    private const val ENCRYPTED_PREFS_NAME = "secure_api_keys"
+    private const val KEY_OPENROUTER_API_KEY = "openrouter_api_key"
+    private const val KEY_GROQ_API_KEY = "groq_api_key"
 
     private const val PATHS_DELIMITER = "|||"
 
@@ -197,6 +204,7 @@ object PreferenceManager {
     fun clearAll(context: Context) {
         getPreferences(context).edit().clear().apply()
         getAuthPreferences(context).edit().clear().apply()
+        try { getEncryptedPreferences(context).edit().clear().apply() } catch (_: Exception) {}
     }
 
     // Color theme
@@ -346,5 +354,39 @@ object PreferenceManager {
         "groq"       -> "llama-3.3-70b-versatile"
         "openrouter" -> "z-ai/glm-4.5-air:free"
         else         -> "z-ai/glm-4.5-air:free"
+    }
+
+    // ===================== AI API Keys (encrypted storage) =====================
+    // Ключи хранятся в EncryptedSharedPreferences — не попадают в BuildConfig/APK.
+
+    private fun getEncryptedPreferences(context: Context): SharedPreferences {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        return EncryptedSharedPreferences.create(
+            context,
+            ENCRYPTED_PREFS_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
+
+    fun getOpenRouterApiKey(context: Context): String =
+        try { getEncryptedPreferences(context).getString(KEY_OPENROUTER_API_KEY, "") ?: "" }
+        catch (_: Exception) { "" }
+
+    fun saveOpenRouterApiKey(context: Context, key: String) {
+        try { getEncryptedPreferences(context).edit().putString(KEY_OPENROUTER_API_KEY, key).apply() }
+        catch (_: Exception) {}
+    }
+
+    fun getGroqApiKey(context: Context): String =
+        try { getEncryptedPreferences(context).getString(KEY_GROQ_API_KEY, "") ?: "" }
+        catch (_: Exception) { "" }
+
+    fun saveGroqApiKey(context: Context, key: String) {
+        try { getEncryptedPreferences(context).edit().putString(KEY_GROQ_API_KEY, key).apply() }
+        catch (_: Exception) {}
     }
 }

@@ -2,7 +2,6 @@ package com.p2petrovich.telegramnewsreader.utils
 
 import android.content.Context
 import android.util.Log
-import com.p2petrovich.telegramnewsreader.BuildConfig
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -29,8 +28,8 @@ object AiProcessor {
         val provider = PreferenceManager.getAiProvider(context)
         val model = PreferenceManager.getAiModel(context)
         return when (provider) {
-            "groq" -> Triple(GROQ_URL, BuildConfig.GROQ_API_KEY, model)
-            else -> Triple(OPENROUTER_URL, BuildConfig.OPENROUTER_API_KEY, model)
+            "groq" -> Triple(GROQ_URL, PreferenceManager.getGroqApiKey(context), model)
+            else   -> Triple(OPENROUTER_URL, PreferenceManager.getOpenRouterApiKey(context), model)
         }
     }
 

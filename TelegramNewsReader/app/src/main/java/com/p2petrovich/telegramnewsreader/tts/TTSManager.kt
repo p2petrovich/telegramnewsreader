@@ -6,14 +6,13 @@ import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
-import com.arthenica.ffmpegkit.FFmpegKit
-import com.arthenica.ffmpegkit.ReturnCode
 import com.p2petrovich.telegramnewsreader.models.VoiceEntry
 import com.p2petrovich.telegramnewsreader.models.VoiceMappings
 import com.p2petrovich.telegramnewsreader.services.NewsService
 import com.p2petrovich.telegramnewsreader.utils.AudioUtils
 import com.p2petrovich.telegramnewsreader.utils.EdgeConfig // [FIX] для предварительного refresh версии Chromium
 import com.p2petrovich.telegramnewsreader.utils.NewsCache
+import com.p2petrovich.telegramnewsreader.utils.PcmResampler // [FFmpeg removed] нативная нормализация выхода Android TTS
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.TextProcessor
 import com.p2petrovich.telegramnewsreader.utils.HttpClients
@@ -578,6 +577,13 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
 
         // ФАЗА 3: Сборка глав (Последовательно)
+        //
+        // [FFmpeg removed] Раньше здесь через ensureMatchingFormat части
+        // приводились к общему формату (FFmpeg-ресемплинг), потому что Android
+        // TTS и Edge могли давать разный sample rate. Теперь весь пайплайн
+        // одноформатный: Edge запрашивается как raw-24khz-16bit-mono-pcm, а
+        // выход Android TTS нормализуется к тому же формату через PcmResampler
+        // прямо в synthesizePartToWav. Поэтому склейка идёт без перекодирования.
         var silenceFile: File? = null
         var baselineFormat: WavMeta? = null
         val chapterFiles = mutableListOf<File>()
@@ -609,22 +615,10 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                     }
                 }
 
-                val currentBaseline = baselineFormat
-                val usedWav = if (currentBaseline != null) {
-                    ensureMatchingFormat(wav, meta, currentBaseline)
-                } else null
-
-                if (usedWav == null) {
-                    cleanupChapterFiles(chapterFiles, cachedWavPaths)
-                    progressCallback?.onCompleted()
-                    return null
-                }
-
-                if (usedWav.absolutePath != wav.absolutePath && cachedWavPaths.contains(wav.absolutePath)) {
-                    synchronized(cachedWavPaths) { cachedWavPaths.add(usedWav.absolutePath) }
-                }
-
-                partWavs.add(usedWav)
+                // [FFmpeg removed] Формат уже унифицирован на этапе синтеза
+                // (Edge raw-PCM и нормализованный Android TTS → 24kHz/mono/16bit),
+                // поэтому ensureMatchingFormat больше не нужен — добавляем как есть.
+                partWavs.add(wav)
             }
 
             if (idx != prepared.lastIndex && pauseMs > 0) {
@@ -677,28 +671,6 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
-    private fun ensureMatchingFormat(wav: File, meta: WavMeta, baseline: WavMeta): File? {
-        val matches = meta.sampleRate == baseline.sampleRate &&
-                meta.channels == baseline.channels &&
-                meta.bitsPerSample == baseline.bitsPerSample
-        if (matches) return wav
-
-        val fmt = when (baseline.bitsPerSample) {
-            8 -> "u8"; 16 -> "s16"; 24 -> "s32"; 32 -> "s32"; else -> "s16"
-        }
-        val out = File(wav.parentFile, wav.nameWithoutExtension + "_resampled.wav")
-        val cmd = arrayOf(
-            "-y", "-i", wav.absolutePath,
-            "-ar", baseline.sampleRate.toString(),
-            "-ac", baseline.channels.toString(),
-            "-sample_fmt", fmt,
-            out.absolutePath
-        )
-        val session = FFmpegKit.executeWithArguments(cmd)
-        return if (ReturnCode.isSuccess(session.returnCode) && out.exists() && out.length() > 0) out
-        else { if (out.exists()) out.delete(); null }
-    }
-
     private suspend fun synthesizePartToWav(text: String, partIndex: Int, baseUtteranceId: String): File? {
         return withTimeoutOrNull(15_000L) {
             suspendCancellableCoroutine { continuation ->
@@ -713,7 +685,33 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                     override fun onDone(id: String?) {
                         if (id == utteranceId) {
                             tts?.setOnUtteranceProgressListener(null)
-                            if (continuation.isActive) continuation.resume(tempWavFile)
+                            // [FFmpeg removed] Нормализуем выход системного TTS к
+                            // 24kHz/mono/16bit. Формат synthesizeToFile зависит от
+                            // движка устройства (22050/24000/48000, mono/stereo),
+                            // а без единого формата склейка глав с Edge-кусками
+                            // (или с тишиной) рассыпается. Раньше это делал
+                            // FFmpeg-ресемплинг в ensureMatchingFormat.
+                            val normalized = PcmResampler.normalizeToTarget(tempWavFile)
+                            if (normalized == null) {
+                                if (continuation.isActive) continuation.resume(null)
+                                tempWavFile.delete()
+                                return
+                            }
+                            // Если ресемплер создал новый файл — подменяем им
+                            // исходный, чтобы дальше по пайплайну шёл один путь
+                            // (и кэш/очистка работали по ожидаемому имени).
+                            val finalFile = if (normalized.absolutePath != tempWavFile.absolutePath) {
+                                try {
+                                    tempWavFile.delete()
+                                    normalized.copyTo(tempWavFile, overwrite = true)
+                                    normalized.delete()
+                                    tempWavFile
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "Failed to swap normalized file: ${e.message}")
+                                    normalized
+                                }
+                            } else tempWavFile
+                            if (continuation.isActive) continuation.resume(finalFile)
                         }
                     }
                     @Deprecated("Deprecated in Java")

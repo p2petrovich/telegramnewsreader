@@ -357,6 +357,36 @@
 
                 <View android:layout_width="match_parent" android:layout_height="1dp" android:background="?attr/colorOutlineVariant" android:layout_marginHorizontal="16dp"/>
 
+                <!-- [FIX] Кнопка ручной проверки обновлений. Обработчик btn_check_updates
+                     уже был в MainActivity.showSettingsDialog, но самого элемента в layout
+                     не было — поэтому проверка работала только автоматически (раз в сутки).
+                     Теперь доступна вручную (force = true, игнорирует throttle). -->
+                <LinearLayout
+                    android:id="@+id/btn_check_updates"
+                    style="@style/SelectableItemStyle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp"
+                    android:clickable="true"
+                    android:focusable="true">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/update_check_updates"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="?attr/colorOnSurface" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/version_info_desc"
+                        android:textSize="13sp"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+                </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="?attr/colorOutlineVariant" android:layout_marginHorizontal="16dp"/>
+
                 <LinearLayout
                     android:id="@+id/btn_about"
                     style="@style/SelectableItemStyle"

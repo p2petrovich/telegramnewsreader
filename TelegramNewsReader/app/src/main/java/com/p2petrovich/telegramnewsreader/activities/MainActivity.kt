@@ -24,6 +24,8 @@ import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -53,6 +55,7 @@ import com.p2petrovich.telegramnewsreader.tts.TTSManagerSingleton
 import com.p2petrovich.telegramnewsreader.utils.Deduplicator
 import com.p2petrovich.telegramnewsreader.utils.NewsCache
 import com.p2petrovich.telegramnewsreader.utils.AiProcessor
+import com.p2petrovich.telegramnewsreader.utils.UpdateChecker
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.PresetManager
 import com.p2petrovich.telegramnewsreader.utils.SettingsBackup
@@ -124,7 +127,7 @@ class MainActivity : AppCompatActivity() {
 
     private var activePresetId: String? = null
 
-    // Deduplicator для фильтрации дублей
+    // Deduplicator   
     private var deduplicator: Deduplicator? = null
 
     companion object {
@@ -211,6 +214,9 @@ class MainActivity : AppCompatActivity() {
         initializeTelegramClient()
 
         lastUsedVoice = PreferenceManager.getTtsVoiceName(this)
+
+        //     GitHub (throttle:   )
+        UpdateChecker.check(this)
     }
 
     // ===================== Deduplication =====================
@@ -288,7 +294,7 @@ class MainActivity : AppCompatActivity() {
                 PreferenceManager.setDedupThreshold(this, sbThreshold.progress / 100f)
                 PreferenceManager.setDedupHistorySize(this, sbHistorySize.progress)
                 PreferenceManager.setDedupTimeWindow(this, sbTimeWindow.progress * 60)
-                // Сбрасываем дедупликатор, чтобы применить новые настройки
+                //  ,    
                 resetDeduplicator()
                 Toast.makeText(this, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()
                 showSettingsDialog()
@@ -298,7 +304,7 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // ===================== Вспомогательные методы =====================
+    // =====================   =====================
     private fun updateStatus(text: String) {
         binding.tvStatus.text = text
     }
@@ -405,7 +411,7 @@ class MainActivity : AppCompatActivity() {
             parts.add(getString(R.string.stat_skipped, lastSkippedDuplicates))
         }
 
-        binding.tvPipelineStatus.text = parts.joinToString(" → ")
+        binding.tvPipelineStatus.text = parts.joinToString("  ")
 
         val finalTarget = when {
             lastAfterAi > 0 -> lastAfterAi
@@ -426,8 +432,8 @@ class MainActivity : AppCompatActivity() {
             binding.tvNewsPreview.text = getString(R.string.news_not_collected)
             return
         }
-        val previewText = newsList.take(3).joinToString("\n• ") {
-            it.replace(Regex("^\\d{2}:\\d{2}\\s*—\\s*"), "").take(60) + "..."
+        val previewText = newsList.take(3).joinToString("\n ") {
+            it.replace(Regex("^\\d{2}:\\d{2}\\s*\\s*"), "").take(60) + "..."
         }
         binding.tvNewsPreview.text = getString(R.string.news_preview_bullet, previewText)
     }
@@ -498,7 +504,7 @@ class MainActivity : AppCompatActivity() {
         binding.tvEta.text = getString(R.string.collection_status_combined, elapsedText, etaText)
     }
 
-    // ===================== Инициализация =====================
+    // =====================  =====================
     private fun requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
@@ -818,7 +824,7 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    /** Рекурсивный поиск корневого ViewGroup в иерархии view */
+    /**    ViewGroup   view */
     private fun findTopLevelViewGroup(view: View): ViewGroup {
         if (view is ViewGroup) return view
         val parent = view.parent
@@ -1030,7 +1036,7 @@ class MainActivity : AppCompatActivity() {
 
         resetProgressCounters()
 
-        // Инициализируем дедупликатор с текущими настройками
+        //     
         getDeduplicator()
 
         binding.progressBar.visibility = View.VISIBLE
@@ -1082,7 +1088,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Вычисление длительности — вызывается ТОЛЬКО из Dispatchers.IO */
+    /**       Dispatchers.IO */
     private fun calcDurationMinutes(files: List<File>): Int {
         var totalMs = 0L
         val retriever = android.media.MediaMetadataRetriever()
@@ -1270,14 +1276,14 @@ class MainActivity : AppCompatActivity() {
             String.format("%02d:%02d", minutes, seconds)
         }
         
-        // Можем добавить это время к статусу или в отдельное поле, если оно есть.
-        // Пока добавим в tvProgressPercentage рядом с процентами.
+        //          ,   .
+        //    tvProgressPercentage   .
         val currentText = binding.tvProgressPercentage.text.toString()
-        if (!currentText.contains("⏱")) {
-            binding.tvProgressPercentage.text = "$currentText  ⏱ $timeStr"
+        if (!currentText.contains("")) {
+            binding.tvProgressPercentage.text = "$currentText   $timeStr"
         } else {
-            val base = currentText.substringBefore("  ⏱")
-            binding.tvProgressPercentage.text = "$base  ⏱ $timeStr"
+            val base = currentText.substringBefore("  ")
+            binding.tvProgressPercentage.text = "$base   $timeStr"
         }
     }
 
@@ -1364,7 +1370,7 @@ class MainActivity : AppCompatActivity() {
                 .setPositiveButton(R.string.clear) { _, _ ->
                     NewsCache.clearAll(this)
                     resetDeduplicator()
-                    // Очищаем кэш сообщений в самом Telegram клиенте
+                    //      Telegram 
                     telegramClient.clearTtsRelatedCache { success ->
                         runOnUiThread {
                             val msg = if (success) getString(R.string.cache_full_cleared) else getString(R.string.cache_partial_cleared)
@@ -1382,6 +1388,11 @@ class MainActivity : AppCompatActivity() {
         dialogView.findViewById<View>(R.id.btn_about)?.setOnClickListener {
             dialog.dismiss()
             showAboutDialog()
+        }
+
+        dialogView.findViewById<View>(R.id.btn_check_updates)?.setOnClickListener {
+            dialog.dismiss()
+            UpdateChecker.check(this, force = true)
         }
 
         dialogView.findViewById<View>(R.id.btn_backup_settings)?.setOnClickListener {
@@ -1453,7 +1464,7 @@ class MainActivity : AppCompatActivity() {
                                 val ok = SettingsBackup.restoreFromUri(this@MainActivity, chosen.uri)
                                 if (ok) {
                                     Toast.makeText(this@MainActivity, getString(R.string.settings_restored), Toast.LENGTH_SHORT).show()
-                                    telegramClient.applyProxySettings() // подхватить восстановленный прокси
+                                    telegramClient.applyProxySettings() //   
                                     recreate()
                                 } else {
                                     Toast.makeText(this@MainActivity, getString(R.string.restore_error), Toast.LENGTH_SHORT).show()
@@ -1653,11 +1664,24 @@ class MainActivity : AppCompatActivity() {
         val btnTestManual = dialogView.findViewById<android.widget.Button>(R.id.btn_test_ai_model)
         val tvStatusManual = dialogView.findViewById<android.widget.TextView>(R.id.tv_ai_test_status)
 
-        // Кнопку ручной проверки скрываем, так как проверка будет автоматической
+        //    ,     
         btnTestManual?.visibility = View.GONE
         tvStatusManual?.visibility = View.GONE
 
         switchEnabled.isChecked = PreferenceManager.isAiSummaryEnabled(this)
+
+        // API-:    
+        val tilOpenRouterKey = dialogView.findViewById<TextInputLayout>(R.id.til_openrouter_key)
+        val etOpenRouterKey  = dialogView.findViewById<TextInputEditText>(R.id.et_openrouter_key)
+        val tilGroqKey       = dialogView.findViewById<TextInputLayout>(R.id.til_groq_key)
+        val etGroqKey        = dialogView.findViewById<TextInputEditText>(R.id.et_groq_key)
+        etOpenRouterKey?.setText(PreferenceManager.getOpenRouterApiKey(this))
+        etGroqKey?.setText(PreferenceManager.getGroqApiKey(this))
+
+        fun updateKeyFieldVisibility(provider: String) {
+            tilOpenRouterKey?.visibility = if (provider != "groq") View.VISIBLE else View.GONE
+            tilGroqKey?.visibility       = if (provider == "groq")  View.VISIBLE else View.GONE
+        }
 
         val providers = listOf(
             "openrouter" to "OpenRouter",
@@ -1669,6 +1693,7 @@ class MainActivity : AppCompatActivity() {
 
         val currentProvider = PreferenceManager.getAiProvider(this)
         spinnerProvider.setSelection(providers.indexOfFirst { it.first == currentProvider }.coerceAtLeast(0))
+        updateKeyFieldVisibility(currentProvider)
 
         fun getModelsForProvider(provider: String): List<Pair<String, String>> = when (provider) {
             "groq" -> listOf(
@@ -1702,12 +1727,12 @@ class MainActivity : AppCompatActivity() {
                 val tvStatus = view.findViewById<TextView>(R.id.tv_model_status)
                 
                 tvName.text = item?.second ?: ""
-                val status = modelStatuses[item?.first] ?: "⏳"
+                val status = modelStatuses[item?.first] ?: ""
                 tvStatus.text = status
                 
                 when (status) {
-                    "✅" -> tvStatus.setTextColor(Color.GREEN)
-                    "❌" -> tvStatus.setTextColor(Color.RED)
+                    "" -> tvStatus.setTextColor(Color.GREEN)
+                    "" -> tvStatus.setTextColor(Color.RED)
                     else -> tvStatus.setTextColor(Color.GRAY)
                 }
                 return view
@@ -1726,14 +1751,14 @@ class MainActivity : AppCompatActivity() {
 
             lifecycleScope.launch {
                 currentModels.forEach { modelPair ->
-                    modelStatuses[modelPair.first] = "⏳"
+                    modelStatuses[modelPair.first] = ""
                 }
                 modelAdapter.notifyDataSetChanged()
                 
                 currentModels.map { modelPair ->
                     async {
                         val result = AiProcessor.testModelAvailability(modelPair.first, this@MainActivity)
-                        modelStatuses[modelPair.first] = if (result.first) "✅" else "❌"
+                        modelStatuses[modelPair.first] = if (result.first) "" else ""
                         withContext(Dispatchers.Main) { modelAdapter.notifyDataSetChanged() }
                     }
                 }.awaitAll()
@@ -1743,6 +1768,7 @@ class MainActivity : AppCompatActivity() {
         spinnerProvider.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
                 val newProvider = providers[position].first
+                updateKeyFieldVisibility(newProvider)
                 if (newProvider != PreferenceManager.getAiProvider(this@MainActivity)) {
                     PreferenceManager.setAiProvider(this@MainActivity, newProvider)
                     PreferenceManager.setAiModel(this@MainActivity, PreferenceManager.getDefaultModelForProvider(newProvider))
@@ -1772,6 +1798,9 @@ class MainActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setView(dialogView)
             .setPositiveButton(R.string.save) { _, _ ->
+                //  API-   
+                PreferenceManager.saveOpenRouterApiKey(this, etOpenRouterKey?.text?.toString()?.trim() ?: "")
+                PreferenceManager.saveGroqApiKey(this, etGroqKey?.text?.toString()?.trim() ?: "")
                 PreferenceManager.setAiSummaryEnabled(this, switchEnabled.isChecked)
                 val selectedModel = currentModels[spinnerModel.selectedItemPosition].first
                 val selectedStyle = styles[spinnerStyle.selectedItemPosition].first
@@ -1865,11 +1894,43 @@ class MainActivity : AppCompatActivity() {
             packageManager.getPackageInfo(packageName, 0).versionName
         } catch (_: Exception) { "1.0" }
         dialogView.findViewById<TextView>(R.id.tvVersion).text = getString(R.string.version, versionName)
-        AlertDialog.Builder(this)
+
+        val dialog = AlertDialog.Builder(this)
             .setView(dialogView)
             .setPositiveButton(android.R.string.ok) { _, _ -> showSettingsDialog() }
             .setOnCancelListener { showSettingsDialog() }
-            .show()
+            .create()
+
+        // Кнопка поддержки разработчика: открывает Boosty во внешнем браузере.
+        // Закрываем диалог "О программе" и возвращаемся в настройки для единообразной навигации.
+        dialogView.findViewById<View>(R.id.btn_support_developer)?.setOnClickListener {
+            dialog.dismiss()
+            openDonationPage()
+            showSettingsDialog()
+        }
+
+        dialog.show()
+    }
+
+    /**
+     * Открывает страницу поддержки разработчика во внешнем браузере.
+     *
+     * Внешняя ссылка (ACTION_VIEW), а не платёжный SDK:
+     *  - не требует разрешений и зависимостей;
+     *  - соответствует правилам сторов (добровольная поддержка, не покупка функций);
+     *  - Boosty принимает карты РФ, СБП и рубли без ИП.
+     * fallback: если браузера нет — короткое уведомление.
+     */
+    private fun openDonationPage() {
+        val url = "https://boosty.to/p2petrovich" // ← TODO: подставить реальный адрес Boosty
+        try {
+            startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (_: Exception) {
+            Toast.makeText(this, getString(R.string.file_read_error), Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun showResetAuthConfirmation() {
@@ -1886,9 +1947,9 @@ class MainActivity : AppCompatActivity() {
         binding.btnCollectNews.isEnabled = false
         updateStatus(getString(R.string.status_resetting_auth))
 
-        // [FIX reset] Останавливаем аудиоплеер до выхода: сервис на START_STICKY
-        // иначе продолжит играть текущий трек (и может быть перезапущен системой)
-        // уже после сброса авторизации и очистки настроек.
+        // [FIX reset]    :   START_STICKY
+        //      (    )
+        //       .
         try {
             startService(
                 Intent(this, AudioPlayerService::class.java)
@@ -1900,8 +1961,8 @@ class MainActivity : AppCompatActivity() {
             PreferenceManager.clearAll(this)
             TTSManagerSingleton.clearInstance()
             runOnUiThread {
-                // [FIX reset] Навигацию выполняем только если Activity ещё жива —
-                // колбэк может прийти после поворота/ухода в фон.
+                // [FIX reset]     Activity   
+                //     /  .
                 if (!isFinishing && !isDestroyed) {
                     Toast.makeText(this, getString(R.string.auth_reset_done), Toast.LENGTH_SHORT).show()
                     startActivity(Intent(this, AuthActivity::class.java))
