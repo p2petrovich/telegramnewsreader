@@ -339,7 +339,11 @@ class MainActivity : AppCompatActivity() {
         currentRealNewsCount = 0
         currentNewsFileIndices = emptySet()
         savedDurationInfo = null
-        resetDeduplicator()
+        // NOTE: deduplicator намеренно НЕ сбрасывается здесь — история должна
+        // сохраняться между повторными нажатиями «Собрать новости», чтобы уже
+        // обработанные посты не попадали в плейлист снова.
+        // Явный сброс происходит только при изменении настроек дедупликатора
+        // (showDedupSettingsDialog) и при очистке кэша (showSettingsDialog).
     }
 
     private fun showProgressPanels() {

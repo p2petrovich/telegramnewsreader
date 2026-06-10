@@ -44,6 +44,10 @@ class Deduplicator(
 
     fun getSkippedCount(): Int = skippedCount
 
+    fun resetSkippedCount() {
+        skippedCount = 0
+    }
+
     fun reset() {
         Logx.d("Deduplicator") { "History reset requested. Current size: ${history.size}" }
         history.clear()
