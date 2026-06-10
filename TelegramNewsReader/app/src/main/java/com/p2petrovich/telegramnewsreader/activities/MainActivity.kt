@@ -125,7 +125,7 @@ class MainActivity : AppCompatActivity() {
 
     private var activePresetId: String? = null
 
-    // Deduplicator   
+    // Deduplicator
     private var deduplicator: Deduplicator? = null
 
     companion object {
@@ -344,6 +344,7 @@ class MainActivity : AppCompatActivity() {
         // обработанные посты не попадали в плейлист снова.
         // Явный сброс происходит только при изменении настроек дедупликатора
         // (showDedupSettingsDialog) и при очистке кэша (showSettingsDialog).
+        deduplicator?.resetSkippedCount()   // ← добавить
     }
 
     private fun showProgressPanels() {
