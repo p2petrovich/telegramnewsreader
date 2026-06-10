@@ -7,22 +7,16 @@ import java.io.FileOutputStream
 /**
  * Нативный (чистый Kotlin) ресемплер/нормализатор WAV → 24kHz / mono / 16-bit PCM.
  *
- * Заменяет FFmpeg-ресемплинг (бывший TTSManager.ensureMatchingFormat) для
- * нормализации выхода Android System TTS. Формат выхода synthesizeToFile
- * не стандартизирован и зависит от движка устройства (Google/Samsung/Yandex):
- * sample rate бывает 22050/24000/16000/48000, каналов 1 или 2. Без приведения
- * к единому формату склейка глав (где часть кусков — Edge 24kHz, часть —
- * системный TTS) рассыпается.
+ * Заменяет FFmpeg-ресемплинг для нормализации выхода Android System TTS. 
+ * Формат выхода зависит от движка устройства (Google/Samsung/Yandex). 
+ * Без приведения к единому формату склейка глав (Edge 24kHz + системный TTS) невозможна.
  *
  * Алгоритм:
  *  1. Парсим входной WAV (sampleRate / channels / bits / data-чанк).
- *  2. Приводим к 16-bit signed (8-bit расширяем).
- *  3. Сводим в моно (усреднение каналов).
- *  4. Линейная интерполяция к целевому sample rate (дробный коэффициент ок).
- *  5. Пишем новый WAV с 44-байтным заголовком.
- *
- * Линейной интерполяции для речи достаточно: артефактов на слух не возникает,
- * а нагрузка минимальна.
+ *  2. Приводим к 16-bit signed.
+ *  3. Сводим в моно.
+ *  4. Линейная интерполяция к целевому sample rate (24kHz).
+ *  5. Пишем новый WAV с заголовком из WavUtils.
  */
 object PcmResampler {
 
@@ -41,8 +35,7 @@ object PcmResampler {
 
     /**
      * Нормализует [input] к 24kHz/mono/16bit.
-     * Если файл уже в целевом формате — не трогает его и возвращает сам input
-     * (без лишнего копирования). При ошибке возвращает null.
+     * Если файл уже в целевом формате — не трогает его.
      */
     fun normalizeToTarget(input: File): File? {
         return try {
@@ -52,7 +45,6 @@ object PcmResampler {
                 return null
             }
 
-            // Уже в целевом формате — ничего не делаем.
             if (wav.sampleRate == TARGET_SAMPLE_RATE &&
                 wav.channels == TARGET_CHANNELS &&
                 wav.bitsPerSample == TARGET_BITS
@@ -60,20 +52,12 @@ object PcmResampler {
                 return input
             }
 
-            Log.d(
-                TAG,
-                "Resampling ${input.name}: ${wav.sampleRate}Hz/${wav.channels}ch/${wav.bitsPerSample}bit " +
-                "-> $TARGET_SAMPLE_RATE/mono/16"
-            )
+            Log.d(TAG, "Resampling ${input.name}: ${wav.sampleRate}Hz/${wav.channels}ch/${wav.bitsPerSample}bit -> $TARGET_SAMPLE_RATE/mono/16")
 
-            // 1. data-байты -> массив моно-сэмплов Short (16-bit)
             val monoSamples = toMonoShorts(wav)
-
-            // 2. ресемплинг к целевой частоте (если совпадает — пропускаем)
             val resampled = if (wav.sampleRate == TARGET_SAMPLE_RATE) monoSamples
                             else linearResample(monoSamples, wav.sampleRate, TARGET_SAMPLE_RATE)
 
-            // 3. Short[] -> little-endian byte[]
             val outPcm = ByteArray(resampled.size * 2)
             var j = 0
             for (s in resampled) {
@@ -99,7 +83,6 @@ object PcmResampler {
         }
     }
 
-    /** Декодирует data-байты в массив моно-сэмплов Short, сводя каналы и приводя к 16 бит. */
     private fun toMonoShorts(wav: WavData): ShortArray {
         val ch = wav.channels.coerceAtLeast(1)
         return when (wav.bitsPerSample) {
@@ -109,40 +92,44 @@ object PcmResampler {
                     var acc = 0
                     for (c in 0 until ch) {
                         val idx = (frame * ch + c) * 2
-                        val lo = wav.pcm[idx].toInt() and 0xFF
-                        val hi = wav.pcm[idx + 1].toInt() // знаковый старший байт
-                        acc += (hi shl 8) or lo
+                        if (idx + 1 < wav.pcm.size) {
+                            val lo = wav.pcm[idx].toInt() and 0xFF
+                            val hi = wav.pcm[idx + 1].toInt()
+                            acc += (hi shl 8) or lo
+                        }
                     }
                     (acc / ch).toShort()
                 }
             }
             8 -> {
-                // 8-bit WAV — беззнаковый (0..255), центр 128.
                 val frameCount = wav.pcm.size / ch
                 ShortArray(frameCount) { frame ->
                     var acc = 0
                     for (c in 0 until ch) {
-                        val u = wav.pcm[frame * ch + c].toInt() and 0xFF
-                        acc += (u - 128) shl 8 // расширяем до 16-bit
+                        val idx = frame * ch + c
+                        if (idx < wav.pcm.size) {
+                            val u = wav.pcm[idx].toInt() and 0xFF
+                            acc += (u - 128) shl 8
+                        }
                     }
                     (acc / ch).toShort()
                 }
             }
             else -> {
-                // Нестандартная разрядность — пытаемся трактовать как 16-bit mono.
                 Log.w(TAG, "Unsupported bitsPerSample=${wav.bitsPerSample}, treating as 16-bit")
                 val frameCount = wav.pcm.size / (2 * ch)
                 ShortArray(frameCount) { frame ->
                     val idx = frame * ch * 2
-                    val lo = wav.pcm[idx].toInt() and 0xFF
-                    val hi = wav.pcm[idx + 1].toInt()
-                    ((hi shl 8) or lo).toShort()
+                    if (idx + 1 < wav.pcm.size) {
+                        val lo = wav.pcm[idx].toInt() and 0xFF
+                        val hi = wav.pcm[idx + 1].toInt()
+                        ((hi shl 8) or lo).toShort()
+                    } else 0
                 }
             }
         }
     }
 
-    /** Линейная интерполяция к dstRate. Коэффициент произвольный дробный. */
     private fun linearResample(input: ShortArray, srcRate: Int, dstRate: Int): ShortArray {
         if (input.isEmpty()) return input
         val outLen = ((input.size.toLong() * dstRate) / srcRate).toInt().coerceAtLeast(1)
@@ -159,7 +146,6 @@ object PcmResampler {
         return out
     }
 
-    /** Парсит WAV: ищет fmt и data чанки (устойчиво к доп. чанкам и выравниванию по 2 байта). */
     private fun parseWav(bytes: ByteArray): WavData? {
         if (bytes.size < 44) return null
         if (String(bytes, 0, 4, Charsets.US_ASCII) != "RIFF" ||
@@ -195,42 +181,16 @@ object PcmResampler {
                 }
                 "data" -> {
                     dataOffset = body
-                    // Некоторые TTS-движки пишут размер 0 или некорректный до
-                    // завершения синтеза — тогда берём остаток файла.
                     dataSize = if (sz <= 0 || body + sz > bytes.size) bytes.size - body else sz
                 }
             }
             if (id == "data") break
-            i = body + sz + (sz and 1) // выравнивание по 2 байта
+            i = body + sz + (sz and 1)
         }
 
         if (sampleRate == 0 || channels == 0 || bits == 0 || dataOffset < 0) return null
 
         val pcm = bytes.copyOfRange(dataOffset, dataOffset + dataSize)
         return WavData(sampleRate, channels, bits, pcm)
-    }
-
-    /** Строит стандартный 44-байтный WAV-заголовок. */
-    private fun buildWavHeader(pcmSize: Int, sampleRate: Int, channels: Int, bitsPerSample: Int): ByteArray {
-        val byteRate = sampleRate * channels * bitsPerSample / 8
-        val blockAlign = channels * bitsPerSample / 8
-        val header = ByteArray(44)
-        fun writeLE(value: Int, offset: Int, n: Int) {
-            for (b in 0 until n) header[offset + b] = ((value shr (8 * b)) and 0xFF).toByte()
-        }
-        "RIFF".toByteArray().copyInto(header, 0)
-        writeLE(36 + pcmSize, 4, 4)
-        "WAVE".toByteArray().copyInto(header, 8)
-        "fmt ".toByteArray().copyInto(header, 12)
-        writeLE(16, 16, 4)
-        writeLE(1, 20, 2)
-        writeLE(channels, 22, 2)
-        writeLE(sampleRate, 24, 4)
-        writeLE(byteRate, 28, 4)
-        writeLE(blockAlign, 32, 2)
-        writeLE(bitsPerSample, 34, 2)
-        "data".toByteArray().copyInto(header, 36)
-        writeLE(pcmSize, 40, 4)
-        return header
     }
 }
