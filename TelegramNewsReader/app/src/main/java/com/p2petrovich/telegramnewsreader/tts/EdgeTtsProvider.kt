@@ -1,10 +1,14 @@
 package com.p2petrovich.telegramnewsreader.tts
 
 import android.content.Context
+import android.media.MediaCodec
+import android.media.MediaExtractor
 import android.util.Log
 import com.p2petrovich.telegramnewsreader.ApiConfig
 import com.p2petrovich.telegramnewsreader.utils.EdgeConfig
 import com.p2petrovich.telegramnewsreader.utils.HttpClients
+import com.p2petrovich.telegramnewsreader.utils.buildWavHeader
+import com.p2petrovich.telegramnewsreader.utils.findDataChunkOffset
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
@@ -29,18 +33,10 @@ import kotlin.coroutines.resume
  *
  * Использует неофициальный WebSocket API, тот же что Edge браузер.
  * Голоса: ru-RU-DmitryNeural (муж), ru-RU-SvetlanaNeural (жен).
- * Выходной формат: WAV (raw-24khz-16bit-mono-pcm) — совместим с текущим пайплайном.
+ * Выходной формат: MP3 (audio-24khz-48kbitrate-mono-mp3) — декодируется в WAV через MediaCodec.
  * Бесплатно, без API ключа.
  *
  * Алгоритм Sec-MS-GEC и SSML — повторяют эталон rany2/edge-tts.
- *
- * Важно: в новой версии протокола Microsoft turn.end может приходить как бинарный фрейм
- * (с заголовком Path:turn.end), а не как текстовый. Бинарный обработчик это учитывает.
- *
- * [FFmpeg removed] Раньше Edge запрашивался в формате
- * audio-24khz-48kbitrate-mono-mp3 и декодировался в WAV через FFmpegKit.
- * Теперь запрашивается сразу raw-24khz-16bit-mono-pcm — MP3-декодер не нужен,
- * к голым PCM-байтам просто приписывается WAV-заголовок (writePcmToWav).
  */
 class EdgeTtsProvider(
     private val context: Context,
@@ -100,21 +96,14 @@ class EdgeTtsProvider(
         fun formatRatePct(rate: Int): String = if (rate >= 0) "+${rate}%" else "${rate}%"
         fun formatPitchHz(pitch: Int): String = if (pitch >= 0) "+${pitch}Hz" else "${pitch}Hz"
 
-        // ─── Страховочная очистка перед SSML ────────────────────────────────
-        // Основная чистка делается в prepareForSpeech (TTSManager) ДО вызова
-        // провайдера. Здесь — только защита от символов, которые ломают SSML
-        // или вызывают паузы/ошибки в Microsoft Neural, если что-то просочилось.
         private val SSML_GEOMETRIC_PATTERN = Regex(
             "[\\u25A0-\\u25FF\\u2B00-\\u2BFF▪▫◻◼◽◾◦‣⁃•·∙▸▹►▻🔹🔸🔶🔷🔺🔻🟠🟡🟢🟣🟤🟥🟦🟧🟨🟩🟪🟫⬛⬜]"
         )
         private val SSML_VARIATION_SELECTOR_PATTERN = Regex("[\\uFE00-\\uFE0F\\u200D]")
         private val SSML_EMOJI_PATTERN = Regex("[\\p{So}\\p{Sk}]")
-        // Управляющие символы C0/C1, кроме допустимых \t \n \r (XML 1.0 их запрещает)
         private val SSML_CONTROL_PATTERN = Regex("[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F-\\u009F]")
         private val SSML_MULTI_SPACE_PATTERN = Regex("[ \\t]{2,}")
     }
-
-    // ─── Публичный метод: текст → WAV файл ───────────────────────────────────
 
     /**
      * Синтезирует [text] в WAV-файл [outputFile].
@@ -136,8 +125,6 @@ class EdgeTtsProvider(
         }
     }
 
-    // ─── Длинный текст: разбить → синтезировать части → склеить ─────────────
-
     private suspend fun synthesizeLong(text: String, outputFile: File): Boolean {
         val parts = splitText(text, MAX_CHARS)
         val tempFiles = mutableListOf<File>()
@@ -158,17 +145,6 @@ class EdgeTtsProvider(
         }
     }
 
-    /**
-     * Генерирует Sec-MS-GEC токен.
-     *
-     * Алгоритм (1-в-1 с rany2/edge-tts drm.py):
-     *  1. Unix timestamp (секунды, double)
-     *  2. + WIN_EPOCH (переход к Windows file time, 1601-01-01)
-     *  3. округление вниз до 5 минут (% 300)
-     *  4. * 1e9 / 100 — перевод в 100-нс интервалы
-     *  5. форматирование как целое
-     *  6. SHA-256(ticksStr + TRUSTED_CLIENT_TOKEN) → uppercase hex
-     */
     private fun generateSecMsGec(): String {
         var ticks: Double = System.currentTimeMillis() / 1000.0
         ticks += WIN_EPOCH
@@ -183,8 +159,6 @@ class EdgeTtsProvider(
             .digest(strToHash.toByteArray(Charsets.US_ASCII))
         return digest.joinToString("") { "%02X".format(it) }
     }
-
-    // ─── Синтез одной части через WebSocket ──────────────────────────────────
 
     private suspend fun synthesizePart(text: String, outputFile: File): Boolean {
         return suspendCancellableCoroutine { continuation ->
@@ -219,10 +193,9 @@ class EdgeTtsProvider(
                 .build()
 
             val audioBuf = ByteArrayOutputStream()
-            var turned   = false  // получили turn.end?
+            var turned   = false
             var resumed  = false
 
-            // Единая точка завершения с защитой от двойного вызова
             fun finish(ws: WebSocket?, success: Boolean, reason: String) {
                 if (resumed) return
                 resumed = true
@@ -230,9 +203,9 @@ class EdgeTtsProvider(
                 Log.d(TAG, "finish: success=$success, reason=$reason, audioSize=${audioBuf.size()}")
                 try { ws?.close(1000, "done") } catch (_: Exception) {}
                 val bytes = synchronized(audioBuf) { audioBuf.toByteArray() }
-                // [FFmpeg removed] Раньше: writeMp3ToWav (декод MP3 через FFmpeg).
-                // Теперь Edge отдаёт голый PCM — просто приписываем WAV-заголовок.
-                val ok = if (success) writePcmToWav(bytes, outputFile) else false
+                
+                // Декодируем MP3 в WAV через MediaCodec
+                val ok = if (success) writeMp3ToWav(bytes, outputFile) else false
                 if (continuation.isActive) continuation.resume(ok)
             }
 
@@ -246,7 +219,6 @@ class EdgeTtsProvider(
                     webSocket.send(ssml)
                 }
 
-                // Текстовые фреймы — служебные (turn.start / turn.end / response)
                 override fun onMessage(webSocket: WebSocket, text: String) {
                     val path = extractPath(text)
                     Log.d(TAG, "← text frame (path: $path)")
@@ -255,7 +227,6 @@ class EdgeTtsProvider(
                     }
                 }
 
-                // Бинарные фреймы — аудио ИЛИ служебные (turn.end иногда приходит как binary)
                 override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
                     val data = bytes.toByteArray()
                     if (data.size < 2) return
@@ -280,9 +251,6 @@ class EdgeTtsProvider(
                             Log.d(TAG, "← turn.end (binary)")
                             finish(webSocket, success = true, reason = "turn.end (binary)")
                         }
-                        else -> {
-                            Log.d(TAG, "← binary frame, path='$path', header='${header.take(160)}'")
-                        }
                     }
                 }
 
@@ -301,9 +269,7 @@ class EdgeTtsProvider(
 
                 override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
                     Log.d(TAG, "WS closing code=$code reason='$reason' turned=$turned audioSize=${audioBuf.size()}")
-                    // Подтверждаем закрытие со стороны клиента
                     try { webSocket.close(1000, null) } catch (_: Exception) {}
-                    // Если уже получили аудио, но turn.end не пришёл — записываем что есть
                     if (!resumed) {
                         val hasAudio = audioBuf.size() > 0
                         finish(null, success = hasAudio, reason = "onClosing")
@@ -325,10 +291,6 @@ class EdgeTtsProvider(
         }
     }
 
-    /**
-     * Извлекает значение Path: из заголовка фрейма.
-     * Заголовки приходят в формате "Header:value\r\nHeader2:value2\r\n\r\n".
-     */
     private fun extractPath(header: String): String? {
         return header.lines().firstOrNull { it.startsWith("Path:", ignoreCase = true) }
             ?.substringAfter(":")
@@ -336,18 +298,14 @@ class EdgeTtsProvider(
             ?.ifEmpty { null }
     }
 
-    // ─── Построение WebSocket сообщений ──────────────────────────────────────
-
     private fun buildConfigMsg(timestamp: String): String {
         val header = "X-Timestamp:$timestamp\r\n" +
                      "Content-Type:application/json; charset=utf-8\r\n" +
                      "Path:speech.config\r\n\r\n"
-        // [FFmpeg removed] Формат изменён с audio-24khz-48kbitrate-mono-mp3
-        // на raw-24khz-16bit-mono-pcm: Microsoft присылает голый PCM без
-        // MP3-контейнера, что снимает необходимость в декодере (FFmpeg).
+        // Снова используем MP3, так как raw PCM не поддерживается через WebSocket
         val body = """{"context":{"synthesis":{"audio":{"metadataoptions":""" +
                    """{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},""" +
-                   """"outputFormat":"raw-24khz-16bit-mono-pcm"}}}}"""
+                   """"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}"""
         return header + body
     }
 
@@ -359,19 +317,10 @@ class EdgeTtsProvider(
         return header + buildSsml(text)
     }
 
-    /**
-     * SSML в формате rany2/edge-tts: одна строка, одинарные кавычки, xml:lang='en-US',
-     * атрибуты в порядке pitch → rate → volume.
-     *
-     * Перед экранированием — страховочная очистка: убираем эмодзи/геометрию/
-     * управляющие символы, которые могли просочиться мимо prepareForSpeech и
-     * вызвать паузу или ошибку парсинга SSML в Microsoft Neural.
-     */
     private fun buildSsml(text: String): String {
         val rateStr  = formatRatePct(ratePct)
         val pitchStr = formatPitchHz(pitchHz)
 
-        // Страховка (дублирует prepareForSpeech, но это дёшево и безопасно):
         var safe = text
         safe = SSML_GEOMETRIC_PATTERN.replace(safe, " ")
         safe = SSML_VARIATION_SELECTOR_PATTERN.replace(safe, "")
@@ -379,7 +328,6 @@ class EdgeTtsProvider(
         safe = SSML_CONTROL_PATTERN.replace(safe, "")
         safe = SSML_MULTI_SPACE_PATTERN.replace(safe, " ").trim()
 
-        // XML-экранирование (порядок важен: & первым, иначе испортит &amp;/&lt;)
         val escaped = safe
             .replace("&", "&amp;")
             .replace("<", "&lt;")
@@ -393,46 +341,109 @@ class EdgeTtsProvider(
                "</prosody></voice></speak>"
     }
 
-    // ─── WAV утилиты ─────────────────────────────────────────────────────────
+    // ─── Декодирование MP3 через MediaCodec ─────────────────────────────────
 
-    /**
-     * [FFmpeg removed] Сохраняет голые PCM-байты во WAV-файл.
-     *
-     * Раньше этот метод назывался writeMp3ToWav: он сохранял MP3 во временный
-     * файл и декодировал в WAV через FFmpegKit. После перехода Edge на формат
-     * raw-24khz-16bit-mono-pcm декодировать нечего — Microsoft присылает уже
-     * готовый 16-bit PCM поток, к которому достаточно приписать стандартный
-     * 44-байтный RIFF-заголовок. Выход: 24kHz / 16bit / mono — совместим
-     * с остальным пайплайном (Android TTS нормализуется к тому же формату).
-     */
-    private fun writePcmToWav(pcmBytes: ByteArray, outputFile: File): Boolean {
-        if (pcmBytes.isEmpty()) {
-            Log.e(TAG, "writePcmToWav: empty PCM buffer for ${outputFile.name}")
+    private fun writeMp3ToWav(mp3Bytes: ByteArray, outputFile: File): Boolean {
+        if (mp3Bytes.isEmpty()) {
+            Log.e(TAG, "writeMp3ToWav: empty MP3 buffer for ${outputFile.name}")
             return false
         }
         return try {
+            val pcm = decodeMp3ToPcm(mp3Bytes)
+            if (pcm.isEmpty()) {
+                Log.e(TAG, "writeMp3ToWav: MediaCodec returned empty PCM")
+                return false
+            }
             val header = buildWavHeader(
-                pcmSize = pcmBytes.size,
-                sampleRate = 24000,
-                channels = 1,
+                pcmSize       = pcm.size,
+                sampleRate    = 24000,
+                channels      = 1,
                 bitsPerSample = 16
             )
             FileOutputStream(outputFile).use { os ->
                 os.write(header)
-                os.write(pcmBytes)
+                os.write(pcm)
             }
             val ok = outputFile.exists() && outputFile.length() > 44
-            Log.d(TAG, "writePcmToWav: wrote ${pcmBytes.size} PCM bytes, outSize=${outputFile.length()}, ok=$ok")
+            Log.d(TAG, "writeMp3ToWav: wrote ${pcm.size} PCM bytes, ok=$ok")
             ok
         } catch (e: Exception) {
-            Log.e(TAG, "writePcmToWav failed: ${e.message}")
+            Log.e(TAG, "writeMp3ToWav failed: ${e.message}")
             false
         }
     }
 
-    /**
-     * Склейка нескольких WAV (одинаковый формат 24kHz/16bit/mono).
-     */
+    private fun decodeMp3ToPcm(mp3Bytes: ByteArray): ByteArray {
+        val extractor = MediaExtractor()
+        extractor.setDataSource(object : android.media.MediaDataSource() {
+            override fun readAt(position: Long, buffer: ByteArray, offset: Int, size: Int): Int {
+                val remaining = (mp3Bytes.size - position).toInt()
+                if (remaining <= 0) return -1
+                val read = minOf(size, remaining)
+                System.arraycopy(mp3Bytes, position.toInt(), buffer, offset, read)
+                return read
+            }
+            override fun getSize() = mp3Bytes.size.toLong()
+            override fun close() {}
+        })
+
+        var audioFormat: android.media.MediaFormat? = null
+        var trackIndex = -1
+        for (i in 0 until extractor.trackCount) {
+            val fmt = extractor.getTrackFormat(i)
+            if (fmt.getString(android.media.MediaFormat.KEY_MIME)?.startsWith("audio/") == true) {
+                audioFormat = fmt
+                trackIndex = i
+                break
+            }
+        }
+        if (trackIndex < 0 || audioFormat == null) return ByteArray(0)
+        extractor.selectTrack(trackIndex)
+
+        val mime = audioFormat.getString(android.media.MediaFormat.KEY_MIME)!!
+        val codec = MediaCodec.createDecoderByType(mime)
+        codec.configure(audioFormat, null, null, 0)
+        codec.start()
+
+        val output = ByteArrayOutputStream()
+        val info = MediaCodec.BufferInfo()
+        var sawEOS = false
+
+        while (true) {
+            if (!sawEOS) {
+                val inIdx = codec.dequeueInputBuffer(10_000)
+                if (inIdx >= 0) {
+                    val buf = codec.getInputBuffer(inIdx)!!
+                    val sampleSize = extractor.readSampleData(buf, 0)
+                    if (sampleSize < 0) {
+                        codec.queueInputBuffer(inIdx, 0, 0, 0,
+                            MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                        sawEOS = true
+                    } else {
+                        codec.queueInputBuffer(inIdx, 0, sampleSize,
+                            extractor.sampleTime, 0)
+                        extractor.advance()
+                    }
+                }
+            }
+            val outIdx = codec.dequeueOutputBuffer(info, 10_000)
+            if (outIdx >= 0) {
+                val buf = codec.getOutputBuffer(outIdx)!!
+                val chunk = ByteArray(info.size)
+                buf.get(chunk)
+                output.write(chunk)
+                codec.releaseOutputBuffer(outIdx, false)
+                if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) break
+            }
+            if (sawEOS && outIdx < 0) break
+        }
+
+        codec.stop()
+        codec.release()
+        extractor.release()
+        return output.toByteArray()
+    }
+
     private fun concatPcmWavFiles(files: List<File>, output: File): Boolean {
         if (files.isEmpty()) return false
         if (files.size == 1) {
@@ -473,49 +484,6 @@ class EdgeTtsProvider(
         }
     }
 
-    /** Находит смещение начала PCM-данных (после "data" chunk header). */
-    private fun findDataChunkOffset(wav: ByteArray): Int {
-        var i = 12
-        while (i + 8 <= wav.size) {
-            val chunkId   = String(wav, i, 4, Charsets.US_ASCII)
-            val chunkSize = ((wav[i+4].toInt() and 0xFF))       or
-                            ((wav[i+5].toInt() and 0xFF) shl 8)  or
-                            ((wav[i+6].toInt() and 0xFF) shl 16) or
-                            ((wav[i+7].toInt() and 0xFF) shl 24)
-            i += 8
-            if (chunkId == "data") return i
-            i += chunkSize
-        }
-        return -1
-    }
-
-    /** Строит стандартный 44-байтный WAV-заголовок. */
-    private fun buildWavHeader(pcmSize: Int, sampleRate: Int, channels: Int, bitsPerSample: Int): ByteArray {
-        val byteRate   = sampleRate * channels * bitsPerSample / 8
-        val blockAlign = channels * bitsPerSample / 8
-        val header     = ByteArray(44)
-
-        fun writeLE(value: Int, offset: Int, bytes: Int) {
-            for (b in 0 until bytes) header[offset + b] = ((value shr (8 * b)) and 0xFF).toByte()
-        }
-        "RIFF".toByteArray().copyInto(header, 0)
-        writeLE(36 + pcmSize, 4, 4)
-        "WAVE".toByteArray().copyInto(header, 8)
-        "fmt ".toByteArray().copyInto(header, 12)
-        writeLE(16,           16, 4)
-        writeLE(1,            20, 2)
-        writeLE(channels,     22, 2)
-        writeLE(sampleRate,   24, 4)
-        writeLE(byteRate,     28, 4)
-        writeLE(blockAlign,   32, 2)
-        writeLE(bitsPerSample,34, 2)
-        "data".toByteArray().copyInto(header, 36)
-        writeLE(pcmSize,      40, 4)
-        return header
-    }
-
-    // ─── Вспомогательные ─────────────────────────────────────────────────────
-
     private fun uuid() = UUID.randomUUID().toString().replace("-", "")
 
     private fun isoTimestamp(): String {
@@ -524,7 +492,6 @@ class EdgeTtsProvider(
         return sdf.format(Date())
     }
 
-    /** Разбивает текст по предложениям, не превышая maxChars. */
     private fun splitText(text: String, maxChars: Int): List<String> {
         val parts   = mutableListOf<String>()
         val current = StringBuilder()
