@@ -1032,12 +1032,13 @@ class MainActivity : AppCompatActivity() {
 
         val timeHours = timeValues[currentTimePeriodIndex]
         startTime = System.currentTimeMillis()
-        resetCollectionState()
+        resetCollectionState()   // внутри уже вызывает resetProgressCounters()
         showProgressPanels()
         selectedChannels.forEach { it.newMessagesCount = -1 }
         updateChannelProgress(selectedChannels)
 
-        resetProgressCounters()
+        // [FIX] Убран дублирующий resetProgressCounters() — он уже вызывается внутри
+        // resetCollectionState(). Двойной вызов был артефактом рефакторинга.
 
         //     
         getDeduplicator()

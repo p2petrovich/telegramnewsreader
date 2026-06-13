@@ -451,7 +451,18 @@ class TelegramClient(private val context: Context) {
             }
         }
 
-        loadPage(0)
+        // [FIX] loadPage(0) вызывал GetChatHistory с fromMessageId=0, что для каналов
+        // означает «с текущей инкрементальной позиции TDLib», а не «с последнего сообщения».
+        // После первого сбора TDLib запоминает позицию = ID последнего полученного сообщения,
+        // и следующий вызов с fromMessageId=0 возвращает только 3 новых — вместо всей истории.
+        //
+        // Решение: получаем реальный lastMessage.id через GetChat и передаём lastMsgId+1,
+        // что означает «все сообщения до этого ID включительно» — полная история без смещения.
+        client?.send(TdApi.GetChat(channelId)) { chatResult ->
+            if (isCancelled.get() || isResumed.get()) return@send
+            val latestMsgId = (chatResult as? TdApi.Chat)?.lastMessage?.id ?: 0L
+            loadPage(if (latestMsgId > 0L) latestMsgId + 1L else 0L)
+        }
     }
 
     fun logoutAndReset(callback: () -> Unit) {
