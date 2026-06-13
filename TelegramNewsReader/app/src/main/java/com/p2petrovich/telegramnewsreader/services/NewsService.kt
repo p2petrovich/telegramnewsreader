@@ -249,7 +249,8 @@ class NewsService(
                 }
 
                 // ───────── ЭТАП 1: СЫРЫЕ НОВОСТИ ─────────
-                logStage("1_RAW", allMessages)
+                // DEBUG_LOGS: временно закомментировано — можно включить для отладки pipeline.
+                // logStage("1_RAW", allMessages)
 
                 val totalCollected = realNewsCount
                 progressCallback.onUpdateNewsPreview(newsPreview)
@@ -275,7 +276,8 @@ class NewsService(
                 val filteredNewsCount = filteredMessages.count { !isChannelHeader(it) }
 
                 // ───────── ЭТАП 2: ПОСЛЕ ФИЛЬТРАЦИИ ─────────
-                logStage("2_FILTER", filteredMessages)
+                // DEBUG_LOGS: временно закомментировано — можно включить для отладки pipeline.
+                // logStage("2_FILTER", filteredMessages)
 
                 ensureActive()
 
@@ -287,7 +289,8 @@ class NewsService(
                 Log.d(TAG, "After across-channel dedup: ${deduplicated.size} (news: $dedupNewsCount, threshold=$crossThreshold)")
 
                 // ───────── ЭТАП 3: ПОСЛЕ ДЕДУПЛИКАЦИИ МЕЖДУ КАНАЛАМИ ─────────
-                logStage("3_DEDUP", deduplicated)
+                // DEBUG_LOGS: временно закомментировано — можно включить для отладки pipeline.
+                // logStage("3_DEDUP", deduplicated)
 
                 progressCallback.onDeduplicationComplete(totalCollected, dedupNewsCount)
 
@@ -313,13 +316,15 @@ class NewsService(
                 }
 
                 // ───────── ЭТАП 4: ПОСЛЕ Deduplicator ─────────
-                logStage("4_AFTER_DEDUPLICATOR", afterDedup)
+                // DEBUG_LOGS: временно закомментировано — можно включить для отладки pipeline.
+                // logStage("4_AFTER_DEDUPLICATOR", afterDedup)
 
                 val afterDropTrivial = TextProcessor.dropTrivial(afterDedup)
                 val totalToSynthesizeBeforeAi = afterDropTrivial.count { !isChannelHeader(it) }
 
                 // ───────── ЭТАП 5: ПОСЛЕ dropTrivial ─────────
-                logStage("5_DROP_TRIVIAL", afterDropTrivial)
+                // DEBUG_LOGS: временно закомментировано — можно включить для отладки pipeline.
+                // logStage("5_DROP_TRIVIAL", afterDropTrivial)
 
                 ensureActive()
 
@@ -346,8 +351,9 @@ class NewsService(
                                     val rawResult = AiProcessor.summarizeNews(msgWithoutPrefix, context)
                                     val summarized = cleanTimePrefix + AiProcessor.stripErrorPrefix(rawResult)
 
-                                    Log.d(TAG, "AI_IN : ${msgWithoutPrefix.replace("\n", "\\n").take(300)}")
-                                    Log.d(TAG, "AI_OUT: ${summarized.replace("\n", "\\n").take(300)}")
+                                    // DEBUG_LOGS: временно закомментировано — можно включить для отладки AI pipeline.
+                                    // Log.d(TAG, "AI_IN : ${msgWithoutPrefix.replace("\n", "\\n").take(300)}")
+                                    // Log.d(TAG, "AI_OUT: ${summarized.replace("\n", "\\n").take(300)}")
 
                                     synchronized(this@NewsService) {
                                         processedCount++
@@ -374,14 +380,16 @@ class NewsService(
                     progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_processing_completed_status), 100, 100)
                     filteredResults
                 } else {
-                    Log.d(TAG, "═══════ AI ОБРАБОТКА ОТКЛЮЧЕНА ═══════")
+                    // DEBUG_LOGS: временно закомментировано — можно включить для отладки AI pipeline.
+                    // Log.d(TAG, "═══════ AI ОБРАБОТКА ОТКЛЮЧЕНА ═══════")
                     afterDropTrivial
                 }
 
                 val finalToSynthesize = finalMessages.count { !isChannelHeader(it) }
 
                 // ───────── ЭТАП 6: ФИНАЛ ДЛЯ TTS ─────────
-                logStage("6_FINAL_FOR_TTS", finalMessages)
+                // DEBUG_LOGS: временно закомментировано — можно включить для отладки pipeline.
+                // logStage("6_FINAL_FOR_TTS", finalMessages)
 
                 progressCallback.onUpdateCounters(totalCollected, finalToSynthesize, 0)
                 progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.prepared_for_synthesis_status), 100, 100)

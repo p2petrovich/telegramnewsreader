@@ -71,10 +71,12 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         private const val EDGE_RETRY_ATTEMPTS = 3
         private const val EDGE_RETRY_DELAY_MS = 500L
 
+        // DEBUG_LOGS: временно закомментировано — можно включить для отладки синтеза.
         // Лог финального текста перед синтезом (после prepareForSpeech).
         // true — печатает то, что реально идёт в TTS, кусками по 800 символов.
         // Удобно для проверки чистки. Выключи в релизе.
-        private const val LOG_SYNTH_INPUT = true
+        // private const val LOG_SYNTH_INPUT = true
+        private const val LOG_SYNTH_INPUT = false
     }
 
     private var tts: TextToSpeech? = null
