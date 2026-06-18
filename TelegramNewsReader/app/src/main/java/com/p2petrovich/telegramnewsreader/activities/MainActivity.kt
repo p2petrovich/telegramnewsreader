@@ -26,6 +26,9 @@ import android.widget.Toast
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import com.p2petrovich.telegramnewsreader.managers.PresetController
+import com.p2petrovich.telegramnewsreader.viewmodels.MainViewModel
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -76,6 +79,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var channelAdapter: ChannelAdapter
     private lateinit var ttsManager: TTSManager
     private lateinit var newsService: NewsService
+    private lateinit var presetController: PresetController
+
+    private val viewModel: MainViewModel by viewModels()
 
     private val importLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let {
@@ -101,27 +107,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var lastUsedVoice: String? = null
-    private var isClientReady = false
     private var isClientReadyCallbackProcessed = false
-    private var currentPlaylist: List<File> = emptyList()
-    private var currentRealNewsCount: Int = 0
-    private var currentNewsFileIndices: Set<Int> = emptySet()
     private var savedDurationInfo: String? = null
     private val pendingPhotos = mutableMapOf<Long, String>()
 
     private var progressExecutor: ScheduledExecutorService? = null
-    private var startTime: Long = 0
     private var totalProgressSteps: Int = 0
-    private var currentProgressStep: Int = 0
     private var newsCollectionJob: Job? = null
-
-    private var lastTotalCollected = 0
-    private var lastAfterDedup = 0
-    private var lastAfterFilter = 0
-    private var lastToSynthesize = 0
-    private var lastSynthesized = 0
+    private var currentPlaylist: List<File> = emptyList()
+    private var currentRealNewsCount: Int = 0
+    private var currentNewsFileIndices: Set<Int> = emptySet()
+    private var startTime: Long = 0
+    private var currentProgressStep: Int = 0
     private var lastSkippedDuplicates = 0
-    private var lastAfterAi = 0
 
     private var activePresetId: String? = null
 
@@ -185,6 +183,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun observeViewModel() {
+        viewModel.isClientReady.observe(this) { updateUIForReadyClient() }
+        viewModel.lastTotalCollected.observe(this) { updatePipelineStatus() }
+        viewModel.lastAfterDedup.observe(this) { updatePipelineStatus() }
+        viewModel.lastAfterFilter.observe(this) { updatePipelineStatus() }
+        viewModel.lastAfterAi.observe(this) { updatePipelineStatus() }
+        viewModel.lastToSynthesize.observe(this) { updatePipelineStatus() }
+        viewModel.lastSynthesized.observe(this) { updatePipelineStatus() }
+        viewModel.lastSkippedDuplicates.observe(this) { updatePipelineStatus() }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val themeResId = TelegramNewsApplication.getThemeResId(this)
         setTheme(themeResId)
@@ -210,6 +219,7 @@ class MainActivity : AppCompatActivity() {
         setupUI()
         setupPresets()
         initializeTelegramClient()
+        observeViewModel()
 
         lastUsedVoice = PreferenceManager.getTtsVoiceName(this)
 
@@ -309,13 +319,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateNewsCollectionButton() {
         val selectedCount = channelAdapter.getSelectedChannels().size
+        val isClientReady = viewModel.isClientReady.value ?: false
         binding.btnCollectNews.isEnabled = selectedCount > 0 && isClientReady
         binding.btnCollectNews.text = getString(R.string.collect_news)
     }
 
     private fun startTimer() {
         stopTimer()
-        startTime = System.currentTimeMillis()
+        viewModel.setStartTime(System.currentTimeMillis())
         progressExecutor = Executors.newSingleThreadScheduledExecutor()
         progressExecutor?.scheduleWithFixedDelay({
             runOnUiThread { updateETA() }
@@ -325,6 +336,7 @@ class MainActivity : AppCompatActivity() {
     private fun stopTimer() {
         progressExecutor?.shutdown()
         progressExecutor = null
+        viewModel.setStartTime(0L)
     }
 
     private fun resetCollectionState() {
@@ -335,9 +347,7 @@ class MainActivity : AppCompatActivity() {
         updateNewsCollectionButton()
         updateUIForReadyClient()
 
-        currentPlaylist = emptyList()
-        currentRealNewsCount = 0
-        currentNewsFileIndices = emptySet()
+        viewModel.setPlaylistData(emptyList(), 0, emptySet())
         savedDurationInfo = null
         // NOTE: deduplicator намеренно НЕ сбрасывается здесь — история должна
         // сохраняться между повторными нажатиями «Собрать новости», чтобы уже
@@ -354,16 +364,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun resetProgressCounters() {
-        lastTotalCollected = 0
-        lastAfterDedup = 0
-        lastAfterFilter = 0
-        lastToSynthesize = 0
-        lastAfterAi = 0
-        lastSynthesized = 0
-        lastSkippedDuplicates = 0
-        currentProgressStep = 0
-        totalProgressSteps = 0
-        startTime = 0
+        viewModel.resetProgressCounters()
 
         binding.progressBarDetailed.progress = 0
         binding.tvProgressPercentage.text = getString(R.string.percentage, 0)
@@ -378,6 +379,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun updatePipelineStatus() {
         binding.llPipelineStatus.visibility = View.VISIBLE
+        val lastTotalCollected = viewModel.lastTotalCollected.value ?: 0
+        val lastAfterDedup = viewModel.lastAfterDedup.value ?: 0
+        val lastAfterFilter = viewModel.lastAfterFilter.value ?: 0
+        val lastAfterAi = viewModel.lastAfterAi.value ?: 0
+        val lastToSynthesize = viewModel.lastToSynthesize.value ?: 0
+        val lastSkippedDuplicates = viewModel.lastSkippedDuplicates.value ?: 0
+        val lastSynthesized = viewModel.lastSynthesized.value ?: 0
+
         val parts = mutableListOf<String>()
         parts.add(getString(R.string.collected_count, lastTotalCollected))
 
@@ -462,6 +471,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateETA() {
+        val startTime = viewModel.startTime.value ?: 0L
+        if (startTime == 0L) return
         val elapsedMs = System.currentTimeMillis() - startTime
         val elapsedSec = elapsedMs / 1000
 
@@ -474,6 +485,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        val currentProgressStep = viewModel.currentProgressStep.value ?: 0
         if (elapsedSec < 3 || currentProgressStep <= 0 || totalProgressSteps <= 0) {
             binding.tvEta.text = getString(R.string.collection_status_combined, elapsedText, getString(R.string.eta_calculating))
             return
@@ -536,6 +548,16 @@ class MainActivity : AppCompatActivity() {
             onHideRequest = { channel -> confirmHideChannel(channel) }
         )
 
+        presetController = PresetController(
+            activity = this,
+            binding = binding,
+            channelAdapter = channelAdapter,
+            timePeriods = timePeriods,
+            onPresetApplied = { preset -> applyPreset(preset) },
+            onPresetAndCollect = { preset -> applyPresetAndCollect(preset) },
+            onSelectionSaved = { saveCurrentSelection() }
+        )
+
         binding.recyclerChannels.layoutManager = LinearLayoutManager(this)
         binding.recyclerChannels.adapter = channelAdapter
     }
@@ -548,7 +570,7 @@ class MainActivity : AppCompatActivity() {
         if (activePreset != null && selectedIds != activePreset.channelIds) {
             PresetManager.setActivePresetId(this, null)
             activePresetId = null
-            refreshPresetChips()
+            presetController.refreshPresetChips()
         }
         updateChannelStats()
     }
@@ -567,24 +589,11 @@ class MainActivity : AppCompatActivity() {
     private fun setupPresets() {
         restoreLastSelection()
 
-        binding.btnSavePreset.setOnClickListener {
-            val selected = channelAdapter.getSelectedChannels()
-            if (selected.isEmpty()) {
-                Toast.makeText(this, getString(R.string.select_channels_first), Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            showCreatePresetDialog(selected)
-        }
-
-        binding.btnManagePresets.setOnClickListener {
-            showPresetsManagerDialog()
-        }
-
         binding.btnDeselectAll.setOnClickListener {
             deselectAllChannels()
         }
 
-        refreshPresetChips()
+        presetController.setup { currentTimePeriodIndex }
     }
 
     private fun deselectAllChannels() {
@@ -595,7 +604,7 @@ class MainActivity : AppCompatActivity() {
 
         updateNewsCollectionButton()
         saveCurrentSelection()
-        refreshPresetChips()
+        presetController.refreshPresetChips()
 
         Toast.makeText(this, getString(R.string.selection_cleared), Toast.LENGTH_SHORT).show()
     }
@@ -617,7 +626,7 @@ class MainActivity : AppCompatActivity() {
 
         updateNewsCollectionButton()
         PresetManager.saveLastSelection(this, preset.channelIds, preset.timePeriodIndex)
-        refreshPresetChips()
+        presetController.refreshPresetChips()
         updateChannelStats()
         Toast.makeText(this, getString(R.string.preset_n_applied, preset.name), Toast.LENGTH_SHORT).show()
     }
@@ -627,222 +636,14 @@ class MainActivity : AppCompatActivity() {
         binding.root.postDelayed({ collectNews() }, 300)
     }
 
-    private fun refreshPresetChips() {
-        val chipGroup = binding.chipGroupPresets
-        chipGroup.removeAllViews()
 
-        val presets = PresetManager.getAllPresets(this)
-        if (presets.isEmpty()) {
-            binding.cardQuickLaunch.visibility = View.GONE
-            return
-        }
-
-        binding.cardQuickLaunch.visibility = View.VISIBLE
-        val activeId = PresetManager.getActivePresetId(this)
-
-        presets.forEach { preset ->
-            val chip = Chip(this).apply {
-                text = preset.name
-                isCheckable = true
-                isChecked = preset.id == activeId
-                isCloseIconVisible = false
-
-                setOnClickListener {
-                    applyPreset(preset)
-                }
-                setOnLongClickListener {
-                    applyPresetAndCollect(preset)
-                    true
-                }
-            }
-            chipGroup.addView(chip)
-        }
-    }
-
-    private fun showCreatePresetDialog(selectedChannels: List<Channel>) {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_create_preset, null)
-        val etName = dialogView.findViewById<EditText>(R.id.et_preset_name)
-        val spinnerTime = dialogView.findViewById<Spinner>(R.id.spinner_preset_time)
-        val tvInfo = dialogView.findViewById<TextView>(R.id.tv_selected_info)
-
-        val timeAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, timePeriods)
-        timeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinnerTime.adapter = timeAdapter
-        spinnerTime.setSelection(currentTimePeriodIndex)
-
-        val channelNames = selectedChannels.take(5).joinToString(", ") { it.title }
-        val suffix = if (selectedChannels.size > 5) getString(R.string.and_more_n, selectedChannels.size - 5) else ""
-        tvInfo.text = getString(
-            R.string.preset_info,
-            selectedChannels.size,
-            channelNames,
-            suffix,
-            timePeriods[currentTimePeriodIndex]
-        )
-
-        AlertDialog.Builder(this)
-            .setTitle(R.string.save_preset)
-            .setView(dialogView)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                val name = etName.text?.toString()?.trim()
-                if (name.isNullOrEmpty()) {
-                    Toast.makeText(this, getString(R.string.enter_name), Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
-                }
-
-                val timePeriod = spinnerTime.selectedItemPosition
-                val channelIds = selectedChannels.map { it.id }.toSet()
-
-                val preset = PresetManager.createPreset(this, name, channelIds, timePeriod)
-                PresetManager.setActivePresetId(this, preset.id)
-                activePresetId = preset.id
-
-                refreshPresetChips()
-                Toast.makeText(this, getString(R.string.preset_n_saved, name), Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
-    }
-
-    private fun showPresetsManagerDialog() {
-        val presets = PresetManager.getAllPresets(this)
-
-        val dialogView = layoutInflater.inflate(R.layout.dialog_manage_presets, null)
-        val recycler = dialogView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recycler_presets)
-        val tvEmpty = dialogView.findViewById<TextView>(R.id.tv_presets_empty)
-        recycler.layoutManager = LinearLayoutManager(this)
-
-        if (presets.isEmpty()) {
-            tvEmpty.visibility = View.VISIBLE
-            recycler.visibility = View.GONE
-        } else {
-            tvEmpty.visibility = View.GONE
-            recycler.visibility = View.VISIBLE
-        }
-
-        val channelNames = channelAdapter.getAllChannels().associate { it.id to it.title }
-        val activeId = PresetManager.getActivePresetId(this)
-
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.channel_presets)
-            .setView(dialogView)
-            .setNegativeButton(android.R.string.ok, null)
-            .create()
-
-        recycler.adapter = PresetAdapter(
-            presets = presets,
-            activePresetId = activeId,
-            channelNames = channelNames,
-            timePeriods = timePeriods,
-            onPresetSelected = { preset ->
-                dialog.dismiss()
-                applyPreset(preset)
-                showSettingsDialog()
-            },
-            onPresetDelete = { preset ->
-                AlertDialog.Builder(this)
-                    .setMessage(getString(R.string.preset_delete_confirm, preset.name))
-                    .setPositiveButton(android.R.string.ok) { _, _ ->
-                        PresetManager.deletePreset(this, preset.id)
-                        dialog.dismiss()
-                        refreshPresetChips()
-                        Toast.makeText(this, getString(R.string.preset_deleted), Toast.LENGTH_SHORT).show()
-                        showPresetsManagerDialog()
-                    }
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .show()
-            },
-            onPresetEdit = { preset ->
-                dialog.dismiss()
-                showEditPresetDialog(preset)
-            }
-        )
-
-        dialog.setOnCancelListener { showSettingsDialog() }
-
-        dialog.show()
-    }
-
-    private fun showEditPresetDialog(preset: ChannelPreset) {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_create_preset, null)
-        val etName = dialogView.findViewById<EditText>(R.id.et_preset_name)
-        val spinnerTime = dialogView.findViewById<Spinner>(R.id.spinner_preset_time)
-        val tvInfo = dialogView.findViewById<TextView>(R.id.tv_selected_info)
-
-        val timeAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, timePeriods)
-        timeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinnerTime.adapter = timeAdapter
-        spinnerTime.setSelection(preset.timePeriodIndex)
-
-        etName.setText(preset.name)
-
-        val channelNames = channelAdapter.getAllChannels()
-            .filter { it.id in preset.channelIds }
-            .joinToString(", ") { it.title }
-        tvInfo.text = getString(R.string.preset_info_edit, preset.channelIds.size, channelNames)
-
-        val currentSelected = channelAdapter.getSelectedChannels()
-        val hasNewSelection = currentSelected.isNotEmpty() &&
-                currentSelected.map { it.id }.toSet() != preset.channelIds
-
-        val cbUpdateChannels = CheckBox(this).apply {
-            text = getString(R.string.preset_update_channels, currentSelected.size)
-            isChecked = false
-            visibility = if (hasNewSelection) View.VISIBLE else View.GONE
-        }
-
-        val container = dialogView.findViewById(R.id.preset_dialog_container)
-            ?: dialogView.findViewById(android.R.id.content)
-            ?: findTopLevelViewGroup(dialogView)
-        container.addView(cbUpdateChannels)
-
-        AlertDialog.Builder(this)
-            .setTitle(R.string.edit)
-            .setView(dialogView)
-            .setPositiveButton(R.string.save) { _, _ ->
-                val name = etName.text?.toString()?.trim()
-                if (name.isNullOrEmpty()) {
-                    Toast.makeText(this, getString(R.string.enter_name), Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
-                }
-
-                val newChannelIds = if (cbUpdateChannels.isChecked && hasNewSelection)
-                    currentSelected.map { it.id }.toSet()
-                else preset.channelIds
-
-                val newTimePeriod = spinnerTime.selectedItemPosition
-
-                val updated = preset.copy(
-                    name = name,
-                    channelIds = newChannelIds,
-                    timePeriodIndex = newTimePeriod
-                )
-                PresetManager.savePreset(this, updated)
-                refreshPresetChips()
-                Toast.makeText(this, getString(R.string.preset_n_updated, name), Toast.LENGTH_SHORT).show()
-                showPresetsManagerDialog()
-            }
-            .setNegativeButton(R.string.cancel) { _, _ -> showPresetsManagerDialog() }
-            .setOnCancelListener { showPresetsManagerDialog() }
-            .show()
-    }
-
-    /**    ViewGroup   view */
-    private fun findTopLevelViewGroup(view: View): ViewGroup {
-        if (view is ViewGroup) return view
-        val parent = view.parent
-        if (parent is ViewGroup) return parent
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
-    }
 
     private fun initializeTelegramClient() {
         val readyCallback: () -> Unit = {
             if (!isClientReadyCallbackProcessed) {
                 isClientReadyCallbackProcessed = true
-                isClientReady = true
                 runOnUiThread {
+                    viewModel.setClientReady(true)
                     telegramClient.onChannelPhotoUpdated = { channelId, path ->
                         runOnUiThread {
                             val idx = channelAdapter.getAllChannels().indexOfFirst { it.id == channelId }
@@ -856,6 +657,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        telegramClient = TelegramClientManager.getTelegramClient(this)
         telegramClient.onClientReady = readyCallback
 
         telegramClient.onFatalError = { message ->
@@ -877,9 +679,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateUIForReadyClient() {
+        val isClientReady = viewModel.isClientReady.value ?: false
+        if (!isClientReady) return
+
         binding.btnCollectNews.isEnabled = channelAdapter.getSelectedChannels().isNotEmpty()
         if (binding.tvStatus.text.isEmpty()) {
             updateStatus(getString(R.string.status_client_ready))
+            updateChannelStats()
         }
     }
 
@@ -931,7 +737,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updatePlayerButtons(isPlaying: Boolean) {
-        binding.btnPlay.isEnabled = !isPlaying
+        val currentPlaylist = viewModel.currentPlaylist.value ?: emptyList()
+        binding.btnPlay.isEnabled = !isPlaying && currentPlaylist.isNotEmpty()
         binding.btnPause.isEnabled = isPlaying
         binding.btnNext.isEnabled = true
     }
@@ -943,6 +750,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadChannels() {
+        val isClientReady = viewModel.isClientReady.value ?: false
         if (!isClientReady) return
 
         binding.progressBar.visibility = View.VISIBLE
@@ -986,7 +794,7 @@ class MainActivity : AppCompatActivity() {
                     updateChannelStats()
                     updateNewsCollectionButton()
                     loadInitialNewsForChannels(filtered)
-                    refreshPresetChips()
+                    presetController.refreshPresetChips()
                 } else {
                     updateStatus(getString(R.string.status_no_channels))
                 }
@@ -995,6 +803,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadInitialNewsForChannels(channels: List<Channel>) {
+        val isClientReady = viewModel.isClientReady.value ?: false
         if (!isClientReady) return
 
         lifecycleScope.launch {
@@ -1009,6 +818,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun collectNews() {
+        val isClientReady = viewModel.isClientReady.value ?: false
         if (!isClientReady || !telegramClient.checkAuthState()) {
             Toast.makeText(this, getString(R.string.client_not_ready), Toast.LENGTH_LONG).show()
             return
@@ -1031,7 +841,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val timeHours = timeValues[currentTimePeriodIndex]
-        startTime = System.currentTimeMillis()
+        viewModel.setStartTime(System.currentTimeMillis())
         resetCollectionState()   // внутри уже вызывает resetProgressCounters()
         showProgressPanels()
         selectedChannels.forEach { it.newMessagesCount = -1 }
@@ -1066,7 +876,7 @@ class MainActivity : AppCompatActivity() {
                     audio?.let { calcDurationMinutes(it.files) } ?: 0
                 }
 
-                lastSkippedDuplicates = getDeduplicator().getSkippedCount()
+                viewModel.updateCounters(skipped = getDeduplicator().getSkippedCount())
 
                 runOnUiThread { handleCollectionResult(audio, durationMin) }
             } catch (_: CancellationException) {
@@ -1117,10 +927,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onUpdateCounters(collected: Int, filtered: Int, synthesized: Int) {
                 runOnUiThread {
-                    lastTotalCollected = collected
-                    lastToSynthesize = filtered
-                    lastSynthesized = synthesized
-                    updatePipelineStatus()
+                    viewModel.updateCounters(total = collected, toSynth = filtered, synth = synthesized)
                 }
             }
 
@@ -1141,15 +948,13 @@ class MainActivity : AppCompatActivity() {
 
             override fun onDeduplicationComplete(beforeCount: Int, afterCount: Int) {
                 runOnUiThread {
-                    lastAfterDedup = afterCount
-                    updatePipelineStatus()
+                    viewModel.updateCounters(afterDedup = afterCount)
                 }
             }
 
             override fun onMessageFiltered(originalCount: Int, filteredCount: Int) {
                 runOnUiThread {
-                    lastAfterFilter = filteredCount
-                    updatePipelineStatus()
+                    viewModel.updateCounters(afterFilter = filteredCount)
                 }
             }
 
@@ -1165,9 +970,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onAiProcessingComplete(beforeCount: Int, afterCount: Int) {
                 runOnUiThread {
-                    lastToSynthesize = beforeCount
-                    lastAfterAi = afterCount
-                    updatePipelineStatus()
+                    viewModel.updateCounters(toSynth = beforeCount, afterAi = afterCount)
                 }
             }
 
@@ -1181,16 +984,19 @@ class MainActivity : AppCompatActivity() {
 
             override fun onSynthesisStarted(messageCount: Int) {
                 runOnUiThread {
+                    viewModel.updateCounters(synth = 0)
+                    binding.cardCollectionProgress.visibility = View.VISIBLE
                     updateDetailedProgress(getString(R.string.status_synthesis_starting), 50, 100)
                     totalProgressSteps = messageCount
-                    currentProgressStep = 0
+                    viewModel.setCurrentProgressStep(0)
                 }
             }
 
             override fun onSynthesisProgress(current: Int, total: Int) {
                 runOnUiThread {
+                    viewModel.updateCounters(synth = current)
                     updateDetailedProgress(getString(R.string.synthesis_started, current, total), current, total)
-                    currentProgressStep = current
+                    viewModel.setCurrentProgressStep(current)
                     totalProgressSteps = total
                     updateETA()
                 }
@@ -1268,16 +1074,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateElapsedTime() {
+        val startTime = viewModel.startTime.value ?: 0L
         if (startTime == 0L) return
         val elapsedMs = System.currentTimeMillis() - startTime
         val seconds = (elapsedMs / 1000) % 60
         val minutes = (elapsedMs / (1000 * 60)) % 60
         val hours = elapsedMs / (1000 * 60 * 60)
-        
+
         val timeStr = if (hours > 0) {
-            String.format(java.util.Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
+            String.format(java.util.Locale.US, "%02d:%02d:%02d", hours.toInt(), minutes.toInt(), seconds.toInt())
         } else {
-            String.format(java.util.Locale.US, "%02d:%02d", minutes, seconds)
+            String.format(java.util.Locale.US, "%02d:%02d", minutes.toInt(), seconds.toInt())
         }
         
         //          ,   .
@@ -1295,6 +1102,7 @@ class MainActivity : AppCompatActivity() {
         val total = channelAdapter.getAllChannels().size
         val selected = channelAdapter.getSelectedChannels().size
         val isFilterActive = channelAdapter.isFilterActive()
+        val isClientReady = viewModel.isClientReady.value ?: false
 
         val msg = buildString {
             append(getString(R.string.channels_summary_base, total))
@@ -1346,7 +1154,7 @@ class MainActivity : AppCompatActivity() {
 
         dialogView.findViewById<View>(R.id.btn_manage_presets_settings)?.setOnClickListener {
             dialog.dismiss()
-            showPresetsManagerDialog()
+            presetController.showPresetsManagerDialog { showSettingsDialog() }
         }
         dialogView.findViewById<View>(R.id.btn_manage_hidden)?.setOnClickListener {
             dialog.dismiss()
