@@ -27,6 +27,7 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import com.p2petrovich.telegramnewsreader.managers.DeduplicationController
 import com.p2petrovich.telegramnewsreader.managers.PresetController
 import com.p2petrovich.telegramnewsreader.viewmodels.MainViewModel
 import androidx.appcompat.app.AlertDialog
@@ -80,6 +81,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var ttsManager: TTSManager
     private lateinit var newsService: NewsService
     private lateinit var presetController: PresetController
+    private lateinit var deduplicationController: DeduplicationController
 
     private val viewModel: MainViewModel by viewModels()
 
@@ -114,17 +116,10 @@ class MainActivity : AppCompatActivity() {
     private var progressExecutor: ScheduledExecutorService? = null
     private var totalProgressSteps: Int = 0
     private var newsCollectionJob: Job? = null
-    private var currentPlaylist: List<File> = emptyList()
-    private var currentRealNewsCount: Int = 0
-    private var currentNewsFileIndices: Set<Int> = emptySet()
     private var startTime: Long = 0
     private var currentProgressStep: Int = 0
-    private var lastSkippedDuplicates = 0
 
     private var activePresetId: String? = null
-
-    // Deduplicator
-    private var deduplicator: Deduplicator? = null
 
     companion object {
         private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 1001
@@ -192,6 +187,74 @@ class MainActivity : AppCompatActivity() {
         viewModel.lastToSynthesize.observe(this) { updatePipelineStatus() }
         viewModel.lastSynthesized.observe(this) { updatePipelineStatus() }
         viewModel.lastSkippedDuplicates.observe(this) { updatePipelineStatus() }
+
+        viewModel.isCollecting.observe(this) { isCollecting ->
+            if (isCollecting) {
+                showProgressPanels()
+                binding.progressBar.visibility = View.VISIBLE
+                binding.btnCollectNews.text = getString(R.string.btn_stop_collection)
+                startTimer()
+            } else {
+                binding.progressBar.visibility = View.GONE
+                binding.btnCollectNews.text = getString(R.string.collect_news)
+                stopTimer()
+            }
+        }
+
+        viewModel.collectionStatus.observe(this) { status ->
+            val selectedChannels = channelAdapter.getSelectedChannels()
+            when (status) {
+                "starting" -> {
+                    updateStatus(getString(R.string.collecting_from_n_channels, selectedChannels.size))
+                    updateDetailedProgress(getString(R.string.status_collection_starting), 0, 100)
+                }
+                "stopped" -> updateStatus(getString(R.string.status_collection_stopped))
+                "cancelled" -> updateStatus(getString(R.string.status_collection_cancelled))
+            }
+        }
+
+        viewModel.detailedStatus.observe(this) { status ->
+            if (status == "init") updateDetailedProgress(getString(R.string.status_collection_starting), 0, 100)
+            else if (status == "done") updateDetailedProgress(getString(R.string.status_collection_done), 100, 100)
+            else updateDetailedProgress(status, -1, 100)
+            
+            if (status.contains(getString(R.string.status_synthesis_starting)) || status.contains("Синтез")) {
+                binding.cardCollectionProgress.visibility = View.VISIBLE
+            }
+        }
+
+        viewModel.newsPreview.observe(this) { updateNewsPreview(it) }
+        viewModel.channelProgress.observe(this) { updateChannelProgress(it) }
+
+        viewModel.errorEvent.observe(this) { error ->
+            error?.let {
+                updateStatus(getString(R.string.error_prefix, it))
+                Toast.makeText(this, getString(R.string.error_prefix, it), Toast.LENGTH_LONG).show()
+                viewModel.clearEvents()
+            }
+        }
+
+        viewModel.toastEvent.observe(this) { event ->
+            event?.let {
+                val parts = it.split("|")
+                if (parts[0] == "truncated") {
+                    val kept = parts[1].toIntOrNull() ?: 0
+                    val total = parts[2].toIntOrNull() ?: 0
+                    Toast.makeText(this, getString(R.string.news_truncated_warning, kept, total), Toast.LENGTH_LONG).show()
+                }
+                viewModel.clearEvents()
+            }
+        }
+
+        viewModel.collectionFinishedEvent.observe(this) { result ->
+            result?.let { (audio, durationMin) ->
+                handleCollectionResult(audio, durationMin)
+                viewModel.clearEvents()
+            }
+        }
+        
+        viewModel.totalProgressSteps.observe(this) { totalProgressSteps = it }
+        viewModel.currentProgressStep.observe(this) { currentProgressStep = it }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -225,91 +288,6 @@ class MainActivity : AppCompatActivity() {
 
         //     GitHub (throttle:   )
         UpdateChecker.check(this)
-    }
-
-    // ===================== Deduplication =====================
-    private fun getDeduplicator(): Deduplicator {
-        if (deduplicator == null) {
-            deduplicator = Deduplicator(
-                isEnabled = PreferenceManager.isDedupEnabled(this),
-                matchThreshold = PreferenceManager.getDedupThreshold(this),
-                historySize = PreferenceManager.getDedupHistorySize(this),
-                timeWindowMinutes = PreferenceManager.getDedupTimeWindow(this)
-            )
-        }
-        return deduplicator!!
-    }
-
-    private fun resetDeduplicator() {
-        Log.d("MainActivity", "resetDeduplicator called")
-        deduplicator?.reset()
-        deduplicator = null
-    }
-
-    private fun showDedupSettingsDialog() {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_dedup_settings, null)
-        val cbEnabled = dialogView.findViewById<CheckBox>(R.id.cb_dedup_enabled)
-        val sbThreshold = dialogView.findViewById<SeekBar>(R.id.sb_dedup_threshold)
-        val tvThresholdValue = dialogView.findViewById<TextView>(R.id.tv_dedup_threshold_value)
-        val sbHistorySize = dialogView.findViewById<SeekBar>(R.id.sb_dedup_history_size)
-        val tvHistoryValue = dialogView.findViewById<TextView>(R.id.tv_dedup_history_value)
-        val sbTimeWindow = dialogView.findViewById<SeekBar>(R.id.sb_dedup_time_window)
-        val tvTimeValue = dialogView.findViewById<TextView>(R.id.tv_dedup_time_value)
-
-        val currentEnabled = PreferenceManager.isDedupEnabled(this)
-        val currentThreshold = PreferenceManager.getDedupThreshold(this)
-        val currentHistorySize = PreferenceManager.getDedupHistorySize(this)
-        val currentTimeWindowMinutes = PreferenceManager.getDedupTimeWindow(this)
-        val currentTimeWindowHours = (currentTimeWindowMinutes / 60).coerceIn(0, 24)
-
-        cbEnabled.isChecked = currentEnabled
-        sbThreshold.progress = (currentThreshold * 100).toInt()
-        tvThresholdValue.text = getString(R.string.dedup_threshold_percent, (currentThreshold * 100).toInt())
-        sbHistorySize.progress = currentHistorySize
-        tvHistoryValue.text = getString(R.string.dedup_history_count, currentHistorySize)
-        sbTimeWindow.progress = currentTimeWindowHours
-        tvTimeValue.text = getString(R.string.dedup_time_hours, currentTimeWindowHours)
-
-        sbThreshold.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                tvThresholdValue.text = getString(R.string.dedup_threshold_percent, progress)
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        sbHistorySize.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                tvHistoryValue.text = getString(R.string.dedup_history_count, progress)
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        sbTimeWindow.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                tvTimeValue.text = getString(R.string.dedup_time_hours, progress)
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        AlertDialog.Builder(this)
-            .setTitle(getString(R.string.dedup_settings_title))
-            .setView(dialogView)
-            .setPositiveButton(R.string.save) { _, _ ->
-                PreferenceManager.setDedupEnabled(this, cbEnabled.isChecked)
-                PreferenceManager.setDedupThreshold(this, sbThreshold.progress / 100f)
-                PreferenceManager.setDedupHistorySize(this, sbHistorySize.progress)
-                PreferenceManager.setDedupTimeWindow(this, sbTimeWindow.progress * 60)
-                //  ,    
-                resetDeduplicator()
-                Toast.makeText(this, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()
-                showSettingsDialog()
-            }
-            .setNegativeButton(R.string.cancel) { _, _ -> showSettingsDialog() }
-            .setOnCancelListener { showSettingsDialog() }
-            .show()
     }
 
     // =====================   =====================
@@ -354,7 +332,7 @@ class MainActivity : AppCompatActivity() {
         // обработанные посты не попадали в плейлист снова.
         // Явный сброс происходит только при изменении настроек дедупликатора
         // (showDedupSettingsDialog) и при очистке кэша (showSettingsDialog).
-        deduplicator?.resetSkippedCount()   // ← добавить
+        viewModel.getDeduplicator(this).resetSkippedCount()   // ← добавить
     }
 
     private fun showProgressPanels() {
@@ -558,6 +536,12 @@ class MainActivity : AppCompatActivity() {
             onSelectionSaved = { saveCurrentSelection() }
         )
 
+        deduplicationController = DeduplicationController(
+            activity = this,
+            onSettingsSaved = { viewModel.resetDeduplicator() },
+            onOpenSettings = { showSettingsDialog() }
+        )
+
         binding.recyclerChannels.layoutManager = LinearLayoutManager(this)
         binding.recyclerChannels.adapter = channelAdapter
     }
@@ -696,6 +680,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnCollectNews.setOnClickListener { collectNews() }
 
         binding.btnPlay.setOnClickListener {
+            val currentPlaylist = viewModel.currentPlaylist.value ?: emptyList()
             if (currentPlaylist.isEmpty()) {
                 Toast.makeText(this, getString(R.string.collect_news_first), Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
@@ -818,198 +803,28 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun collectNews() {
-        val isClientReady = viewModel.isClientReady.value ?: false
-        if (!isClientReady || !telegramClient.checkAuthState()) {
-            Toast.makeText(this, getString(R.string.client_not_ready), Toast.LENGTH_LONG).show()
-            return
-        }
-
         val selectedChannels = channelAdapter.getSelectedChannels()
         if (selectedChannels.isEmpty()) {
             Toast.makeText(this, getString(R.string.select_one_channel), Toast.LENGTH_SHORT).show()
             return
         }
 
-        if (newsCollectionJob?.isActive == true) {
-            newsCollectionJob?.cancel()
-            updateStatus(getString(R.string.status_collection_stopped))
-            binding.progressBar.visibility = View.GONE
-            binding.btnCollectNews.text = getString(R.string.collect_news)
-            binding.btnCollectNews.isEnabled = true
-            stopTimer()
-            return
-        }
-
-        val timeHours = timeValues[currentTimePeriodIndex]
-        viewModel.setStartTime(System.currentTimeMillis())
-        resetCollectionState()   // внутри уже вызывает resetProgressCounters()
-        showProgressPanels()
-        selectedChannels.forEach { it.newMessagesCount = -1 }
-        updateChannelProgress(selectedChannels)
-
-        // [FIX] Убран дублирующий resetProgressCounters() — он уже вызывается внутри
-        // resetCollectionState(). Двойной вызов был артефактом рефакторинга.
-
-        //     
-        getDeduplicator()
-
-        binding.progressBar.visibility = View.VISIBLE
-        binding.btnCollectNews.text = getString(R.string.btn_stop_collection)
-        binding.btnCollectNews.isEnabled = true
-        startTimer()
-
-        newsCollectionJob = lifecycleScope.launch {
-            try {
-                updateStatus(getString(R.string.collecting_from_n_channels, selectedChannels.size))
-                updateDetailedProgress(getString(R.string.status_collection_starting), 0, 100)
-
-                val audio = newsService.collectAndSynthesizePlaylist(
-                    channels = selectedChannels,
-                    timeHours = timeHours,
-                    progressCallback = createProgressCallback(selectedChannels),
-                    deduplicator = getDeduplicator()
-                )
-
-                stopTimer()
-
-                val durationMin = withContext(Dispatchers.IO) {
-                    audio?.let { calcDurationMinutes(it.files) } ?: 0
-                }
-
-                viewModel.updateCounters(skipped = getDeduplicator().getSkippedCount())
-
-                runOnUiThread { handleCollectionResult(audio, durationMin) }
-            } catch (_: CancellationException) {
-                Log.d("MainActivity", "News collection cancelled")
-                stopTimer()
-                runOnUiThread {
-                    binding.progressBar.visibility = View.GONE
-                    binding.btnCollectNews.text = getString(R.string.collect_news)
-                    binding.btnCollectNews.isEnabled = true
-                    updateStatus(getString(R.string.status_collection_cancelled))
-                }
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Error collecting news", e)
-                stopTimer()
-                runOnUiThread {
-                    binding.progressBar.visibility = View.GONE
-                    binding.btnCollectNews.text = getString(R.string.collect_news)
-                    binding.btnCollectNews.isEnabled = true
-                    updateStatus(getString(R.string.error_prefix, e.message))
-                    Toast.makeText(this@MainActivity, getString(R.string.error_prefix, e.message), Toast.LENGTH_LONG).show()
-                }
-            }
-        }
+        viewModel.startCollection(
+            context = this,
+            newsService = newsService,
+            selectedChannels = selectedChannels,
+            timeHours = timeValues[currentTimePeriodIndex]
+        )
     }
 
-    /**       Dispatchers.IO */
-    private fun calcDurationMinutes(files: List<File>): Int {
-        var totalMs = 0L
-        val retriever = android.media.MediaMetadataRetriever()
-        files.forEach { file ->
-            try {
-                retriever.setDataSource(file.absolutePath)
-                val durationStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
-                totalMs += durationStr?.toLongOrNull() ?: 0L
-            } catch (e: Exception) {
-                Log.w("MainActivity", "Error getting duration of ${file.name}", e)
-            }
-        }
-        try { retriever.release() } catch (_: Exception) {}
-        return (totalMs / 1000 / 60).toInt()
-    }
 
-    private fun createProgressCallback(selectedChannels: List<Channel>): ProgressCallback {
-        return object : ProgressCallback {
-            override fun onUpdateProgress(status: String, progress: Int, total: Int) {
-                runOnUiThread { updateDetailedProgress(status, progress, total) }
-            }
-
-            override fun onUpdateCounters(collected: Int, filtered: Int, synthesized: Int) {
-                runOnUiThread {
-                    viewModel.updateCounters(total = collected, toSynth = filtered, synth = synthesized)
-                }
-            }
-
-            override fun onUpdateNewsPreview(newsList: List<String>) {
-                runOnUiThread { updateNewsPreview(newsList) }
-            }
-
-            override fun onUpdateChannelProgress(channels: List<Channel>) {
-                runOnUiThread { updateChannelProgress(channels) }
-            }
-
-            override fun onChannelProcessed(channel: Channel, messagesCount: Int) {
-                runOnUiThread {
-                    channel.newMessagesCount = messagesCount
-                    updateChannelProgress(selectedChannels)
-                }
-            }
-
-            override fun onDeduplicationComplete(beforeCount: Int, afterCount: Int) {
-                runOnUiThread {
-                    viewModel.updateCounters(afterDedup = afterCount)
-                }
-            }
-
-            override fun onMessageFiltered(originalCount: Int, filteredCount: Int) {
-                runOnUiThread {
-                    viewModel.updateCounters(afterFilter = filteredCount)
-                }
-            }
-
-            override fun onNewsTruncated(kept: Int, dropped: Int) {
-                runOnUiThread {
-                    Toast.makeText(
-                        this@MainActivity,
-                        getString(R.string.news_truncated_warning, kept, kept + dropped),
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            }
-
-            override fun onAiProcessingComplete(beforeCount: Int, afterCount: Int) {
-                runOnUiThread {
-                    viewModel.updateCounters(toSynth = beforeCount, afterAi = afterCount)
-                }
-            }
-
-            override fun onOverallProgress(status: String, percentage: Int) {
-                runOnUiThread {
-                    updateDetailedProgress(status, percentage, 100)
-                    updateElapsedTime()
-                    updateETA()
-                }
-            }
-
-            override fun onSynthesisStarted(messageCount: Int) {
-                runOnUiThread {
-                    viewModel.updateCounters(synth = 0)
-                    binding.cardCollectionProgress.visibility = View.VISIBLE
-                    updateDetailedProgress(getString(R.string.status_synthesis_starting), 50, 100)
-                    totalProgressSteps = messageCount
-                    viewModel.setCurrentProgressStep(0)
-                }
-            }
-
-            override fun onSynthesisProgress(current: Int, total: Int) {
-                runOnUiThread {
-                    viewModel.updateCounters(synth = current)
-                    updateDetailedProgress(getString(R.string.synthesis_started, current, total), current, total)
-                    viewModel.setCurrentProgressStep(current)
-                    totalProgressSteps = total
-                    updateETA()
-                }
-            }
-
-            override fun onSynthesisCompleted() {
-                runOnUiThread {
-                    updateDetailedProgress(getString(R.string.synthesis_completed_status), 100, 100)
-                    binding.btnCollectNews.isEnabled = true
-                    binding.btnCollectNews.text = getString(R.string.collect_news)
-                }
-            }
-        }
+    private fun confirmHideChannel(channel: Channel) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.hide_channel_title)
+            .setMessage(getString(R.string.hide_channel_confirm, channel.title))
+            .setPositiveButton(R.string.hide) { _, _ -> hideChannel(channel) }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 
     private fun handleCollectionResult(audio: NewsService.AudioPlaylist?, durationMin: Int) {
@@ -1019,10 +834,9 @@ class MainActivity : AppCompatActivity() {
         updateDetailedProgress(getString(R.string.status_collection_done), 100, 100)
 
         if (audio != null && audio.files.isNotEmpty()) {
-            currentPlaylist = audio.files
-            currentRealNewsCount = audio.realNewsCount
-            currentNewsFileIndices = audio.newsFileIndices
+            viewModel.setPlaylistData(audio.files, audio.realNewsCount, audio.newsFileIndices)
             lastUsedVoice = PreferenceManager.getTtsVoiceName(this)
+            viewModel.updateCounters(skipped = viewModel.getDeduplicator(this).getSkippedCount())
 
             val paths = audio.files.map { it.absolutePath }
             PreferenceManager.savePlaylistPaths(this, paths)
@@ -1035,22 +849,23 @@ class MainActivity : AppCompatActivity() {
                 updateStatus(baseStatus)
             }
 
-            if (lastSkippedDuplicates > 0) {
+            val skipped = viewModel.lastSkippedDuplicates.value ?: 0
+            if (skipped > 0) {
                 Toast.makeText(
                     this,
-                    getString(R.string.skipped_duplicates, lastSkippedDuplicates),
+                    getString(R.string.skipped_duplicates, skipped),
                     Toast.LENGTH_LONG
                 ).show()
             }
 
-            val arrayPaths = ArrayList(audio.files.map { it.absolutePath })
+            val arrayPaths = ArrayList(paths)
             startService(Intent(this, AudioPlayerService::class.java).apply {
                 action = AudioPlayerService.ACTION_SET_PLAYLIST
                 putStringArrayListExtra(AudioPlayerService.EXTRA_FILE_PATHS, arrayPaths)
                 putExtra(AudioPlayerService.EXTRA_START_INDEX, 0)
                 putExtra(AudioPlayerService.EXTRA_TITLE, getString(R.string.news_default_title))
-                putExtra(AudioPlayerService.EXTRA_REAL_NEWS_COUNT, currentRealNewsCount)
-                putExtra(AudioPlayerService.EXTRA_NEWS_FILE_INDICES, currentNewsFileIndices.toIntArray())
+                putExtra(AudioPlayerService.EXTRA_REAL_NEWS_COUNT, audio.realNewsCount)
+                putExtra(AudioPlayerService.EXTRA_NEWS_FILE_INDICES, audio.newsFileIndices.toIntArray())
             })
 
             channelAdapter.refreshVisibleItems()
@@ -1170,7 +985,7 @@ class MainActivity : AppCompatActivity() {
         }
         dialogView.findViewById<View>(R.id.btn_dedup_settings)?.setOnClickListener {
             dialog.dismiss()
-            showDedupSettingsDialog()
+            deduplicationController.showDedupSettingsDialog()
         }
         dialogView.findViewById<View>(R.id.btn_clear_cache)?.setOnClickListener {
             dialog.dismiss()
@@ -1181,7 +996,7 @@ class MainActivity : AppCompatActivity() {
                 .setMessage(getString(R.string.cache_info, count, sizeMb.toInt()))
                 .setPositiveButton(R.string.clear) { _, _ ->
                     NewsCache.clearAll(this)
-                    resetDeduplicator()
+                    viewModel.resetDeduplicator()
                     //      Telegram 
                     telegramClient.clearTtsRelatedCache { success ->
                         runOnUiThread {
@@ -1808,14 +1623,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun confirmHideChannel(channel: Channel) {
-        AlertDialog.Builder(this)
-            .setTitle(R.string.hide_channel_title)
-            .setMessage(getString(R.string.hide_channel_confirm, channel.title))
-            .setPositiveButton(R.string.hide) { _, _ -> hideChannel(channel) }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
-    }
 
     private fun hideChannel(channel: Channel) {
         val username = channel.username
@@ -1905,12 +1712,13 @@ class MainActivity : AppCompatActivity() {
             ttsManager.refreshVoice()
         }
 
+        val currentPlaylist = viewModel.currentPlaylist.value ?: emptyList()
         if (currentPlaylist.isEmpty()) {
             val savedPaths = PreferenceManager.getPlaylistPaths(this)
             if (savedPaths.isNotEmpty()) {
                 val existingFiles = savedPaths.filter { File(it).exists() }
                 if (existingFiles.isNotEmpty()) {
-                    currentPlaylist = existingFiles.map { File(it) }
+                    val files = existingFiles.map { File(it) }
                     binding.llPlayer.visibility = View.VISIBLE
                     binding.btnPlay.isEnabled = true
                     binding.btnNext.isEnabled = true
@@ -1918,12 +1726,18 @@ class MainActivity : AppCompatActivity() {
                     val savedIndex = PreferenceManager.getPlayerIndex(this)
                     val savedIsPlaying = PreferenceManager.getPlayerIsPlaying(this)
 
+                    val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                    val realCount = prefs.getInt("last_real_news_count", 0)
+                    val indices = prefs.getStringSet("last_news_indices", emptySet())
+                        ?.mapNotNull { it.toIntOrNull() }?.toSet() ?: emptySet()
+                    viewModel.setPlaylistData(files, realCount, indices)
+
                     if (savedIsPlaying) {
                         updatePlayerButtons(true)
-                        updateStatus(getString(R.string.resume_playing, savedIndex + 1, currentPlaylist.size))
+                        updateStatus(getString(R.string.resume_playing, savedIndex + 1, files.size))
                     } else {
                         updatePlayerButtons(false)
-                        updateStatus(getString(R.string.resume_ready, savedIndex + 1, currentPlaylist.size))
+                        updateStatus(getString(R.string.resume_ready, savedIndex + 1, files.size))
                     }
                 } else {
                     PreferenceManager.clearPlayerState(this)

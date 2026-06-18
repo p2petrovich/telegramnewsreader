@@ -86,4 +86,24 @@ object AudioUtils {
             false
         }
     }
+
+    /**
+     * Вычисляет общую длительность списка аудиофайлов в минутах.
+     * Должно вызываться в фоновом потоке.
+     */
+    fun calcDurationMinutes(files: List<File>): Int {
+        var totalMs = 0L
+        val retriever = android.media.MediaMetadataRetriever()
+        files.forEach { file ->
+            try {
+                retriever.setDataSource(file.absolutePath)
+                val durationStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                totalMs += durationStr?.toLongOrNull() ?: 0L
+            } catch (e: Exception) {
+                Log.w(TAG, "Error getting duration of ${file.name}", e)
+            }
+        }
+        try { retriever.release() } catch (_: Exception) {}
+        return (totalMs / 1000 / 60).toInt()
+    }
 }

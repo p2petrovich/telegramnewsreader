@@ -4,7 +4,20 @@ import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import com.p2petrovich.telegramnewsreader.models.Channel
+import com.p2petrovich.telegramnewsreader.services.NewsService
+import com.p2petrovich.telegramnewsreader.services.ProgressCallback
+import com.p2petrovich.telegramnewsreader.utils.AudioUtils
+import com.p2petrovich.telegramnewsreader.utils.Deduplicator
+import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
+import android.content.Context
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * ViewModel для управления состоянием MainActivity.
@@ -107,11 +120,196 @@ class MainViewModel : ViewModel() {
     private val _currentProgressStep = MutableLiveData(0)
     val currentProgressStep: LiveData<Int> = _currentProgressStep
 
+    private val _totalProgressSteps = MutableLiveData(0)
+    val totalProgressSteps: LiveData<Int> = _totalProgressSteps
+
     fun setStartTime(time: Long) {
         _startTime.value = time
     }
 
+    // --- Процесс сбора ---
+    private var newsCollectionJob: Job? = null
+
+    fun isCollectionActive(): Boolean = newsCollectionJob?.isActive == true
+
+    fun startCollection(
+        context: Context,
+        newsService: NewsService,
+        selectedChannels: List<Channel>,
+        timeHours: Double
+    ) {
+        if (newsCollectionJob?.isActive == true) {
+            stopCollection()
+            _collectionStatus.value = "stopped" // В MainActivity это R.string.status_collection_stopped
+            return
+        }
+
+        resetProgressCounters()
+        _isCollecting.value = true
+        _startTime.value = System.currentTimeMillis()
+        
+        selectedChannels.forEach { it.newMessagesCount = -1 }
+        _channelProgress.value = selectedChannels
+
+        newsCollectionJob = viewModelScope.launch {
+            try {
+                _collectionStatus.value = "starting" // R.string.collecting_from_n_channels
+                _detailedStatus.value = "init"       // R.string.status_collection_starting
+
+                val audio = newsService.collectAndSynthesizePlaylist(
+                    channels = selectedChannels,
+                    timeHours = timeHours,
+                    progressCallback = createProgressCallback(selectedChannels, context),
+                    deduplicator = getDeduplicator(context)
+                )
+
+                val durationMin = withContext(Dispatchers.IO) {
+                    audio?.let { AudioUtils.calcDurationMinutes(it.files) } ?: 0
+                }
+
+                updateCounters(skipped = getDeduplicator(context).getSkippedCount())
+                _collectionFinishedEvent.value = audio to durationMin
+                
+            } catch (e: CancellationException) {
+                Log.d(TAG, "News collection cancelled")
+                _collectionStatus.value = "cancelled"
+            } catch (e: Exception) {
+                Log.e(TAG, "Error collecting news", e)
+                _errorEvent.value = e.message
+            } finally {
+                _isCollecting.value = false
+                newsCollectionJob = null
+            }
+        }
+    }
+
+    fun stopCollection() {
+        newsCollectionJob?.cancel()
+        newsCollectionJob = null
+        _isCollecting.value = false
+    }
+
+    private fun createProgressCallback(selectedChannels: List<Channel>, context: Context): ProgressCallback {
+        return object : ProgressCallback {
+            override fun onUpdateProgress(status: String, progress: Int, total: Int) {
+                _detailedStatus.value = status
+                // Процент рассчитывается в MainActivity для ProgressBarDetailed
+            }
+
+            override fun onUpdateCounters(collected: Int, filtered: Int, synthesized: Int) {
+                updateCounters(total = collected, toSynth = filtered, synth = synthesized)
+            }
+
+            override fun onUpdateNewsPreview(newsList: List<String>) {
+                _newsPreview.value = newsList
+            }
+
+            override fun onUpdateChannelProgress(channels: List<Channel>) {
+                _channelProgress.value = channels
+            }
+
+            override fun onChannelProcessed(channel: Channel, messagesCount: Int) {
+                channel.newMessagesCount = messagesCount
+                _channelProgress.value = selectedChannels.toList()
+            }
+
+            override fun onDeduplicationComplete(beforeCount: Int, afterCount: Int) {
+                updateCounters(afterDedup = afterCount)
+            }
+
+            override fun onMessageFiltered(originalCount: Int, filteredCount: Int) {
+                updateCounters(afterFilter = filteredCount)
+            }
+
+            override fun onNewsTruncated(kept: Int, dropped: Int) {
+                _toastEvent.value = "truncated|$kept|${kept + dropped}"
+            }
+
+            override fun onAiProcessingComplete(beforeCount: Int, afterCount: Int) {
+                updateCounters(toSynth = beforeCount, afterAi = afterCount)
+            }
+
+            override fun onOverallProgress(status: String, percentage: Int) {
+                _detailedStatus.value = status
+                // Время и ETA обновляются в MainActivity через таймер, смотря на currentProgressStep
+            }
+
+            override fun onSynthesisStarted(messageCount: Int) {
+                updateCounters(synth = 0)
+                _totalProgressSteps.value = messageCount
+                _currentProgressStep.value = 0
+            }
+
+            override fun onSynthesisProgress(current: Int, total: Int) {
+                updateCounters(synth = current)
+                _currentProgressStep.value = current
+                _totalProgressSteps.value = total
+            }
+
+            override fun onSynthesisCompleted() {
+                _detailedStatus.value = "done"
+            }
+        }
+    }
+
     fun setCurrentProgressStep(step: Int) {
         _currentProgressStep.value = step
+    }
+
+    fun setTotalProgressSteps(steps: Int) {
+        _totalProgressSteps.value = steps
+    }
+
+    // --- Состояния процесса сбора ---
+    private val _collectionStatus = MutableLiveData<String>("")
+    val collectionStatus: LiveData<String> = _collectionStatus
+
+    private val _detailedStatus = MutableLiveData<String>("")
+    val detailedStatus: LiveData<String> = _detailedStatus
+
+    private val _isCollecting = MutableLiveData(false)
+    val isCollecting: LiveData<Boolean> = _isCollecting
+
+    private val _newsPreview = MutableLiveData<List<String>>(emptyList())
+    val newsPreview: LiveData<List<String>> = _newsPreview
+
+    private val _channelProgress = MutableLiveData<List<Channel>>(emptyList())
+    val channelProgress: LiveData<List<Channel>> = _channelProgress
+
+    // События (Single-shot)
+    private val _errorEvent = MutableLiveData<String?>(null)
+    val errorEvent: LiveData<String?> = _errorEvent
+
+    private val _collectionFinishedEvent = MutableLiveData<Pair<NewsService.AudioPlaylist?, Int>?>(null)
+    val collectionFinishedEvent: LiveData<Pair<NewsService.AudioPlaylist?, Int>?> = _collectionFinishedEvent
+
+    private val _toastEvent = MutableLiveData<String?>(null)
+    val toastEvent: LiveData<String?> = _toastEvent
+
+    fun clearEvents() {
+        _errorEvent.value = null
+        _collectionFinishedEvent.value = null
+        _toastEvent.value = null
+    }
+
+    // --- Дедупликация (бизнес-объект) ---
+    private var deduplicator: Deduplicator? = null
+
+    fun getDeduplicator(context: Context): Deduplicator {
+        if (deduplicator == null) {
+            deduplicator = Deduplicator(
+                isEnabled = PreferenceManager.isDedupEnabled(context),
+                matchThreshold = PreferenceManager.getDedupThreshold(context),
+                historySize = PreferenceManager.getDedupHistorySize(context),
+                timeWindowMinutes = PreferenceManager.getDedupTimeWindow(context)
+            )
+        }
+        return deduplicator!!
+    }
+
+    fun resetDeduplicator() {
+        Log.d(TAG, "resetDeduplicator called")
+        deduplicator?.reset()
+        deduplicator = null
     }
 }
