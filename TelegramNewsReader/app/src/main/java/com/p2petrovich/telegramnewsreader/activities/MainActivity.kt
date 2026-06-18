@@ -114,11 +114,6 @@ class MainActivity : AppCompatActivity() {
     private val pendingPhotos = mutableMapOf<Long, String>()
 
     private var progressExecutor: ScheduledExecutorService? = null
-    private var totalProgressSteps: Int = 0
-    private var newsCollectionJob: Job? = null
-    private var startTime: Long = 0
-    private var currentProgressStep: Int = 0
-
     private var activePresetId: String? = null
 
     companion object {
@@ -253,8 +248,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
         
-        viewModel.totalProgressSteps.observe(this) { totalProgressSteps = it }
-        viewModel.currentProgressStep.observe(this) { currentProgressStep = it }
+        viewModel.totalProgressSteps.observe(this) { updateETA() }
+        viewModel.currentProgressStep.observe(this) { updateETA() }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -318,8 +313,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun resetCollectionState() {
-        newsCollectionJob?.cancel()
-        newsCollectionJob = null
+        viewModel.stopCollection()
         stopTimer()
         resetProgressCounters()
         updateNewsCollectionButton()
@@ -464,6 +458,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         val currentProgressStep = viewModel.currentProgressStep.value ?: 0
+        val totalProgressSteps = viewModel.totalProgressSteps.value ?: 0
+
         if (elapsedSec < 3 || currentProgressStep <= 0 || totalProgressSteps <= 0) {
             binding.tvEta.text = getString(R.string.collection_status_combined, elapsedText, getString(R.string.eta_calculating))
             return
@@ -834,9 +830,7 @@ class MainActivity : AppCompatActivity() {
         updateDetailedProgress(getString(R.string.status_collection_done), 100, 100)
 
         if (audio != null && audio.files.isNotEmpty()) {
-            viewModel.setPlaylistData(audio.files, audio.realNewsCount, audio.newsFileIndices)
             lastUsedVoice = PreferenceManager.getTtsVoiceName(this)
-            viewModel.updateCounters(skipped = viewModel.getDeduplicator(this).getSkippedCount())
 
             val paths = audio.files.map { it.absolutePath }
             PreferenceManager.savePlaylistPaths(this, paths)
