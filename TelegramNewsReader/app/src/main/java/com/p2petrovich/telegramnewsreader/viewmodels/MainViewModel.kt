@@ -40,14 +40,14 @@ class MainViewModel : ViewModel() {
     fun setClientReady(ready: Boolean) {
         if (_isClientReady.value != ready) {
             Log.d(TAG, "isClientReady changed: $ready")
-            _isClientReady.value = ready
+            _isClientReady.postValue(ready)
         }
     }
 
     fun setAuthorized(auth: Boolean) {
         if (_isAuthorized.value != auth) {
             Log.d(TAG, "isAuthorized changed: $auth")
-            _isAuthorized.value = auth
+            _isAuthorized.postValue(auth)
         }
     }
 
@@ -82,13 +82,13 @@ class MainViewModel : ViewModel() {
         skipped: Int? = null,
         afterAi: Int? = null
     ) {
-        total?.let { _lastTotalCollected.value = it }
-        afterDedup?.let { _lastAfterDedup.value = it }
-        afterFilter?.let { _lastAfterFilter.value = it }
-        toSynth?.let { _lastToSynthesize.value = it }
-        synth?.let { _lastSynthesized.value = it }
-        skipped?.let { _lastSkippedDuplicates.value = it }
-        afterAi?.let { _lastAfterAi.value = it }
+        total?.let { _lastTotalCollected.postValue(it) }
+        afterDedup?.let { _lastAfterDedup.postValue(it) }
+        afterFilter?.let { _lastAfterFilter.postValue(it) }
+        toSynth?.let { _lastToSynthesize.postValue(it) }
+        synth?.let { _lastSynthesized.postValue(it) }
+        skipped?.let { _lastSkippedDuplicates.postValue(it) }
+        afterAi?.let { _lastAfterAi.postValue(it) }
     }
 
     fun resetProgressCounters() {
@@ -108,9 +108,9 @@ class MainViewModel : ViewModel() {
 
     fun setPlaylistData(files: List<File>, newsCount: Int, indices: Set<Int>) {
         Log.d(TAG, "Playlist updated: ${files.size} files, real news: $newsCount")
-        _currentPlaylist.value = files
-        _currentRealNewsCount.value = newsCount
-        _currentNewsFileIndices.value = indices
+        _currentPlaylist.postValue(files)
+        _currentRealNewsCount.postValue(newsCount)
+        _currentNewsFileIndices.postValue(indices)
     }
 
     // --- Состояние таймера и прогресса ---
@@ -124,140 +124,15 @@ class MainViewModel : ViewModel() {
     val totalProgressSteps: LiveData<Int> = _totalProgressSteps
 
     fun setStartTime(time: Long) {
-        _startTime.value = time
-    }
-
-    // --- Процесс сбора ---
-    private var newsCollectionJob: Job? = null
-
-    fun isCollectionActive(): Boolean = newsCollectionJob?.isActive == true
-
-    fun startCollection(
-        context: Context,
-        newsService: NewsService,
-        selectedChannels: List<Channel>,
-        timeHours: Double
-    ) {
-        if (newsCollectionJob?.isActive == true) {
-            stopCollection()
-            _collectionStatus.value = "stopped" // В MainActivity это R.string.status_collection_stopped
-            return
-        }
-
-        resetProgressCounters()
-        _isCollecting.value = true
-        _startTime.value = System.currentTimeMillis()
-        
-        selectedChannels.forEach { it.newMessagesCount = -1 }
-        _channelProgress.value = selectedChannels
-
-        newsCollectionJob = viewModelScope.launch {
-            try {
-                _collectionStatus.value = "starting" // R.string.collecting_from_n_channels
-                _detailedStatus.value = "init"       // R.string.status_collection_starting
-
-                val audio = newsService.collectAndSynthesizePlaylist(
-                    channels = selectedChannels,
-                    timeHours = timeHours,
-                    progressCallback = createProgressCallback(selectedChannels, context),
-                    deduplicator = getDeduplicator(context)
-                )
-
-                val durationMin = withContext(Dispatchers.IO) {
-                    audio?.let { AudioUtils.calcDurationMinutes(it.files) } ?: 0
-                }
-
-                updateCounters(skipped = getDeduplicator(context).getSkippedCount())
-                _collectionFinishedEvent.value = audio to durationMin
-                
-            } catch (e: CancellationException) {
-                Log.d(TAG, "News collection cancelled")
-                _collectionStatus.value = "cancelled"
-            } catch (e: Exception) {
-                Log.e(TAG, "Error collecting news", e)
-                _errorEvent.value = e.message
-            } finally {
-                _isCollecting.value = false
-                newsCollectionJob = null
-            }
-        }
-    }
-
-    fun stopCollection() {
-        newsCollectionJob?.cancel()
-        newsCollectionJob = null
-        _isCollecting.value = false
-    }
-
-    private fun createProgressCallback(selectedChannels: List<Channel>, context: Context): ProgressCallback {
-        return object : ProgressCallback {
-            override fun onUpdateProgress(status: String, progress: Int, total: Int) {
-                _detailedStatus.value = status
-                // Процент рассчитывается в MainActivity для ProgressBarDetailed
-            }
-
-            override fun onUpdateCounters(collected: Int, filtered: Int, synthesized: Int) {
-                updateCounters(total = collected, toSynth = filtered, synth = synthesized)
-            }
-
-            override fun onUpdateNewsPreview(newsList: List<String>) {
-                _newsPreview.value = newsList
-            }
-
-            override fun onUpdateChannelProgress(channels: List<Channel>) {
-                _channelProgress.value = channels
-            }
-
-            override fun onChannelProcessed(channel: Channel, messagesCount: Int) {
-                channel.newMessagesCount = messagesCount
-                _channelProgress.value = selectedChannels.toList()
-            }
-
-            override fun onDeduplicationComplete(beforeCount: Int, afterCount: Int) {
-                updateCounters(afterDedup = afterCount)
-            }
-
-            override fun onMessageFiltered(originalCount: Int, filteredCount: Int) {
-                updateCounters(afterFilter = filteredCount)
-            }
-
-            override fun onNewsTruncated(kept: Int, dropped: Int) {
-                _toastEvent.value = "truncated|$kept|${kept + dropped}"
-            }
-
-            override fun onAiProcessingComplete(beforeCount: Int, afterCount: Int) {
-                updateCounters(toSynth = beforeCount, afterAi = afterCount)
-            }
-
-            override fun onOverallProgress(status: String, percentage: Int) {
-                _detailedStatus.value = status
-                // Время и ETA обновляются в MainActivity через таймер, смотря на currentProgressStep
-            }
-
-            override fun onSynthesisStarted(messageCount: Int) {
-                updateCounters(synth = 0)
-                _totalProgressSteps.value = messageCount
-                _currentProgressStep.value = 0
-            }
-
-            override fun onSynthesisProgress(current: Int, total: Int) {
-                updateCounters(synth = current)
-                _currentProgressStep.value = current
-                _totalProgressSteps.value = total
-            }
-
-            override fun onSynthesisCompleted() {
-                _detailedStatus.value = "done"
-            }
-        }
+        _startTime.postValue(time)
     }
 
     fun setCurrentProgressStep(step: Int) {
-        _currentProgressStep.value = step
+        _currentProgressStep.postValue(step)
     }
 
     fun setTotalProgressSteps(steps: Int) {
-        _totalProgressSteps.value = steps
+        _totalProgressSteps.postValue(steps)
     }
 
     // --- Состояния процесса сбора ---
@@ -287,9 +162,132 @@ class MainViewModel : ViewModel() {
     val toastEvent: LiveData<String?> = _toastEvent
 
     fun clearEvents() {
-        _errorEvent.value = null
-        _collectionFinishedEvent.value = null
-        _toastEvent.value = null
+        _errorEvent.postValue(null)
+        _collectionFinishedEvent.postValue(null)
+        _toastEvent.postValue(null)
+    }
+
+    // --- Процесс сбора ---
+    private var newsCollectionJob: Job? = null
+
+    fun isCollectionActive(): Boolean = newsCollectionJob?.isActive == true
+
+    fun startCollection(
+        context: Context,
+        newsService: NewsService,
+        selectedChannels: List<Channel>,
+        timeHours: Double
+    ) {
+        if (newsCollectionJob?.isActive == true) {
+            stopCollection()
+            _collectionStatus.postValue("stopped") 
+            return
+        }
+
+        resetProgressCounters()
+        _isCollecting.postValue(true)
+        _startTime.postValue(System.currentTimeMillis())
+        
+        selectedChannels.forEach { it.newMessagesCount = -1 }
+        _channelProgress.postValue(selectedChannels)
+
+        newsCollectionJob = viewModelScope.launch {
+            try {
+                _collectionStatus.postValue("starting") 
+                _detailedStatus.postValue("init")       
+
+                val audio = newsService.collectAndSynthesizePlaylist(
+                    channels = selectedChannels,
+                    timeHours = timeHours,
+                    progressCallback = createProgressCallback(selectedChannels, context),
+                    deduplicator = getDeduplicator(context)
+                )
+
+                val durationMin = withContext(Dispatchers.IO) {
+                    audio?.let { AudioUtils.calcDurationMinutes(it.files) } ?: 0
+                }
+
+                updateCounters(skipped = getDeduplicator(context).getSkippedCount())
+                _collectionFinishedEvent.postValue(audio to durationMin)
+                
+            } catch (e: CancellationException) {
+                Log.d(TAG, "News collection cancelled")
+                _collectionStatus.postValue("cancelled")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error collecting news", e)
+                _errorEvent.postValue(e.message)
+            } finally {
+                _isCollecting.postValue(false)
+                newsCollectionJob = null
+            }
+        }
+    }
+
+    fun stopCollection() {
+        newsCollectionJob?.cancel()
+        newsCollectionJob = null
+        _isCollecting.postValue(false)
+    }
+
+    private fun createProgressCallback(selectedChannels: List<Channel>, context: Context): ProgressCallback {
+        return object : ProgressCallback {
+            override fun onUpdateProgress(status: String, progress: Int, total: Int) {
+                _detailedStatus.postValue(status)
+            }
+
+            override fun onUpdateCounters(collected: Int, filtered: Int, synthesized: Int) {
+                updateCounters(total = collected, toSynth = filtered, synth = synthesized)
+            }
+
+            override fun onUpdateNewsPreview(newsList: List<String>) {
+                _newsPreview.postValue(newsList)
+            }
+
+            override fun onUpdateChannelProgress(channels: List<Channel>) {
+                _channelProgress.postValue(channels)
+            }
+
+            override fun onChannelProcessed(channel: Channel, messagesCount: Int) {
+                channel.newMessagesCount = messagesCount
+                _channelProgress.postValue(selectedChannels.toList())
+            }
+
+            override fun onDeduplicationComplete(beforeCount: Int, afterCount: Int) {
+                updateCounters(afterDedup = afterCount)
+            }
+
+            override fun onMessageFiltered(originalCount: Int, filteredCount: Int) {
+                updateCounters(afterFilter = filteredCount)
+            }
+
+            override fun onNewsTruncated(kept: Int, dropped: Int) {
+                _toastEvent.postValue("truncated|$kept|${kept + dropped}")
+            }
+
+            override fun onAiProcessingComplete(beforeCount: Int, afterCount: Int) {
+                updateCounters(toSynth = beforeCount, afterAi = afterCount)
+            }
+
+            override fun onOverallProgress(status: String, percentage: Int) {
+                _detailedStatus.postValue(status)
+            }
+
+            override fun onSynthesisStarted(messageCount: Int) {
+                updateCounters(synth = 0)
+                _totalProgressSteps.postValue(messageCount)
+                _currentProgressStep.postValue(0)
+            }
+
+            override fun onSynthesisProgress(current: Int, total: Int) {
+                updateCounters(synth = current)
+                _currentProgressStep.postValue(current)
+                _totalProgressSteps.postValue(total)
+            }
+
+            override fun onSynthesisCompleted() {
+                _detailedStatus.postValue("done")
+            }
+        }
     }
 
     // --- Дедупликация (бизнес-объект) ---
