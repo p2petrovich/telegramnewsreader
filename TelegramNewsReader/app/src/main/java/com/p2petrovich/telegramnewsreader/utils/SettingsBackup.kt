@@ -48,7 +48,6 @@ object SettingsBackup {
         val allPrefs = prefs.all
         val prefsJson = JSONObject()
         allPrefs.forEach { (key, value) ->
-            // if (key in SENSITIVE_KEYS) return@forEach // ВРЕМЕННО ОТКЛЮЧЕНО ДЛЯ ПРОВЕРКИ ПОЛЬЗОВАТЕЛЕМ
             if (value is Set<*>) {
                 val array = JSONArray()
                 value.forEach { array.put(it) }
@@ -57,6 +56,13 @@ object SettingsBackup {
                 prefsJson.put(key, value)
             }
         }
+        
+        // Добавляем API ключи (дешифруем перед сохранением в бэкап)
+        val openRouterKey = PreferenceManager.getOpenRouterApiKey(context)
+        val groqKey = PreferenceManager.getGroqApiKey(context)
+        if (openRouterKey.isNotEmpty()) prefsJson.put("openrouter_api_key", openRouterKey)
+        if (groqKey.isNotEmpty()) prefsJson.put("groq_api_key", groqKey)
+
         json.put("all_preferences", prefsJson)
 
         val presets = PresetManager.getAllPresets(context)
@@ -252,6 +258,17 @@ object SettingsBackup {
                 
                 prefsJson.keys().forEach { key ->
                     val value = prefsJson.get(key)
+                    
+                    // Перехватываем API ключи и сохраняем их зашифрованными
+                    if (key == "openrouter_api_key") {
+                        PreferenceManager.saveOpenRouterApiKey(context, value.toString())
+                        return@forEach
+                    }
+                    if (key == "groq_api_key") {
+                        PreferenceManager.saveGroqApiKey(context, value.toString())
+                        return@forEach
+                    }
+
                     when (value) {
                         is Boolean -> editor.putBoolean(key, value)
                         is Int -> editor.putInt(key, value)

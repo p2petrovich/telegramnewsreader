@@ -833,10 +833,13 @@ class MainActivity : AppCompatActivity() {
         updateDetailedProgress(getString(R.string.status_collection_done), 100, 100)
 
         if (audio != null && audio.files.isNotEmpty()) {
+            viewModel.setPlaylistData(audio.files, audio.realNewsCount, audio.newsFileIndices)
             lastUsedVoice = PreferenceManager.getTtsVoiceName(this)
+            viewModel.updateCounters(skipped = viewModel.getDeduplicator(this).getSkippedCount())
 
             val paths = audio.files.map { it.absolutePath }
             PreferenceManager.savePlaylistPaths(this, paths)
+            PreferenceManager.saveLastCollectionMetadata(this, audio.realNewsCount, audio.newsFileIndices)
 
             val baseStatus = getString(R.string.found_news, audio.realNewsCount)
             if (durationMin > 0) {
@@ -1723,10 +1726,8 @@ class MainActivity : AppCompatActivity() {
                     val savedIndex = PreferenceManager.getPlayerIndex(this)
                     val savedIsPlaying = PreferenceManager.getPlayerIsPlaying(this)
 
-                    val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-                    val realCount = prefs.getInt("last_real_news_count", 0)
-                    val indices = prefs.getStringSet("last_news_indices", emptySet())
-                        ?.mapNotNull { it.toIntOrNull() }?.toSet() ?: emptySet()
+                    val realCount = PreferenceManager.getLastRealNewsCount(this)
+                    val indices = PreferenceManager.getLastNewsFileIndices(this)
                     viewModel.setPlaylistData(files, realCount, indices)
 
                     if (savedIsPlaying) {

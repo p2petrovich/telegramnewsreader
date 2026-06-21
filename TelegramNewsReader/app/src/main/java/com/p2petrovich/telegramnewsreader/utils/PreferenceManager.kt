@@ -2,6 +2,7 @@ package com.p2petrovich.telegramnewsreader.utils
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.google.gson.Gson
@@ -9,6 +10,7 @@ import com.google.gson.reflect.TypeToken
 import com.p2petrovich.telegramnewsreader.models.ProxyEntry
 
 object PreferenceManager {
+    private const val TAG = "PreferenceManager"
     private const val PREFS_NAME = "telegram_news_prefs"
     private const val AUTH_PREFS_NAME = "auth_status"
     private const val KEY_IS_AUTHORIZED = "is_authorized"
@@ -54,14 +56,47 @@ object PreferenceManager {
     private const val KEY_OPENROUTER_API_KEY = "openrouter_api_key"
     private const val KEY_GROQ_API_KEY = "groq_api_key"
 
+    private const val KEY_LAST_REAL_NEWS_COUNT = "last_real_news_count"
+    private const val KEY_LAST_NEWS_FILE_INDICES = "last_news_indices"
+
     private const val PATHS_DELIMITER = "|||"
 
+    @Volatile private var prefsInstance: SharedPreferences? = null
+    @Volatile private var authPrefsInstance: SharedPreferences? = null
+    @Volatile private var securePrefsInstance: SharedPreferences? = null
+
     private fun getPreferences(context: Context): SharedPreferences {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefsInstance ?: synchronized(this) {
+            prefsInstance ?: context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).also { prefsInstance = it }
+        }
     }
 
     private fun getAuthPreferences(context: Context): SharedPreferences {
-        return context.getSharedPreferences(AUTH_PREFS_NAME, Context.MODE_PRIVATE)
+        return authPrefsInstance ?: synchronized(this) {
+            authPrefsInstance ?: context.applicationContext.getSharedPreferences(AUTH_PREFS_NAME, Context.MODE_PRIVATE).also { authPrefsInstance = it }
+        }
+    }
+
+    private fun getEncryptedPreferences(context: Context): SharedPreferences? {
+        if (securePrefsInstance != null) return securePrefsInstance
+        return synchronized(this) {
+            if (securePrefsInstance != null) return@synchronized securePrefsInstance
+            try {
+                val masterKey = MasterKey.Builder(context.applicationContext)
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build()
+                EncryptedSharedPreferences.create(
+                    context.applicationContext,
+                    ENCRYPTED_PREFS_NAME,
+                    masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                ).also { securePrefsInstance = it }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to init EncryptedSharedPreferences: ${e.message}")
+                null
+            }
+        }
     }
 
     fun isAiSummaryEnabled(context: Context): Boolean =
@@ -204,7 +239,7 @@ object PreferenceManager {
     fun clearAll(context: Context) {
         getPreferences(context).edit().clear().apply()
         getAuthPreferences(context).edit().clear().apply()
-        try { getEncryptedPreferences(context).edit().clear().apply() } catch (_: Exception) {}
+        try { getEncryptedPreferences(context)?.edit()?.clear()?.apply() } catch (_: Exception) {}
     }
 
     // Color theme
@@ -243,11 +278,30 @@ object PreferenceManager {
         return getPreferences(context).getBoolean(KEY_PLAYER_IS_PLAYING, false)
     }
 
+    fun saveLastCollectionMetadata(context: Context, count: Int, indices: Set<Int>) {
+        val indicesStr = indices.joinToString(",")
+        getPreferences(context).edit()
+            .putInt(KEY_LAST_REAL_NEWS_COUNT, count)
+            .putString(KEY_LAST_NEWS_FILE_INDICES, indicesStr)
+            .apply()
+    }
+
+    fun getLastRealNewsCount(context: Context): Int =
+        getPreferences(context).getInt(KEY_LAST_REAL_NEWS_COUNT, 0)
+
+    fun getLastNewsFileIndices(context: Context): Set<Int> {
+        val raw = getPreferences(context).getString(KEY_LAST_NEWS_FILE_INDICES, "") ?: ""
+        if (raw.isEmpty()) return emptySet()
+        return raw.split(",").mapNotNull { it.toIntOrNull() }.toSet()
+    }
+
     fun clearPlayerState(context: Context) {
         getPreferences(context).edit()
             .remove(KEY_PLAYER_PATHS)
             .remove(KEY_PLAYER_INDEX)
             .remove(KEY_PLAYER_IS_PLAYING)
+            .remove(KEY_LAST_REAL_NEWS_COUNT)
+            .remove(KEY_LAST_NEWS_FILE_INDICES)
             .apply()
     }
 
@@ -359,34 +413,21 @@ object PreferenceManager {
     // ===================== AI API Keys (encrypted storage) =====================
     // Ключи хранятся в EncryptedSharedPreferences — не попадают в BuildConfig/APK.
 
-    private fun getEncryptedPreferences(context: Context): SharedPreferences {
-        val masterKey = MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        return EncryptedSharedPreferences.create(
-            context,
-            ENCRYPTED_PREFS_NAME,
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
-    }
-
     fun getOpenRouterApiKey(context: Context): String =
-        try { getEncryptedPreferences(context).getString(KEY_OPENROUTER_API_KEY, "") ?: "" }
+        try { getEncryptedPreferences(context)?.getString(KEY_OPENROUTER_API_KEY, "") ?: "" }
         catch (_: Exception) { "" }
 
     fun saveOpenRouterApiKey(context: Context, key: String) {
-        try { getEncryptedPreferences(context).edit().putString(KEY_OPENROUTER_API_KEY, key).apply() }
+        try { getEncryptedPreferences(context)?.edit()?.putString(KEY_OPENROUTER_API_KEY, key)?.apply() }
         catch (_: Exception) {}
     }
 
     fun getGroqApiKey(context: Context): String =
-        try { getEncryptedPreferences(context).getString(KEY_GROQ_API_KEY, "") ?: "" }
+        try { getEncryptedPreferences(context)?.getString(KEY_GROQ_API_KEY, "") ?: "" }
         catch (_: Exception) { "" }
 
     fun saveGroqApiKey(context: Context, key: String) {
-        try { getEncryptedPreferences(context).edit().putString(KEY_GROQ_API_KEY, key).apply() }
+        try { getEncryptedPreferences(context)?.edit()?.putString(KEY_GROQ_API_KEY, key)?.apply() }
         catch (_: Exception) {}
     }
 }
