@@ -174,7 +174,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun observeViewModel() {
-        viewModel.isClientReady.observe(this) { updateUIForReadyClient() }
+        viewModel.isClientReady.observe(this) { ready ->
+            if (ready) {
+                updateUIForReadyClient()
+                // Если список еще пуст - пробуем загрузить
+                if (channelAdapter.getAllChannels().isEmpty()) {
+                    loadChannels()
+                }
+            }
+        }
         viewModel.lastTotalCollected.observe(this) { updatePipelineStatus() }
         viewModel.lastAfterDedup.observe(this) { updatePipelineStatus() }
         viewModel.lastAfterFilter.observe(this) { updatePipelineStatus() }
@@ -634,8 +642,6 @@ class MainActivity : AppCompatActivity() {
                             else pendingPhotos[channelId] = path
                         }
                     }
-                    loadChannels()
-                    updateUIForReadyClient()
                 }
             }
         }
@@ -734,9 +740,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadChannels() {
-        val isClientReady = viewModel.isClientReady.value ?: false
-        if (!isClientReady) return
-
+        // Мы вызываем это только когда точно знаем что клиент готов
         binding.progressBar.visibility = View.VISIBLE
         updateStatus(getString(R.string.status_loading_channels))
 
@@ -780,6 +784,10 @@ class MainActivity : AppCompatActivity() {
                     loadInitialNewsForChannels(filtered)
                     presetController.refreshPresetChips()
                 } else {
+                    // Если совсем пусто при первом запуске - пробуем еще раз через пару секунд
+                    if (viewModel.isClientReady.value == true) {
+                        binding.root.postDelayed({ loadChannels() }, 3000)
+                    }
                     updateStatus(getString(R.string.status_no_channels))
                 }
             }
