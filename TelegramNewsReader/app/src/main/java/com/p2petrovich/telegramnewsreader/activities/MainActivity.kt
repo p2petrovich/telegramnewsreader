@@ -209,9 +209,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         viewModel.detailedStatus.observe(this) { status ->
+            val cur = viewModel.currentProgressStep.value ?: -1
+            val tot = viewModel.totalProgressSteps.value ?: 100
+            
             if (status == "init") updateDetailedProgress(getString(R.string.status_collection_starting), 0, 100)
             else if (status == "done") updateDetailedProgress(getString(R.string.status_collection_done), 100, 100)
-            else updateDetailedProgress(status, -1, 100)
+            else updateDetailedProgress(status, cur, tot)
             
             if (status.contains(getString(R.string.status_synthesis_starting)) || status.contains("Синтез")) {
                 binding.cardCollectionProgress.visibility = View.VISIBLE

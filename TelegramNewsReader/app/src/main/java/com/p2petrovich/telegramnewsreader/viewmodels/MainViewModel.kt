@@ -233,6 +233,8 @@ class MainViewModel : ViewModel() {
         return object : ProgressCallback {
             override fun onUpdateProgress(status: String, progress: Int, total: Int) {
                 _detailedStatus.postValue(status)
+                _currentProgressStep.postValue(progress)
+                _totalProgressSteps.postValue(total)
             }
 
             override fun onUpdateCounters(collected: Int, filtered: Int, synthesized: Int) {
@@ -270,18 +272,23 @@ class MainViewModel : ViewModel() {
 
             override fun onOverallProgress(status: String, percentage: Int) {
                 _detailedStatus.postValue(status)
+                _currentProgressStep.postValue(percentage)
+                _totalProgressSteps.postValue(100)
             }
 
             override fun onSynthesisStarted(messageCount: Int) {
                 updateCounters(synth = 0)
                 _totalProgressSteps.postValue(messageCount)
                 _currentProgressStep.postValue(0)
+                _detailedStatus.postValue(context.getString(com.p2petrovich.telegramnewsreader.R.string.status_synthesis_starting))
             }
 
             override fun onSynthesisProgress(current: Int, total: Int) {
                 updateCounters(synth = current)
                 _currentProgressStep.postValue(current)
                 _totalProgressSteps.postValue(total)
+                val msg = context.getString(com.p2petrovich.telegramnewsreader.R.string.synthesis_started, current, total)
+                _detailedStatus.postValue(msg)
             }
 
             override fun onSynthesisCompleted() {
