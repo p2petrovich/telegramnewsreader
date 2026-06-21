@@ -16,7 +16,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Button
-import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.SeekBar
@@ -321,23 +320,6 @@ class MainActivity : AppCompatActivity() {
         progressExecutor?.shutdown()
         progressExecutor = null
         viewModel.setStartTime(0L)
-    }
-
-    private fun resetCollectionState() {
-        viewModel.stopCollection()
-        stopTimer()
-        resetProgressCounters()
-        updateNewsCollectionButton()
-        updateUIForReadyClient()
-
-        viewModel.setPlaylistData(emptyList(), 0, emptySet())
-        savedDurationInfo = null
-        // NOTE: deduplicator намеренно НЕ сбрасывается здесь — история должна
-        // сохраняться между повторными нажатиями «Собрать новости», чтобы уже
-        // обработанные посты не попадали в плейлист снова.
-        // Явный сброс происходит только при изменении настроек дедупликатора
-        // (showDedupSettingsDialog) и при очистке кэша (showSettingsDialog).
-        viewModel.getDeduplicator(this).resetSkippedCount()   // ← добавить
     }
 
     private fun showProgressPanels() {
@@ -887,6 +869,9 @@ class MainActivity : AppCompatActivity() {
             updateStatus(getString(R.string.no_new_news))
             Toast.makeText(this, getString(R.string.no_new_news), Toast.LENGTH_LONG).show()
         }
+        
+        viewModel.stopCollection()
+        stopTimer()
     }
 
     private fun updateDetailedProgress(status: String, progress: Int, total: Int) {
@@ -894,30 +879,28 @@ class MainActivity : AppCompatActivity() {
         val percentage = if (total > 0) (progress * 100 / total).coerceIn(0, 100) else 0
         binding.progressBarDetailed.progress = percentage
         binding.tvProgressPercentage.text = getString(R.string.percentage, percentage)
-    }
 
-    private fun updateElapsedTime() {
+        // Обновляем время при каждом шаге прогресса
         val startTime = viewModel.startTime.value ?: 0L
-        if (startTime == 0L) return
-        val elapsedMs = System.currentTimeMillis() - startTime
-        val seconds = (elapsedMs / 1000) % 60
-        val minutes = (elapsedMs / (1000 * 60)) % 60
-        val hours = elapsedMs / (1000 * 60 * 60)
+        if (startTime != 0L) {
+            val elapsedMs = System.currentTimeMillis() - startTime
+            val seconds = (elapsedMs / 1000) % 60
+            val minutes = (elapsedMs / (1000 * 60)) % 60
+            val hours = elapsedMs / (1000 * 60 * 60)
 
-        val timeStr = if (hours > 0) {
-            String.format(java.util.Locale.US, "%02d:%02d:%02d", hours.toInt(), minutes.toInt(), seconds.toInt())
-        } else {
-            String.format(java.util.Locale.US, "%02d:%02d", minutes.toInt(), seconds.toInt())
-        }
-        
-        //          ,   .
-        //    tvProgressPercentage   .
-        val currentText = binding.tvProgressPercentage.text.toString()
-        if (!currentText.contains("")) {
-            binding.tvProgressPercentage.text = "$currentText   $timeStr"
-        } else {
-            val base = currentText.substringBefore("  ")
-            binding.tvProgressPercentage.text = "$base   $timeStr"
+            val timeStr = if (hours > 0) {
+                String.format(java.util.Locale.US, "%02d:%02d:%02d", hours.toInt(), minutes.toInt(), seconds.toInt())
+            } else {
+                String.format(java.util.Locale.US, "%02d:%02d", minutes.toInt(), seconds.toInt())
+            }
+
+            val currentText = binding.tvProgressPercentage.text.toString()
+            if (!currentText.contains("  ")) {
+                binding.tvProgressPercentage.text = "$currentText   $timeStr"
+            } else {
+                val base = currentText.substringBefore("  ")
+                binding.tvProgressPercentage.text = "$base   $timeStr"
+            }
         }
     }
 
