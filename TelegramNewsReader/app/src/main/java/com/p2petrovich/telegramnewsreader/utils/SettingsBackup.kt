@@ -43,27 +43,40 @@ object SettingsBackup {
         json.put("app_signature", APP_SIGNATURE)
         json.put("backup_version", BACKUP_VERSION)
 
-        // Сохраняем ВСЕ настройки из SharedPreferences
-        val prefs = context.getSharedPreferences("telegram_news_prefs", Context.MODE_PRIVATE)
-        val allPrefs = prefs.all
-        val prefsJson = JSONObject()
-        allPrefs.forEach { (key, value) ->
-            if (value is Set<*>) {
-                val array = JSONArray()
-                value.forEach { array.put(it) }
-                prefsJson.put(key, array)
-            } else {
-                prefsJson.put(key, value)
+        // Сохраняем ВСЕ настройки из SharedPreferences (Общие и Авторизация)
+        val prefFiles = listOf("telegram_news_prefs", "auth_status")
+        val allPrefsJson = JSONObject()
+        
+        prefFiles.forEach { fileName ->
+            val p = context.getSharedPreferences(fileName, Context.MODE_PRIVATE)
+            val fileJson = JSONObject()
+            p.all.forEach { (key, value) ->
+                if (value is Set<*>) {
+                    val array = JSONArray()
+                    value.forEach { array.put(it) }
+                    fileJson.put(key, array)
+                } else {
+                    fileJson.put(key, value)
+                }
             }
+            allPrefsJson.put(fileName, fileJson)
         }
         
-        // Добавляем API ключи (дешифруем перед сохранением в бэкап)
+        // Добавляем API ключи вручную (они в отдельном secure-файле)
         val openRouterKey = PreferenceManager.getOpenRouterApiKey(context)
         val groqKey = PreferenceManager.getGroqApiKey(context)
-        if (openRouterKey.isNotEmpty()) prefsJson.put("openrouter_api_key", openRouterKey)
-        if (groqKey.isNotEmpty()) prefsJson.put("groq_api_key", groqKey)
+        if (openRouterKey.isNotEmpty()) {
+            val newsPrefs = allPrefsJson.optJSONObject("telegram_news_prefs") ?: JSONObject()
+            newsPrefs.put("openrouter_api_key", openRouterKey)
+            allPrefsJson.put("telegram_news_prefs", newsPrefs)
+        }
+        if (groqKey.isNotEmpty()) {
+            val newsPrefs = allPrefsJson.optJSONObject("telegram_news_prefs") ?: JSONObject()
+            newsPrefs.put("groq_api_key", groqKey)
+            allPrefsJson.put("telegram_news_prefs", newsPrefs)
+        }
 
-        json.put("all_preferences", prefsJson)
+        json.put("all_pref_files", allPrefsJson)
 
         val presets = PresetManager.getAllPresets(context)
         val presetsArray = JSONArray()
@@ -251,15 +264,53 @@ object SettingsBackup {
             if (json.optString("app_signature") != APP_SIGNATURE) return@withContext false
             if (json.optInt("backup_version", 0) <= 0) return@withContext false
 
-            if (json.has("all_preferences")) {
+            if (json.has("all_pref_files")) {
+                val allFilesJson = json.getJSONObject("all_pref_files")
+                allFilesJson.keys().forEach { fileName ->
+                    val fileContent = allFilesJson.getJSONObject(fileName)
+                    val prefs = context.getSharedPreferences(fileName, Context.MODE_PRIVATE)
+                    val editor = prefs.edit()
+                    
+                    // Полная очистка перед импортом, чтобы не смешивать старое и новое
+                    editor.clear()
+                    
+                    fileContent.keys().forEach { key ->
+                        val value = fileContent.get(key)
+                        
+                        if (key == "openrouter_api_key") {
+                            PreferenceManager.saveOpenRouterApiKey(context, value.toString())
+                            return@forEach
+                        }
+                        if (key == "groq_api_key") {
+                            PreferenceManager.saveGroqApiKey(context, value.toString())
+                            return@forEach
+                        }
+
+                        when (value) {
+                            is Boolean -> editor.putBoolean(key, value)
+                            is Int -> editor.putInt(key, value)
+                            is Long -> editor.putLong(key, value)
+                            is Double -> editor.putFloat(key, value.toFloat())
+                            is String -> editor.putString(key, value)
+                            is JSONArray -> {
+                                val set = mutableSetOf<String>()
+                                for (i in 0 until value.length()) {
+                                    set.add(value.getString(i))
+                                }
+                                editor.putStringSet(key, set)
+                            }
+                        }
+                    }
+                    editor.commit() // Используем синхронный commit для надежности
+                }
+            } else if (json.has("all_preferences")) {
+                // Обратная совместимость со старыми бэкапами
                 val prefsJson = json.getJSONObject("all_preferences")
                 val prefs = context.getSharedPreferences("telegram_news_prefs", Context.MODE_PRIVATE)
                 val editor = prefs.edit()
                 
                 prefsJson.keys().forEach { key ->
                     val value = prefsJson.get(key)
-                    
-                    // Перехватываем API ключи и сохраняем их зашифрованными
                     if (key == "openrouter_api_key") {
                         PreferenceManager.saveOpenRouterApiKey(context, value.toString())
                         return@forEach
@@ -268,7 +319,6 @@ object SettingsBackup {
                         PreferenceManager.saveGroqApiKey(context, value.toString())
                         return@forEach
                     }
-
                     when (value) {
                         is Boolean -> editor.putBoolean(key, value)
                         is Int -> editor.putInt(key, value)
@@ -284,8 +334,11 @@ object SettingsBackup {
                         }
                     }
                 }
-                editor.apply()
+                editor.commit()
             }
+
+            // После загрузки всех настроек - инвалидируем кеш менеджера
+            PreferenceManager.invalidate()
 
             if (json.has("presets")) {
                 val presetsArray = json.getJSONArray("presets")

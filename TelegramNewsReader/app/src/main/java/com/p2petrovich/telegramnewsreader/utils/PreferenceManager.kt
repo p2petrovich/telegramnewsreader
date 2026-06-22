@@ -99,6 +99,12 @@ object PreferenceManager {
         }
     }
 
+    fun invalidate() {
+        prefsInstance = null
+        authPrefsInstance = null
+        securePrefsInstance = null
+    }
+
     fun isAiSummaryEnabled(context: Context): Boolean =
         getPreferences(context).getBoolean(KEY_AI_SUMMARY_ENABLED, false)
 
