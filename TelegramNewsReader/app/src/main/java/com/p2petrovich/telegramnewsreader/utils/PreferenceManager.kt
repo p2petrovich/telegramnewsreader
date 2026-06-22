@@ -81,22 +81,38 @@ object PreferenceManager {
         if (securePrefsInstance != null) return securePrefsInstance
         return synchronized(this) {
             if (securePrefsInstance != null) return@synchronized securePrefsInstance
+            tryCreateEncryptedPrefs(context.applicationContext)
+        }
+    }
+
+    private fun tryCreateEncryptedPrefs(appContext: Context): SharedPreferences? {
+        return try {
+            buildEncryptedPrefs(appContext).also { securePrefsInstance = it }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to init EncryptedSharedPreferences: ${e.message}")
+            // Битый файл — удаляем и пересоздаём с нуля
             try {
-                val masterKey = MasterKey.Builder(context.applicationContext)
-                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                    .build()
-                EncryptedSharedPreferences.create(
-                    context.applicationContext,
-                    ENCRYPTED_PREFS_NAME,
-                    masterKey,
-                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-                ).also { securePrefsInstance = it }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to init EncryptedSharedPreferences: ${e.message}")
+                appContext.deleteSharedPreferences(ENCRYPTED_PREFS_NAME)
+                Log.w(TAG, "Deleted corrupted secure prefs, retrying")
+                buildEncryptedPrefs(appContext).also { securePrefsInstance = it }
+            } catch (e2: Exception) {
+                Log.e(TAG, "Recovery also failed: ${e2.message}")
                 null
             }
         }
+    }
+
+    private fun buildEncryptedPrefs(appContext: Context): SharedPreferences {
+        val masterKey = MasterKey.Builder(appContext)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        return EncryptedSharedPreferences.create(
+            appContext,
+            ENCRYPTED_PREFS_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
     }
 
     fun invalidate() {
