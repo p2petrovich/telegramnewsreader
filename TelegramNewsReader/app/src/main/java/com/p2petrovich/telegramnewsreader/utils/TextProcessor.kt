@@ -440,8 +440,8 @@ object TextProcessor {
         if (NewsService.isChannelHeader(text)) return text
         var t = cleanForTts(text)
         t = deduplicateLines(t)
-        t = expandAbbreviations(t)
         t = normalizeNumbers(t)
+        t = expandAbbreviations(t)
         t = formatForIntonation(t)
         t = formatForSpeech(t)
         return t.trim()
@@ -453,6 +453,9 @@ object TextProcessor {
         if (NewsService.isChannelHeader(text)) return text
 
         var t = text
+
+        // 0) Предварительная нормализация спецсимволов, чтобы они не ушли в мусор
+        t = t.replace("₽", " руб. ")
 
         // 1) Структурный мусор (строки целиком)
         t = TTS_URL_PATTERN.replace(t, " ")
@@ -514,13 +517,26 @@ object TextProcessor {
         var t = text
         t = t.replace(Regex("\\b№\\s*(\\d+)"), "номер $1")
 
-        t = t.replace(Regex("\\b(\\d+[\\d\\s]*)\\s*(млн|млрд)\\s*(?:₽|руб\\.?|р\\.)\\b", RegexOption.IGNORE_CASE)) { match ->
-            val num = match.groupValues[1].replace("\\s".toRegex(), "")
-            val scale = if (match.groupValues[2].lowercase() == "млн") "миллионов" else "миллиардов"
-            "$num $scale рублей"
+        // 1. Валюты с масштабом: ₽100 тыс, 5 млрд руб, 10 млн. руб
+        t = t.replace(Regex("(?i)(?:₽|руб\\.?|р\\.)?\\s*(\\d+[\\d\\s,.]*)\\s*(тыс\\.?|млн\\.?|млрд\\.?)\\s*(?:₽|руб\\.?|р\\.)?")) { match ->
+            val num = match.groupValues[1].trim().replace(" ", "").replace(",", ".")
+            val scaleRaw = match.groupValues[2].lowercase().trim('.')
+            val scale = when {
+                scaleRaw.startsWith("тыс") -> "тысяч"
+                scaleRaw.startsWith("млн") -> "миллионов"
+                scaleRaw.startsWith("млрд") -> "миллиардов"
+                else -> scaleRaw
+            }
+            // Проверяем, был ли знак рубля до или после
+            val hasRuble = match.value.contains("₽") || match.value.contains("руб", ignoreCase = true) || match.value.contains("р.", ignoreCase = true)
+            if (hasRuble) "$num $scale рублей" else match.value
         }
 
-        t = t.replace(Regex("\\b(\\d+[\\d\\s]*)(?:₽|руб\\.?|р\\.)\\b", RegexOption.IGNORE_CASE), "$1 рублей")
+        // 2. Обычные рубли: ₽100, 100р.
+        t = t.replace(Regex("(?i)₽\\s?(\\d+[\\d\\s]*)|\\b(\\d+[\\d\\s]*)\\s?(?:₽|руб\\.?|р\\.)\\b")) { match ->
+            val num = (match.groupValues[1].takeIf { it.isNotEmpty() } ?: match.groupValues[2]).trim().replace(" ", "")
+            "$num рублей"
+        }
 
         t = t.replace(
             Regex("\\$\\s?(\\d[\\d\\s,.]*)\\s*(млн|млрд)\\b", RegexOption.IGNORE_CASE)
@@ -664,7 +680,7 @@ object TextProcessor {
             Regex("\\bФСБ\\b")                              to "ФСБ",
             Regex("\\bМЧС\\b")                              to "МЧС",
             Regex("\\bВСУ\\b")                              to "вэ-эс-у",
-            Regex("\\bБПЛА\\b")                             to "бэ-пэ-эл-а",
+            Regex("\\bБПЛА\\b")                             to "беспилотник",
             Regex("\\bНАТО\\b")                             to "НАТО",
             Regex("\\bпр-т\\b")                             to "проспект",
             Regex("\\bгр\\.\\b")                            to "гражданин",

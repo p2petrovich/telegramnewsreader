@@ -76,7 +76,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         // true — печатает то, что реально идёт в TTS, кусками по 800 символов.
         // Удобно для проверки чистки. Выключи в релизе.
         // private const val LOG_SYNTH_INPUT = true
-        private const val LOG_SYNTH_INPUT = false
+        private const val LOG_SYNTH_INPUT = true
     }
 
     private var tts: TextToSpeech? = null
