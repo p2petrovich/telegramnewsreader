@@ -154,6 +154,10 @@ class MainActivity : AppCompatActivity() {
                     updatePlayerButtons(isPlaying)
                     PreferenceManager.savePlayerIndex(context, cur - 1)
                     PreferenceManager.savePlayerIsPlaying(context, isPlaying)
+                    
+                    if (isPlaying) {
+                        viewModel.markAsRead(context, cur - 1)
+                    }
                 }
             }
         }
@@ -823,7 +827,7 @@ class MainActivity : AppCompatActivity() {
         updateDetailedProgress(getString(R.string.status_collection_done), 100, 100)
 
         if (audio != null && audio.files.isNotEmpty()) {
-            viewModel.setPlaylistData(audio.files, audio.realNewsCount, audio.newsFileIndices)
+            viewModel.setPlaylistData(audio.files, audio.realNewsCount, audio.newsFileIndices, audio.fileToMsgIndex, audio.originalMessages)
             lastUsedVoice = PreferenceManager.getTtsVoiceName(this)
             viewModel.updateCounters(skipped = viewModel.getDeduplicator(this).getSkippedCount())
 
@@ -866,8 +870,19 @@ class MainActivity : AppCompatActivity() {
 
             Toast.makeText(this, getString(R.string.found_messages, audio.realNewsCount), Toast.LENGTH_SHORT).show()
         } else {
-            updateStatus(getString(R.string.no_new_news))
-            Toast.makeText(this, getString(R.string.no_new_news), Toast.LENGTH_LONG).show()
+            // Если новых новостей нет, но дедупликатор что-то пропустил — сообщаем пользователю
+            val skipped = viewModel.lastSkippedDuplicates.value ?: 0
+            if (skipped > 0) {
+                val msg = getString(R.string.no_new_news) + "\n" + getString(R.string.skipped_duplicates, skipped)
+                updateStatus(msg)
+                Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+            } else {
+                updateStatus(getString(R.string.no_new_news))
+                Toast.makeText(this, getString(R.string.no_new_news), Toast.LENGTH_LONG).show()
+            }
+            
+            // Важно: если плейлист пуст, скрываем старый плеер, так как он больше не актуален
+            binding.llPlayer.visibility = View.GONE
         }
         
         viewModel.stopCollection()

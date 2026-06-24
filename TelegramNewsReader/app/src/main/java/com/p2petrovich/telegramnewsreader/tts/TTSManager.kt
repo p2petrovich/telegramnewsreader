@@ -282,7 +282,8 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
     data class AudioPlaylist(
         val files: List<File>,
         val actualNewsCount: Int = 0,
-        val newsFileIndices: Set<Int> = emptySet()
+        val newsFileIndices: Set<Int> = emptySet(),
+        val fileToMsgIndex: IntArray = intArrayOf()
     )
 
     private data class PartJob(
@@ -659,10 +660,17 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         Log.d(TAG, "Playlist ready: ${chapterFiles.size} files, news=$actualNewsCount")
 
-        NewsCache.cleanup(context)
-        progressCallback?.onCompleted()
+        val finalFileToMsgIndex = IntArray(chapterFiles.size)
+        // Мы знаем, что chapterFiles строились в том же порядке, что и prepared, 
+        // но на случай пропусков (хотя их быть не должно при успехе), сопоставляем заново.
+        // На самом деле, в текущем коде chapterFiles.size == prepared.size если всё успешно.
+        prepared.forEachIndexed { idx, item ->
+            if (idx < chapterFiles.size) {
+                finalFileToMsgIndex[idx] = item.originalIndex
+            }
+        }
 
-        return AudioPlaylist(chapterFiles, actualNewsCount, newsFileIndices)
+        return AudioPlaylist(chapterFiles, actualNewsCount, newsFileIndices, finalFileToMsgIndex)
     }
 
     private fun cleanupChapterFiles(files: List<File>, cachedPaths: Set<String>) {

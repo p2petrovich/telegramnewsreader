@@ -351,12 +351,12 @@ class TelegramClient(private val context: Context) {
     ): List<String> = suspendCancellableCoroutine { continuation ->
 
         if (!isInitialized || !isAuthorized || client == null) {
+            Log.w(TAG, "getChannelMessagesPaginated: Client not ready for channel $channelId")
             continuation.resume(emptyList())
             return@suspendCancellableCoroutine
         }
 
-        // ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ: Сообщаем TDLib, что мы "открыли" чат.
-        // Это часто заставляет библиотеку синхронизировать историю с сервером заново.
+        // Принудительная синхронизация
         client?.send(TdApi.OpenChat(channelId)) { }
 
         val messages = mutableListOf<String>()
@@ -366,10 +366,6 @@ class TelegramClient(private val context: Context) {
         var loadedTotal = 0
         val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
-        // [FIX] Парный CloseChat к OpenChat выше. Идемпотентен (срабатывает один раз
-        // благодаря getAndSet). Вызывается из resumeOnce (нормальное завершение) и
-        // из invokeOnCancellation (отмена корутины), чтобы чат не оставался открытым
-        // ни при каком исходе и TDLib не тратил ресурсы на фоновую синхронизацию.
         fun closeChatOnce() {
             if (isChatClosed.getAndSet(true)) return
             try { client?.send(TdApi.CloseChat(channelId)) { } } catch (_: Exception) {}
@@ -384,18 +380,22 @@ class TelegramClient(private val context: Context) {
         fun resumeOnce(result: List<String>) {
             if (isResumed.getAndSet(true)) return
             closeChatOnce()
+            Log.d(TAG, "Channel $channelId: finished, found ${result.size} messages")
             if (continuation.isActive) continuation.resume(result)
         }
 
         fun loadPage(fromMessageId: Long) {
             if (isCancelled.get() || isResumed.get()) return
 
+            Log.v(TAG, "Channel $channelId: requesting page from $fromMessageId")
             client?.send(TdApi.GetChatHistory(channelId, fromMessageId, 0, 100, false)) { response ->
                 if (isCancelled.get() || isResumed.get()) return@send
 
                 when (response) {
                     is TdApi.Messages -> {
                         val page = response.messages
+                        Log.v(TAG, "Channel $channelId: received ${page.size} items from TDLib")
+                        
                         if (page.isEmpty()) {
                             resumeOnce(messages)
                             return@send
@@ -408,13 +408,11 @@ class TelegramClient(private val context: Context) {
                                 break
                             }
 
-                            val time = try {
+                            val timeStr = try {
                                 Instant.ofEpochSecond(msg.date.toLong())
                                     .atZone(ZoneId.systemDefault())
                                     .format(timeFormatter)
-                            } catch (_: Exception) {
-                                "??:??"
-                            }
+                            } catch (_: Exception) { "??:??" }
 
                             val text: String? = when (val content = msg.content) {
                                 is TdApi.MessageText      -> content.text.text.trim()
@@ -427,8 +425,7 @@ class TelegramClient(private val context: Context) {
                             }
 
                             if (!text.isNullOrBlank()) {
-                                // Формат "HH:mm — текст" — на этот разделитель завязаны фильтры TextProcessor
-                                messages.add(time + TIME_SEPARATOR + text)
+                                messages.add(timeStr + TIME_SEPARATOR + text)
                             }
                         }
 
@@ -438,12 +435,11 @@ class TelegramClient(private val context: Context) {
                         if (reachedDateLimit || loadedTotal >= maxMessages || page.size < 100) {
                             resumeOnce(messages)
                         } else {
-                            // Рекурсивный запрос следующей страницы
                             loadPage(lastId)
                         }
                     }
                     is TdApi.Error -> {
-                        Log.e(TAG, "GetChatHistory error: ${response.message}")
+                        Log.e(TAG, "GetChatHistory error for $channelId: ${response.message}")
                         resumeOnce(messages)
                     }
                     else -> resumeOnce(messages)
@@ -451,18 +447,12 @@ class TelegramClient(private val context: Context) {
             }
         }
 
-        // [FIX] loadPage(0) вызывал GetChatHistory с fromMessageId=0, что для каналов
-        // означает «с текущей инкрементальной позиции TDLib», а не «с последнего сообщения».
-        // После первого сбора TDLib запоминает позицию = ID последнего полученного сообщения,
-        // и следующий вызов с fromMessageId=0 возвращает только 3 новых — вместо всей истории.
-        //
-        // Решение: получаем реальный lastMessage.id через GetChat и передаём lastMsgId+1,
-        // что означает «все сообщения до этого ID включительно» — полная история без смещения.
-        client?.send(TdApi.GetChat(channelId)) { chatResult ->
-            if (isCancelled.get() || isResumed.get()) return@send
-            val latestMsgId = (chatResult as? TdApi.Chat)?.lastMessage?.id ?: 0L
-            loadPage(if (latestMsgId > 0L) latestMsgId + 1L else 0L)
-        }
+        // Ждем 300мс после OpenChat для синхронизации, прежде чем просить историю
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (!isCancelled.get() && !isResumed.get()) {
+                loadPage(0) // Начинаем с самого последнего сообщения (ID=0)
+            }
+        }, 300)
     }
 
     fun logoutAndReset(callback: () -> Unit) {

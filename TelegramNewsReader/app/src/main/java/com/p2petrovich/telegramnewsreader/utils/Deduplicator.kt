@@ -24,9 +24,7 @@ class Deduplicator(
 
         // Слишком мало признаков — не сравниваем, считаем уникальным
         if (fingerprint.words.size < 3) {
-            Logx.d("Deduplicator") { "ADD (too_few_words=${fingerprint.words.size}, history_size=${history.size})" }
-            history.addLast(HistoryEntry(fingerprint))
-            if (history.size > historySize) history.removeFirst()
+            Logx.d("Deduplicator") { "SKIP CHECK (too_few_words=${fingerprint.words.size})" }
             return false
         }
 
@@ -38,10 +36,23 @@ class Deduplicator(
             return true
         }
 
-        Logx.d("Deduplicator") { "ADD (new_msg, history_size=${history.size})" }
-        history.addLast(HistoryEntry(fingerprint))
-        if (history.size > historySize) history.removeFirst()
         return false
+    }
+
+    /**
+     * Добавляет новость в историю "прочитанных".
+     * Должно вызываться только когда новость реально попала в плейлист/была прослушана.
+     */
+    fun addToHistory(text: String) {
+        if (!isEnabled) return
+        val fingerprint = TextProcessor.extractFingerprint(text)
+        
+        // Не добавляем в историю то, что уже там есть или слишком коротко
+        if (fingerprint.words.size >= 3 && history.none { TextProcessor.isSameEvent(it.fingerprint, fingerprint, matchThreshold.toDouble()) }) {
+            Logx.d("Deduplicator") { "ADD to history (history_size=${history.size})" }
+            history.addLast(HistoryEntry(fingerprint))
+            if (history.size > historySize) history.removeFirst()
+        }
     }
 
     fun getSkippedCount(): Int = skippedCount

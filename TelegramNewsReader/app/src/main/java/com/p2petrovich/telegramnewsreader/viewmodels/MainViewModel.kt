@@ -106,11 +106,34 @@ class MainViewModel : ViewModel() {
     private val _currentNewsFileIndices = MutableLiveData<Set<Int>>(emptySet())
     val currentNewsFileIndices: LiveData<Set<Int>> = _currentNewsFileIndices
 
-    fun setPlaylistData(files: List<File>, newsCount: Int, indices: Set<Int>) {
+    private var lastFileToMsgIndex: IntArray = intArrayOf()
+    private var lastOriginalMessages: List<String> = emptyList()
+
+    fun setPlaylistData(files: List<File>, newsCount: Int, indices: Set<Int>, mapping: IntArray = intArrayOf(), messages: List<String> = emptyList()) {
         Log.d(TAG, "Playlist updated: ${files.size} files, real news: $newsCount")
         _currentPlaylist.postValue(files)
         _currentRealNewsCount.postValue(newsCount)
         _currentNewsFileIndices.postValue(indices)
+        lastFileToMsgIndex = mapping
+        lastOriginalMessages = messages
+    }
+
+    fun markAsRead(context: Context, fileIndex: Int) {
+        if (fileIndex < 0 || fileIndex >= lastFileToMsgIndex.size) {
+            Log.v(TAG, "markAsRead: invalid fileIndex $fileIndex (size=${lastFileToMsgIndex.size})")
+            return
+        }
+        val msgIdx = lastFileToMsgIndex[fileIndex]
+        if (msgIdx < 0 || msgIdx >= lastOriginalMessages.size) {
+            Log.v(TAG, "markAsRead: invalid msgIdx $msgIdx (size=${lastOriginalMessages.size})")
+            return
+        }
+        
+        val text = lastOriginalMessages[msgIdx]
+        if (!NewsService.isChannelHeader(text)) {
+            Log.d(TAG, "markAsRead: marking news at $fileIndex (msg $msgIdx) as read")
+            getDeduplicator(context).addToHistory(text)
+        }
     }
 
     // --- Состояние таймера и прогресса ---
@@ -189,6 +212,7 @@ class MainViewModel : ViewModel() {
         _startTime.postValue(System.currentTimeMillis())
 
         val currentDeduplicator = getDeduplicator(context)
+        currentDeduplicator.resetSkippedCount() // Сбрасываем счетчик перед началом нового сбора
         Log.d(TAG, "Collection START. Deduplicator status: enabled=${currentDeduplicator.isEnabled}, history_size=${currentDeduplicator.getHistorySize()}")
 
         selectedChannels.forEach { it.newMessagesCount = -1 }

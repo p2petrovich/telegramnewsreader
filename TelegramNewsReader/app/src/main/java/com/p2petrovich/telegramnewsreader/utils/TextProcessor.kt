@@ -163,6 +163,29 @@ object TextProcessor {
 
     // ============ Фильтрация ============
 
+    fun dropEmptyHeaders(messages: List<String>): List<String> {
+        val result = mutableListOf<String>()
+        var i = 0
+        while (i < messages.size) {
+            val current = messages[i]
+            if (NewsService.isChannelHeader(current)) {
+                // Если это заголовок, смотрим следующее сообщение
+                if (i + 1 < messages.size && !NewsService.isChannelHeader(messages[i + 1])) {
+                    // За заголовком идет новость — оставляем
+                    result.add(current)
+                } else {
+                    // За заголовком идет либо другой заголовок, либо конец списка — удаляем
+                    Logx.d(TAG) { "DROP empty header: $current" }
+                }
+            } else {
+                // Это не заголовок, а новость — оставляем
+                result.add(current)
+            }
+            i++
+        }
+        return result
+    }
+
     const val MAX_NEWS_DEFAULT = 500
 
     fun filterMessages(

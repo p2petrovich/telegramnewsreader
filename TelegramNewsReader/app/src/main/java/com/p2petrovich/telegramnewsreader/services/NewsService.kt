@@ -98,7 +98,9 @@ class NewsService(
     data class AudioPlaylist(
         val files: List<java.io.File>,
         val realNewsCount: Int = 0,
-        val newsFileIndices: Set<Int> = emptySet()
+        val newsFileIndices: Set<Int> = emptySet(),
+        val fileToMsgIndex: IntArray = intArrayOf(),
+        val originalMessages: List<String> = emptyList()
     )
 
     suspend fun getAllChannelsNewsCount(
@@ -173,7 +175,7 @@ class NewsService(
             }
         ) ?: return@withContext null
 
-        AudioPlaylist(playlist.files, actualTtsNewsCount, playlist.newsFileIndices)
+        AudioPlaylist(playlist.files, actualTtsNewsCount, playlist.newsFileIndices, playlist.fileToMsgIndex, list.preparedMessages)
     }
 
     private suspend fun collectAndPrepareMessages(
@@ -380,22 +382,33 @@ class NewsService(
                     afterDropTrivial
                 }
 
-                val finalToSynthesize = finalMessages.count { !isChannelHeader(it) }
+                val finalMessagesWithHeaders = if (finalMessages.isNotEmpty()) {
+                    TextProcessor.dropEmptyHeaders(finalMessages)
+                } else {
+                    emptyList()
+                }
+
+                val finalToSynthesize = finalMessagesWithHeaders.count { !isChannelHeader(it) }
 
                 // ───────── ЭТАП 6: ФИНАЛ ДЛЯ TTS ─────────
-                logStage("6_FINAL_FOR_TTS", finalMessages)
+                logStage("6_FINAL_FOR_TTS", finalMessagesWithHeaders)
 
                 progressCallback.onUpdateCounters(totalCollected, finalToSynthesize, 0)
                 progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.prepared_for_synthesis_status), 100, 100)
 
-                Prepared(finalMessages, totalCollected, finalToSynthesize, realNewsCount, isAiEnabled)
+                Prepared(finalMessagesWithHeaders, totalCollected, finalToSynthesize, realNewsCount, isAiEnabled)
             }
         } catch (e: TimeoutCancellationException) {
+            Log.e(TAG, "collectAndPrepareMessages: TOTAL TIMEOUT", e)
             val context = ttsManager.getContext()
             progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.timeout_exceeded_status), 0, 100)
             null
-        } catch (e: CancellationException) { throw e }
+        } catch (e: CancellationException) {
+            Log.d(TAG, "collectAndPrepareMessages: Cancelled")
+            throw e
+        }
         catch (e: Exception) {
+            Log.e(TAG, "collectAndPrepareMessages: ERROR", e)
             val context = ttsManager.getContext()
             progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.error_prefix, e.message), 0, 100)
             null
@@ -406,10 +419,12 @@ class NewsService(
         return try {
             withTimeout(CHANNEL_TIMEOUT_MS) {
                 val messages = telegramClient.getChannelMessagesPaginated(channel.id, fromDate)
+                Log.d(TAG, "Channel ${channel.title} (${channel.id}): returned ${messages.size} messages")
                 channel.newMessagesCount = messages.size
                 Pair(channel, messages)
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e(TAG, "Error processing channel ${channel.title} (${channel.id}): ${e.message}")
             channel.newMessagesCount = 0
             Pair(channel, emptyList())
         }
