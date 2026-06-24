@@ -24,6 +24,7 @@ class Deduplicator(
 
         // Слишком мало признаков — не сравниваем, считаем уникальным
         if (fingerprint.words.size < 3) {
+            Logx.d("Deduplicator") { "ADD (too_few_words=${fingerprint.words.size}, history_size=${history.size})" }
             history.addLast(HistoryEntry(fingerprint))
             if (history.size > historySize) history.removeFirst()
             return false
@@ -32,11 +33,12 @@ class Deduplicator(
         val match = history.firstOrNull { TextProcessor.isSameEvent(it.fingerprint, fingerprint, matchThreshold.toDouble()) }
         if (match != null) {
             val common = fingerprint.anchors.intersect(match.fingerprint.anchors)
-            Logx.d("Deduplicator") { "MATCH (anchors=$common, skipped=$skippedCount)" }
+            Logx.d("Deduplicator") { "MATCH (anchors=$common, skipped=$skippedCount, history_size=${history.size})" }
             skippedCount++
             return true
         }
 
+        Logx.d("Deduplicator") { "ADD (new_msg, history_size=${history.size})" }
         history.addLast(HistoryEntry(fingerprint))
         if (history.size > historySize) history.removeFirst()
         return false
@@ -50,8 +52,10 @@ class Deduplicator(
 
     fun reset() {
         Logx.d("Deduplicator") { "History reset requested. Current size: ${history.size}" }
+        val oldSize = history.size
         history.clear()
         skippedCount = 0
+        Logx.d("Deduplicator") { "History reset completed. Previous size: $oldSize" }
     }
 
     fun getHistorySize(): Int = history.size

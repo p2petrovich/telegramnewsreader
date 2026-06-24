@@ -187,7 +187,10 @@ class MainViewModel : ViewModel() {
         resetProgressCounters()
         _isCollecting.postValue(true)
         _startTime.postValue(System.currentTimeMillis())
-        
+
+        val currentDeduplicator = getDeduplicator(context)
+        Log.d(TAG, "Collection START. Deduplicator status: enabled=${currentDeduplicator.isEnabled}, history_size=${currentDeduplicator.getHistorySize()}")
+
         selectedChannels.forEach { it.newMessagesCount = -1 }
         _channelProgress.postValue(selectedChannels)
 

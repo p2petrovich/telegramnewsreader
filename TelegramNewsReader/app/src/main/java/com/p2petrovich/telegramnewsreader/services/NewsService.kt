@@ -249,7 +249,6 @@ class NewsService(
                 }
 
                 // ───────── ЭТАП 1: СЫРЫЕ НОВОСТИ ─────────
-                // DEBUG_LOGS: временно закомментировано — можно включить для отладки pipeline.
                 logStage("1_RAW", allMessages)
 
                 val totalCollected = realNewsCount
@@ -276,7 +275,6 @@ class NewsService(
                 val filteredNewsCount = filteredMessages.count { !isChannelHeader(it) }
 
                 // ───────── ЭТАП 2: ПОСЛЕ ФИЛЬТРАЦИИ ─────────
-                // DEBUG_LOGS: временно закомментировано — можно включить для отладки pipeline.
                 logStage("2_FILTER", filteredMessages)
 
                 ensureActive()
@@ -289,7 +287,6 @@ class NewsService(
                 Log.d(TAG, "After across-channel dedup: ${deduplicated.size} (news: $dedupNewsCount, threshold=$crossThreshold)")
 
                 // ───────── ЭТАП 3: ПОСЛЕ ДЕДУПЛИКАЦИИ МЕЖДУ КАНАЛАМИ ─────────
-                // DEBUG_LOGS: временно закомментировано — можно включить для отладки pipeline.
                 logStage("3_DEDUP", deduplicated)
 
                 progressCallback.onDeduplicationComplete(totalCollected, dedupNewsCount)
@@ -316,14 +313,12 @@ class NewsService(
                 }
 
                 // ───────── ЭТАП 4: ПОСЛЕ Deduplicator ─────────
-                // DEBUG_LOGS: временно закомментировано — можно включить для отладки pipeline.
                 logStage("4_AFTER_DEDUPLICATOR", afterDedup)
 
                 val afterDropTrivial = TextProcessor.dropTrivial(afterDedup)
                 val totalToSynthesizeBeforeAi = afterDropTrivial.count { !isChannelHeader(it) }
 
                 // ───────── ЭТАП 5: ПОСЛЕ dropTrivial ─────────
-                // DEBUG_LOGS: временно закомментировано — можно включить для отладки pipeline.
                 logStage("5_DROP_TRIVIAL", afterDropTrivial)
 
                 ensureActive()
@@ -388,7 +383,6 @@ class NewsService(
                 val finalToSynthesize = finalMessages.count { !isChannelHeader(it) }
 
                 // ───────── ЭТАП 6: ФИНАЛ ДЛЯ TTS ─────────
-                // DEBUG_LOGS: временно закомментировано — можно включить для отладки pipeline.
                 logStage("6_FINAL_FOR_TTS", finalMessages)
 
                 progressCallback.onUpdateCounters(totalCollected, finalToSynthesize, 0)
