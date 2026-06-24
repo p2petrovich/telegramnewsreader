@@ -9,6 +9,7 @@ import com.p2petrovich.telegramnewsreader.services.NewsService
 import com.p2petrovich.telegramnewsreader.services.ProgressCallback
 import com.p2petrovich.telegramnewsreader.utils.AudioUtils
 import com.p2petrovich.telegramnewsreader.utils.Deduplicator
+import com.p2petrovich.telegramnewsreader.utils.DebugConfig
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import android.content.Context
 import androidx.lifecycle.viewModelScope
@@ -120,18 +121,24 @@ class MainViewModel : ViewModel() {
 
     fun markAsRead(context: Context, fileIndex: Int) {
         if (fileIndex < 0 || fileIndex >= lastFileToMsgIndex.size) {
-            Log.v(TAG, "markAsRead: invalid fileIndex $fileIndex (size=${lastFileToMsgIndex.size})")
+            if (DebugConfig.LOG_PLAYER_EVENTS) {
+                Log.v(TAG, "markAsRead: invalid fileIndex $fileIndex (size=${lastFileToMsgIndex.size})")
+            }
             return
         }
         val msgIdx = lastFileToMsgIndex[fileIndex]
         if (msgIdx < 0 || msgIdx >= lastOriginalMessages.size) {
-            Log.v(TAG, "markAsRead: invalid msgIdx $msgIdx (size=${lastOriginalMessages.size})")
+            if (DebugConfig.LOG_PLAYER_EVENTS) {
+                Log.v(TAG, "markAsRead: invalid msgIdx $msgIdx (size=${lastOriginalMessages.size})")
+            }
             return
         }
         
         val text = lastOriginalMessages[msgIdx]
         if (!NewsService.isChannelHeader(text)) {
-            Log.d(TAG, "markAsRead: marking news at $fileIndex (msg $msgIdx) as read")
+            if (DebugConfig.LOG_PLAYER_EVENTS) {
+                Log.d(TAG, "markAsRead: marking news at $fileIndex (msg $msgIdx) as read")
+            }
             getDeduplicator(context).addToHistory(text)
         }
     }

@@ -9,6 +9,7 @@ import com.p2petrovich.telegramnewsreader.utils.TextProcessor
 import com.p2petrovich.telegramnewsreader.utils.AiProcessor
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.EdgeConfig
+import com.p2petrovich.telegramnewsreader.utils.DebugConfig
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -55,7 +56,9 @@ class NewsService(
      * Сейчас делегирует в logStageFull — печатает полный текст кусками по 800.
      */
     private fun logStage(stage: String, messages: List<String>) {
-        logStageFull(stage, messages)
+        if (DebugConfig.LOG_PIPELINE_STAGES) {
+            logStageFull(stage, messages)
+        }
     }
 
     /**
@@ -348,9 +351,10 @@ class NewsService(
                                     val rawResult = AiProcessor.summarizeNews(msgWithoutPrefix, context)
                                     val summarized = cleanTimePrefix + AiProcessor.stripErrorPrefix(rawResult)
 
-                                    // DEBUG_LOGS: временно закомментировано — можно включить для отладки AI pipeline.
-                                    Log.d(TAG, "AI_IN : ${msgWithoutPrefix.replace("\n", "\\n").take(300)}")
-                                    Log.d(TAG, "AI_OUT: ${summarized.replace("\n", "\\n").take(300)}")
+                                    if (DebugConfig.LOG_PIPELINE_STAGES) {
+                                        Log.d(TAG, "AI_IN : ${msgWithoutPrefix.replace("\n", "\\n").take(300)}")
+                                        Log.d(TAG, "AI_OUT: ${summarized.replace("\n", "\\n").take(300)}")
+                                    }
 
                                     synchronized(this@NewsService) {
                                         processedCount++

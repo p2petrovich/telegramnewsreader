@@ -9,6 +9,7 @@ import org.drinkless.tdlib.TdApi
 import com.p2petrovich.telegramnewsreader.ApiConfig
 import com.p2petrovich.telegramnewsreader.R
 import com.p2petrovich.telegramnewsreader.models.Channel
+import com.p2petrovich.telegramnewsreader.utils.DebugConfig
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.SecurityManager
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -380,21 +381,27 @@ class TelegramClient(private val context: Context) {
         fun resumeOnce(result: List<String>) {
             if (isResumed.getAndSet(true)) return
             closeChatOnce()
-            Log.d(TAG, "Channel $channelId: finished, found ${result.size} messages")
+            if (DebugConfig.LOG_TG_HISTORY) {
+                Log.d(TAG, "Channel $channelId: finished, found ${result.size} messages")
+            }
             if (continuation.isActive) continuation.resume(result)
         }
 
         fun loadPage(fromMessageId: Long) {
             if (isCancelled.get() || isResumed.get()) return
 
-            Log.v(TAG, "Channel $channelId: requesting page from $fromMessageId")
+            if (DebugConfig.LOG_TG_HISTORY) {
+                Log.v(TAG, "Channel $channelId: requesting page from $fromMessageId")
+            }
             client?.send(TdApi.GetChatHistory(channelId, fromMessageId, 0, 100, false)) { response ->
                 if (isCancelled.get() || isResumed.get()) return@send
 
                 when (response) {
                     is TdApi.Messages -> {
                         val page = response.messages
-                        Log.v(TAG, "Channel $channelId: received ${page.size} items from TDLib")
+                        if (DebugConfig.LOG_TG_HISTORY) {
+                            Log.v(TAG, "Channel $channelId: received ${page.size} items from TDLib")
+                        }
                         
                         if (page.isEmpty()) {
                             resumeOnce(messages)
@@ -434,7 +441,9 @@ class TelegramClient(private val context: Context) {
 
                         // [CRITICAL FIX] Загрузка не должна останавливаться, если получено меньше 100 сообщений.
                         if (reachedDateLimit || loadedTotal >= maxMessages) {
-                            Log.d(TAG, "Channel $channelId: reached limits (date=$reachedDateLimit, total=$loadedTotal)")
+                            if (DebugConfig.LOG_TG_HISTORY) {
+                                Log.d(TAG, "Channel $channelId: reached limits (date=$reachedDateLimit, total=$loadedTotal)")
+                            }
                             resumeOnce(messages)
                         } else {
                             loadPage(lastId)
@@ -456,7 +465,9 @@ class TelegramClient(private val context: Context) {
                     if (isCancelled.get() || isResumed.get()) return@send
                     
                     val lastMsgId = (chatResult as? TdApi.Chat)?.lastMessage?.id ?: 0L
-                    Log.d(TAG, "Channel $channelId: lastMsgId=$lastMsgId, starting loadPage (fromDate=$fromDate)")
+                    if (DebugConfig.LOG_TG_HISTORY) {
+                        Log.d(TAG, "Channel $channelId: lastMsgId=$lastMsgId, starting loadPage (fromDate=$fromDate)")
+                    }
                     
                     loadPage(if (lastMsgId > 0) lastMsgId + 1 else 0)
                 }

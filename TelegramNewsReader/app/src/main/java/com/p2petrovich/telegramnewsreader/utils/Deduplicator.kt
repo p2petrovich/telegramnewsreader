@@ -24,14 +24,18 @@ class Deduplicator(
 
         // Слишком мало признаков — не сравниваем, считаем уникальным
         if (fingerprint.words.size < 3) {
-            Logx.d("Deduplicator") { "SKIP CHECK (too_few_words=${fingerprint.words.size})" }
+            if (DebugConfig.LOG_DEDUP_DETAILS) {
+                Logx.d("Deduplicator") { "SKIP CHECK (too_few_words=${fingerprint.words.size})" }
+            }
             return false
         }
 
         val match = history.firstOrNull { TextProcessor.isSameEvent(it.fingerprint, fingerprint, matchThreshold.toDouble()) }
         if (match != null) {
             val common = fingerprint.anchors.intersect(match.fingerprint.anchors)
-            Logx.d("Deduplicator") { "MATCH (anchors=$common, skipped=$skippedCount, history_size=${history.size})" }
+            if (DebugConfig.LOG_DEDUP_DETAILS) {
+                Logx.d("Deduplicator") { "MATCH (anchors=$common, skipped=$skippedCount, history_size=${history.size})" }
+            }
             skippedCount++
             return true
         }
@@ -49,7 +53,9 @@ class Deduplicator(
         
         // Не добавляем в историю то, что уже там есть или слишком коротко
         if (fingerprint.words.size >= 3 && history.none { TextProcessor.isSameEvent(it.fingerprint, fingerprint, matchThreshold.toDouble()) }) {
-            Logx.d("Deduplicator") { "ADD to history (history_size=${history.size})" }
+            if (DebugConfig.LOG_DEDUP_DETAILS) {
+                Logx.d("Deduplicator") { "ADD to history (history_size=${history.size})" }
+            }
             history.addLast(HistoryEntry(fingerprint))
             if (history.size > historySize) history.removeFirst()
         }
