@@ -432,7 +432,11 @@ class TelegramClient(private val context: Context) {
                         loadedTotal += page.size
                         val lastId = page.last().id
 
-                        if (reachedDateLimit || loadedTotal >= maxMessages || page.size < 100) {
+                        // [CRITICAL FIX] Загрузка не должна останавливаться, если получено меньше 100 сообщений.
+                        // Мы должны продолжать запрашивать страницы, пока не упремся в дату (fromDate)
+                        // или пока сообщения не кончатся совсем (page.isEmpty()).
+                        if (reachedDateLimit || loadedTotal >= maxMessages) {
+                            Log.d(TAG, "Channel $channelId: reached limits (date=$reachedDateLimit, total=$loadedTotal)")
                             resumeOnce(messages)
                         } else {
                             loadPage(lastId)
@@ -447,12 +451,12 @@ class TelegramClient(private val context: Context) {
             }
         }
 
-        // Ждем 300мс после OpenChat для синхронизации, прежде чем просить историю
+        // Ждем 500мс после OpenChat для синхронизации, прежде чем просить историю
         Handler(Looper.getMainLooper()).postDelayed({
             if (!isCancelled.get() && !isResumed.get()) {
                 loadPage(0) // Начинаем с самого последнего сообщения (ID=0)
             }
-        }, 300)
+        }, 500)
     }
 
     fun logoutAndReset(callback: () -> Unit) {

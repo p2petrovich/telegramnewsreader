@@ -136,6 +136,7 @@ class MainActivity : AppCompatActivity() {
                 val cur = intent.getIntExtra(AudioPlayerService.EXTRA_CURRENT_ITEM, 0)
                 val total = intent.getIntExtra(AudioPlayerService.EXTRA_TOTAL_ITEMS, 0)
                 val isPlaying = intent.getBooleanExtra(AudioPlayerService.EXTRA_IS_PLAYING, false)
+                Log.v("MainActivity", "Player progress: cur=$cur, total=$total, isPlaying=$isPlaying")
 
                 val text = if (total > 0 && cur in 1..total) {
                     if (isPlaying) getString(R.string.status_playing, cur, total)
