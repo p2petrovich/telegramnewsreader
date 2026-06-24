@@ -104,6 +104,12 @@ class TelegramClient(private val context: Context) {
                             Log.d(TAG, "Waiting for 2FA password")
                             onPasswordRequired?.invoke()
                         }
+                        is TdApi.AuthorizationStateWaitRegistration -> {
+                            Log.d(TAG, "Registration required")
+                        }
+                        is TdApi.AuthorizationStateClosing -> {
+                            Log.d(TAG, "Closing client")
+                        }
                         is TdApi.AuthorizationStateClosed -> {
                             isInitialized = false
                             isAuthorized = false
@@ -337,12 +343,6 @@ class TelegramClient(private val context: Context) {
 
     /**
      * ПАТЧ 1: рекурсивная пагинация + caption'ы из медиа + префикс HH:mm — текст.
-     *
-     * [FIX] Раньше OpenChat вызывался без парного CloseChat: TDLib держал чат
-     * "открытым" и продолжал тратить ресурсы на синхронизацию истории в фоне.
-     * Теперь CloseChat встроен в resumeOnce и invokeOnCancellation, поэтому
-     * закрытие гарантированно происходит один раз при ЛЮБОМ исходе:
-     * успех, ошибка, пустая страница или отмена корутины.
      */
     suspend fun getChannelMessagesPaginated(
         channelId: Long,
@@ -433,8 +433,6 @@ class TelegramClient(private val context: Context) {
                         val lastId = page.last().id
 
                         // [CRITICAL FIX] Загрузка не должна останавливаться, если получено меньше 100 сообщений.
-                        // Мы должны продолжать запрашивать страницы, пока не упремся в дату (fromDate)
-                        // или пока сообщения не кончатся совсем (page.isEmpty()).
                         if (reachedDateLimit || loadedTotal >= maxMessages) {
                             Log.d(TAG, "Channel $channelId: reached limits (date=$reachedDateLimit, total=$loadedTotal)")
                             resumeOnce(messages)
@@ -451,17 +449,22 @@ class TelegramClient(private val context: Context) {
             }
         }
 
-        // Ждем 500мс после OpenChat для синхронизации, прежде чем просить историю
+        // Ждем 500мс после OpenChat для синхронизации
         Handler(Looper.getMainLooper()).postDelayed({
             if (!isCancelled.get() && !isResumed.get()) {
-                loadPage(0) // Начинаем с самого последнего сообщения (ID=0)
+                client?.send(TdApi.GetChat(channelId)) { chatResult ->
+                    if (isCancelled.get() || isResumed.get()) return@send
+                    
+                    val lastMsgId = (chatResult as? TdApi.Chat)?.lastMessage?.id ?: 0L
+                    Log.d(TAG, "Channel $channelId: lastMsgId=$lastMsgId, starting loadPage (fromDate=$fromDate)")
+                    
+                    loadPage(if (lastMsgId > 0) lastMsgId + 1 else 0)
+                }
             }
         }, 500)
     }
 
     fun logoutAndReset(callback: () -> Unit) {
-        // [FIX reset] Поднимаем флаг ДО отправки LogOut, чтобы обработчик
-        // WaitTdlibParameters не переинициализировал клиент во время выхода.
         isLoggingOut = true
         client?.send(TdApi.LogOut()) {
             isInitialized = false
@@ -478,11 +481,9 @@ class TelegramClient(private val context: Context) {
 
     /**
      * Очищает локальный кэш сообщений TDLib через оптимизацию хранилища.
-     * Помогает заставить библиотеку запросить историю с сервера заново.
      */
     fun clearTtsRelatedCache(callback: (Boolean) -> Unit) {
         Log.d(TAG, "Full TDLib cache reset started...")
-        // Оптимизируем хранилище: TDLib удаляет старые/неиспользуемые файлы кэша.
         client?.send(TdApi.OptimizeStorage(
             0L, -1, -1, -1, null, null, null, true, 0
         )) { result ->
@@ -530,7 +531,6 @@ class TelegramClient(private val context: Context) {
 
     private fun extractSecret(input: String): String {
         val trimmed = input.trim()
-        // Вытаскиваем secret= из ссылки t.me/proxy?... или tg://proxy?...
         Regex("[?&]secret=([^&\\s]+)").find(trimmed)?.let { return it.groupValues[1] }
         return trimmed
     }
@@ -553,9 +553,8 @@ class TelegramClient(private val context: Context) {
             client?.send(TdApi.TestProxy(host, port, proxyType, dc, 10.0)) { result ->
                 when (result) {
                     is TdApi.Seconds -> callback(result.seconds, null)
-                    is TdApi.Ok -> callback(0.0, null) // Прокси доступен, но замер не вернул время
+                    is TdApi.Ok -> callback(0.0, null)
                     is TdApi.Error -> {
-                        // Если ошибка 400 (Bad Request), пробуем следующий DC
                         if (result.code == 400) {
                             tryDc(dcIds.drop(1))
                         } else {
@@ -571,7 +570,6 @@ class TelegramClient(private val context: Context) {
             }
         }
 
-        // Перебираем основные дата-центры (Европа, США, Азия)
         tryDc(listOf(2, 1, 3))
     }
 
