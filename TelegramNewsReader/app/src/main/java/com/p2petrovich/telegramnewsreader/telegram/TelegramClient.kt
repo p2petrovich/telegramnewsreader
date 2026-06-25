@@ -385,7 +385,7 @@ class TelegramClient(private val context: Context) {
             if (DebugConfig.LOG_TG_HISTORY) {
                 Log.d(TAG, "Channel $channelId: finished, found ${result.size} messages")
             }
-            if (continuation.isActive) continuation.resume(result)
+            if (continuation.isActive) continuation.resume(result) { }
         }
 
         fun loadPage(fromMessageId: Long) {
