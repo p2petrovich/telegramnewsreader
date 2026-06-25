@@ -83,8 +83,6 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix ".debug"
-            manifestPlaceholders = [appName: "News Reader (Debug)"]
         }
         release {
             // [FIX] P0-2: включены минификация и удаление неиспользуемых ресурсов.
@@ -94,7 +92,6 @@ android {
             minifyEnabled true
             shrinkResources true
             signingConfig signingConfigs.getByName("release")
-            manifestPlaceholders = [appName: "News Reader"]
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
