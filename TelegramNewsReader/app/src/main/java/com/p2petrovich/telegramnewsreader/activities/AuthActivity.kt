@@ -26,10 +26,30 @@ class AuthActivity : AppCompatActivity() {
 
         telegramClient = TelegramClientManager.getTelegramClient(this)
 
+        // [FIX] Сбрасываем старую сессию Autofill при входе, чтобы начать "с чистого листа"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                getSystemService(AutofillManager::class.java)?.cancel()
+            } catch (_: Exception) {}
+        }
+
         telegramClient.onPasswordRequired = {
             runOnUiThread {
                 binding.etPassword.visibility = View.VISIBLE
                 binding.btnVerifyPassword.visibility = View.VISIBLE
+                
+                // [FIX] Принудительно просим Autofill предложить пароль, когда поле стало видимым
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    try {
+                        val afm = getSystemService(AutofillManager::class.java)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                            afm?.notifyViewVisibilityChanged(binding.etPassword, true)
+                        }
+                        binding.etPassword.requestFocus()
+                        afm?.requestAutofill(binding.etPassword)
+                    } catch (_: Exception) {}
+                }
+                
                 Toast.makeText(this, getString(R.string.enter_cloud_password), Toast.LENGTH_SHORT).show()
             }
         }
@@ -71,19 +91,23 @@ class AuthActivity : AppCompatActivity() {
             binding.etPhone.setAutofillHints(View.AUTOFILL_HINT_PHONE)
             // SMS_OTP доступен с API 28+, для старых используем общую подсказку
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                binding.etCode.setAutofillHints("smsOTP")
+                binding.etCode.setAutofillHints("smsOTPCode") // Синхронизируем с XML
             }
             binding.etPassword.setAutofillHints(View.AUTOFILL_HINT_PASSWORD)
             
             // Принудительный запрос при фокусе
             binding.etPhone.setOnFocusChangeListener { v, hasFocus ->
                 if (hasFocus) {
-                    v.context.getSystemService(AutofillManager::class.java)?.requestAutofill(v)
+                    try {
+                        getSystemService(AutofillManager::class.java)?.requestAutofill(v)
+                    } catch (_: Exception) {}
                 }
             }
             binding.etPassword.setOnFocusChangeListener { v, hasFocus ->
                 if (hasFocus) {
-                    v.context.getSystemService(AutofillManager::class.java)?.requestAutofill(v)
+                    try {
+                        getSystemService(AutofillManager::class.java)?.requestAutofill(v)
+                    } catch (_: Exception) {}
                 }
             }
         }

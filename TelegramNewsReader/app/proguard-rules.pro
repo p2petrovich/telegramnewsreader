@@ -104,6 +104,16 @@
 -keep class com.p2petrovich.telegramnewsreader.services.** { *; }
 
 # ============================================================
+#  Autofill (предотвращаем обфускацию ID полей в AuthActivity)
+# ============================================================
+# Некоторые менеджеры паролей полагаются на имена ресурсов (ID) для сопоставления полей.
+-keepclassmembers class com.p2petrovich.telegramnewsreader.R$id {
+    public static int et_phone;
+    public static int et_password;
+    public static int et_code;
+}
+
+# ============================================================
 #  P0-задача: вырезать debug-логи из release-сборки
 #  (Log.d / Log.v / Log.i не имеют побочных эффектов → R8 удалит вызовы)
 # ============================================================
