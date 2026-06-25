@@ -37,7 +37,7 @@ class NewsService(
     companion object {
         private const val TAG = "NewsService"
         private const val CHANNEL_TIMEOUT_MS = 15000L
-        private const val TOTAL_TIMEOUT_MS = 300000L
+        private const val TOTAL_TIMEOUT_MS = 600000L // 10 minutes
 
         private const val HEADER_MARKER = "\u200B\u200C\u200B"
 
@@ -333,7 +333,7 @@ class NewsService(
 
                     Log.d(TAG, "═══════ AI ОБРАБОТКА ВКЛЮЧЕНА (на вход: $totalToSynthesizeBeforeAi новостей) ═══════")
 
-                    val semaphore = Semaphore(5)
+                    val semaphore = Semaphore(10) // Increase to 10
                     var processedCount = 0
 
                     val results = afterDropTrivial.map { msg ->
@@ -341,31 +341,41 @@ class NewsService(
                             if (isChannelHeader(msg)) {
                                 msg
                             } else {
-                                semaphore.withPermit {
-                                    // Отделяем время вместе с возможным тире, переклеиваем чистое время
-                                    // обратно к результату — чтобы тире не уходило ни в AI, ни в финал.
-                                    val matched = TIME_PREFIX_WITH_DASH.find(msg)?.value ?: ""
-                                    val msgWithoutPrefix = if (matched.isNotEmpty()) msg.removePrefix(matched) else msg
-                                    val cleanTimePrefix = TIME_ONLY.find(matched)?.value?.let { "$it " } ?: ""
+                                // Добавляем индивидуальный таймаут на новость, чтобы одна висящая новость
+                                // не блокировала весь пайплайн. Если не успели — возвращаем оригинал.
+                                withTimeoutOrNull(45000L) { // 45 секунд на одну новость
+                                    semaphore.withPermit {
+                                        val matched = TIME_PREFIX_WITH_DASH.find(msg)?.value ?: ""
+                                        val msgWithoutPrefix = if (matched.isNotEmpty()) msg.removePrefix(matched) else msg
+                                        val cleanTimePrefix = TIME_ONLY.find(matched)?.value?.let { "$it " } ?: ""
 
-                                    val rawResult = AiProcessor.summarizeNews(msgWithoutPrefix, context)
-                                    val summarized = cleanTimePrefix + AiProcessor.stripErrorPrefix(rawResult)
+                                        val rawResult = AiProcessor.summarizeNews(msgWithoutPrefix, context)
+                                        val summarized = cleanTimePrefix + AiProcessor.stripErrorPrefix(rawResult)
 
-                                    if (DebugConfig.LOG_PIPELINE_STAGES) {
-                                        Log.d(TAG, "AI_IN : ${msgWithoutPrefix.replace("\n", "\\n").take(300)}")
-                                        Log.d(TAG, "AI_OUT: ${summarized.replace("\n", "\\n").take(300)}")
+                                        if (DebugConfig.LOG_PIPELINE_STAGES) {
+                                            Log.d(TAG, "AI_IN : ${msgWithoutPrefix.replace("\n", "\\n").take(300)}")
+                                            Log.d(TAG, "AI_OUT: ${summarized.replace("\n", "\\n").take(300)}")
+                                        }
+
+                                        synchronized(this@NewsService) {
+                                            processedCount++
+                                            progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_summarization_status), processedCount, totalToSynthesizeBeforeAi)
+
+                                            val overallPercentage = if (totalToSynthesizeBeforeAi > 0) {
+                                                (processedCount * 50 / totalToSynthesizeBeforeAi).coerceIn(0, 50)
+                                            } else 0
+                                            progressCallback.onOverallProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_summarization_status), overallPercentage)
+                                        }
+                                        summarized
                                     }
-
+                                } ?: run {
+                                    Log.w(TAG, "AI timeout for message: ${msg.take(100)}...")
                                     synchronized(this@NewsService) {
                                         processedCount++
+                                        // Даже если таймаут — двигаем прогресс-бар
                                         progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_summarization_status), processedCount, totalToSynthesizeBeforeAi)
-
-                                        val overallPercentage = if (totalToSynthesizeBeforeAi > 0) {
-                                            (processedCount * 50 / totalToSynthesizeBeforeAi).coerceIn(0, 50)
-                                        } else 0
-                                        progressCallback.onOverallProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_summarization_status), overallPercentage)
                                     }
-                                    summarized
+                                    msg // Возвращаем оригинал при таймауте
                                 }
                             }
                         }
