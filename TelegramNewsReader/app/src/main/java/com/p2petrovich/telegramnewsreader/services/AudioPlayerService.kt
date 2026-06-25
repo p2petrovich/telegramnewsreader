@@ -20,6 +20,9 @@ import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import android.support.v4.media.MediaMetadataCompat
+import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat
 import com.p2petrovich.telegramnewsreader.R
 import com.p2petrovich.telegramnewsreader.activities.MainActivity
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
@@ -61,6 +64,8 @@ class AudioPlayerService : Service() {
     private var totalNewsCount = 0
     private var newsFileIndices: Set<Int> = emptySet()
     private var lastActionTime = 0L
+
+    private lateinit var mediaSession: MediaSessionCompat
 
     private lateinit var audioManager: AudioManager
     private var audioFocusRequest: AudioFocusRequest? = null
@@ -118,6 +123,17 @@ class AudioPlayerService : Service() {
     override fun onCreate() { 
         super.onCreate()
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
+        // Initialize MediaSession
+        mediaSession = MediaSessionCompat(this, TAG).apply {
+            setCallback(object : MediaSessionCompat.Callback() {
+                override fun onPlay() { play() }
+                override fun onPause() { pause() }
+                override fun onSkipToNext() { playNext() }
+                override fun onStop() { stopServiceSafely() }
+            })
+            isActive = true
+        }
         
         // Регистрация ресивера для отключения наушников
         val filter = IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
@@ -219,6 +235,7 @@ class AudioPlayerService : Service() {
         stopProgressUpdates()
         releasePlayer()
         abandonAudioFocus()
+        mediaSession.release()
         try {
             unregisterReceiver(noisyReceiver)
         } catch (_: Exception) {}
@@ -436,6 +453,9 @@ class AudioPlayerService : Service() {
             .setOngoing(isPlaying)
             .setOnlyAlertOnce(true)
             .setColor(ContextCompat.getColor(this, R.color.purple_500))
+            .setStyle(androidx.media.app.NotificationCompat.MediaStyle()
+                .setMediaSession(mediaSession.sessionToken)
+                .setShowActionsInCompactView(0, 1))
             .addAction(
                 if (isPlaying) R.drawable.ic_notif_pause else R.drawable.ic_notif_play,
                 if (isPlaying) getString(R.string.pause) else getString(R.string.play), playPauseIntent)
@@ -444,7 +464,35 @@ class AudioPlayerService : Service() {
     }
 
     private fun updateNotification() {
+        updateMediaSessionState()
         try { (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIFICATION_ID, buildNotification()) } catch (_: Exception) {}
+    }
+
+    private fun updateMediaSessionState() {
+        val isPlaying = isActuallyPlaying()
+        val (cur, total) = computeProgress()
+        
+        val stateBuilder = PlaybackStateCompat.Builder()
+            .setActions(
+                PlaybackStateCompat.ACTION_PLAY or
+                PlaybackStateCompat.ACTION_PAUSE or
+                PlaybackStateCompat.ACTION_SKIP_TO_NEXT or
+                PlaybackStateCompat.ACTION_STOP
+            )
+            .setState(
+                if (isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED,
+                mediaPlayer?.currentPosition?.toLong() ?: 0L,
+                1.0f
+            )
+        
+        mediaSession.setPlaybackState(stateBuilder.build())
+
+        val metadataBuilder = MediaMetadataCompat.Builder()
+            .putString(MediaMetadataCompat.METADATA_KEY_TITLE, if (title.isEmpty()) getString(R.string.news_default_title) else title)
+            .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, getString(R.string.news_progress_format, cur, total))
+            // .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, mediaPlayer?.duration?.toLong() ?: -1L)
+        
+        mediaSession.setMetadata(metadataBuilder.build())
     }
 
     private fun pendingFlag(): Int = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0

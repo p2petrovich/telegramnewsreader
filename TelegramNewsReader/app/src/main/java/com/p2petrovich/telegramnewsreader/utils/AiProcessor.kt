@@ -106,132 +106,23 @@ object AiProcessor {
         val style = PreferenceManager.getAiStyle(context)
         val isRu = isRussian(safeText)
 
-        val prompt = if (isRu) {
+        val promptResId = if (isRu) {
             when (style) {
-                "minimal" -> """
-                    Ты — корректор новостей. Твоя задача — очистить текст от мусора, НЕ СОКРАЩАЯ его.
-    
-                    Правила:
-                    1. Удали рекламу, промо-блоки, призывы подписаться/поставить лайк/перейти по ссылке.
-                    2. Удали ссылки, упоминания каналов (@channel), хэштеги, эмодзи-разделители и декоративные символы (───, ▪️, 🔥 и т.п.).
-                    3. Удали подписи авторов, плашки источников и служебные пометки ("Подробнее →", "Читать далее" и подобные).
-                    4. ВЕСЬ фактический текст новости сохрани дословно: факты, цифры, имена, цитаты, последовательность абзацев.
-                    5. Не добавляй ничего от себя: ни вступлений, ни выводов, ни комментариев.
-                    6. В ответе верни ТОЛЬКО очищенный текст новости, без пояснений. ВЕСЬ ТЕКСТ ДОЛЖЕН БЫТЬ НА РУССКОМ ЯЗЫКЕ.
-    
-                    Текст для обработки:
-                    $safeText
-                """.trimIndent()
-    
-                "extreme" -> """
-                    Ты — редактор экстренной новостной ленты "Молния". Сожми новость до ОДНОГО предложения.
-    
-                    Правила:
-                    1. Не более 20 слов. Постарайся уложиться в 10-15 слов.
-                    2. Только главный факт: кто/что, что произошло.
-                    3. Без вводных ("Сообщается, что…", "Как стало известно…"), без оценок, без эмодзи.
-                    4. Сохрани ключевые цифры и имена собственные, если они и есть суть новости.
-                    5. Используй ТОЛЬКО факты из текста. Ничего не добавляй и не домысливай: не добавляй должности, статусы, титулы и расшифровки аббревиатур, если их нет в тексте.
-                    6. Сохрани, КТО является источником утверждения (кто заявил/сообщил/отметил). Не приписывай высказывание другому лицу и не превращай чужую реплику в свершившийся факт.
-                    7. Не меняй причинно-следственные связи и порядок событий: что было причиной — оставь причиной, что было требованием до действия — не делай мотивом действия.
-                    8. В ответе верни ТОЛЬКО это одно предложение, без кавычек и пояснений. ОТВЕТ ДОЛЖЕН БЫТЬ НА РУССКОМ ЯЗЫКЕ.
-    
-                    Текст:
-                    $safeText
-                """.trimIndent()
-    
-                "balanced" -> """
-                    Ты — редактор новостного дайджеста. Сделай краткое САММАРИ новости.
-    
-                    Правила:
-                    1. Сократи объём примерно в 2 раза относительно исходника.
-                    2. Сохрани ВСЕ ключевые факты, цифры, имена, даты.
-                    3. Удали рекламу, ссылки, "воду" и повторы.
-                    4. Пиши нейтральным новостным стилем, короткими предложениями. Можно 2 абзаца.
-                    5. Не добавляй своих оценок и выводов.
-                    6. В ответе верни ТОЛЬКО готовое саммари. ОТВЕТ ДОЛЖЕН БЫТЬ НА РУССКОМ ЯЗЫКЕ.
-    
-                    Текст:
-                    $safeText
-                """.trimIndent()
-    
-                else -> """
-                    Ты — редактор новостного дайджеста. Сделай краткое САММАРИ новости.
-    
-                    Правила:
-                    1. Сократи объём примерно в 2 раза.
-                    2. Сохрани ключевые факты и цифры.
-                    3. Удали рекламу и мусор.
-                    4. В ответе верни ТОЛЬКО текст новости НА РУССКОМ ЯЗЫКЕ.
-    
-                    Текст:
-                    $safeText
-                """.trimIndent()
+                "minimal" -> com.p2petrovich.telegramnewsreader.R.string.ai_prompt_minimal_ru
+                "extreme" -> com.p2petrovich.telegramnewsreader.R.string.ai_prompt_extreme_ru
+                "balanced" -> com.p2petrovich.telegramnewsreader.R.string.ai_prompt_balanced_ru
+                else -> com.p2petrovich.telegramnewsreader.R.string.ai_prompt_default_ru
             }
         } else {
             when (style) {
-                "minimal" -> """
-                    You are a news proofreader. Your task is to clean the text from noise without shortening it.
-
-                    Rules:
-                    1. Remove ads, promo blocks, calls to subscribe/like/follow links.
-                    2. Remove links, channel mentions (@channel), hashtags, emoji dividers, and decorative symbols.
-                    3. Remove author signatures, source tags, and service notes ("Read more", "Details here", etc.).
-                    4. Keep ALL factual news text verbatim: facts, figures, names, quotes, paragraph sequence.
-                    5. Do not add anything of your own: no introductions, no conclusions, no comments.
-                    6. Return ONLY the cleaned news text in your response, without explanations. THE RESPONSE MUST BE IN ENGLISH.
-
-                    Text to process:
-                    $safeText
-                """.trimIndent()
-
-                "extreme" -> """
-                    You are an editor for an emergency news feed "Flash". Compress the news into ONE sentence.
-
-                    Rules:
-                    1. No more than 20 words. Try to keep it within 10-15 words.
-                    2. Only the main fact: who/what, what happened.
-                    3. No introductory phrases ("It is reported that...", "As it became known..."), no evaluations, no emojis.
-                    4. Keep key figures and proper names if they are the essence of the news.
-                    5. Use ONLY information present in the source text. Do NOT add or invent anything: do NOT add titles, positions, statuses, or expand abbreviations that are not in the text.
-                    6. Preserve WHO is the source of a statement (who said/reported/noted). Do NOT attribute a quote to another person and do NOT turn someone's statement into an accomplished fact.
-                    7. Do NOT change cause-and-effect or the order of events: keep a cause as a cause; a demand made before an action must not become the motive of that action.
-                    8. Return ONLY this one sentence in your response, without quotes or explanations. THE RESPONSE MUST BE IN ENGLISH.
-
-                    Text:
-                    $safeText
-                """.trimIndent()
-
-                "balanced" -> """
-                    You are a news editor. Produce a faithful, concise version of the news below.
-
-                    Rules:
-                    1. Use ONLY information present in the source text. Do NOT add facts, context, background, or details that are not explicitly stated.
-                    2. Do NOT invent or infer anything. If unsure, omit it.
-                    3. Remove ads, links, fluff, and repetitions.
-                    4. If the news is already short, return it almost unchanged — never expand it.
-                    5. Neutral news style. The result must be equal to or shorter than the source, never longer.
-                    6. Return ONLY the resulting text. THE RESPONSE MUST BE IN ENGLISH.
-
-                    Text:
-                    $safeText
-                """.trimIndent()
-
-                else -> """
-                    You are a news editor. Produce a faithful, concise version of the news below.
-
-                    Rules:
-                    1. Use ONLY information present in the source text. Do NOT add or invent anything.
-                    2. Keep key facts and figures.
-                    3. Remove ads and noise.
-                    4. Never make the text longer than the source.
-                    5. Return ONLY the news text in your response in ENGLISH.
-
-                    Text:
-                    $safeText
-                """.trimIndent()
+                "minimal" -> com.p2petrovich.telegramnewsreader.R.string.ai_prompt_minimal_en
+                "extreme" -> com.p2petrovich.telegramnewsreader.R.string.ai_prompt_extreme_en
+                "balanced" -> com.p2petrovich.telegramnewsreader.R.string.ai_prompt_balanced_en
+                else -> com.p2petrovich.telegramnewsreader.R.string.ai_prompt_default_en
             }
         }
+
+        val prompt = context.getString(promptResId, safeText)
 
         val temperature = when (style) {
             "minimal" -> 0.1   // чистка — нужна максимальная точность

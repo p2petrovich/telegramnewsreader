@@ -37,7 +37,7 @@ class NewsService(
     companion object {
         private const val TAG = "NewsService"
         private const val CHANNEL_TIMEOUT_MS = 15000L
-        private const val TOTAL_TIMEOUT_MS = 120000L
+        private const val TOTAL_TIMEOUT_MS = 300000L
 
         private const val HEADER_MARKER = "\u200B\u200C\u200B"
 
@@ -333,7 +333,7 @@ class NewsService(
 
                     Log.d(TAG, "═══════ AI ОБРАБОТКА ВКЛЮЧЕНА (на вход: $totalToSynthesizeBeforeAi новостей) ═══════")
 
-                    val semaphore = Semaphore(3)
+                    val semaphore = Semaphore(5)
                     var processedCount = 0
 
                     val results = afterDropTrivial.map { msg ->
