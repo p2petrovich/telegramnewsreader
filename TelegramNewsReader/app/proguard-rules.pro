@@ -53,6 +53,14 @@
 -keep class com.p2petrovich.telegramnewsreader.ApiConfig { *; }
 
 # ============================================================
+#  Экран авторизации
+#  AuthActivity использует AutofillManager: система Autofill привязывается
+#  к имени класса Activity. Если R8 переименует класс, сохранённые credentials
+#  перестанут совпадать с формой при следующем входе.
+# ============================================================
+-keep class com.p2petrovich.telegramnewsreader.activities.AuthActivity { *; }
+
+# ============================================================
 #  Gson
 # ============================================================
 -keep class com.google.gson.** { *; }

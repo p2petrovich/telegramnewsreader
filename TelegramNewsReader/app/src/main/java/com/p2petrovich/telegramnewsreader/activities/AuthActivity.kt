@@ -26,19 +26,15 @@ class AuthActivity : AppCompatActivity() {
 
         telegramClient = TelegramClientManager.getTelegramClient(this)
 
-        // [FIX] Сбрасываем старую сессию Autofill при входе, чтобы начать "с чистого листа"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            try {
-                getSystemService(AutofillManager::class.java)?.cancel()
-            } catch (_: Exception) {}
-        }
+        // УБРАН cancel() — он убивал контекст сохранения Autofill ещё до того,
+        // как пользователь успевал ввести данные, из-за чего commit() в конце
+        // не давал эффекта и credentials никогда не сохранялись для release-пакета.
 
         telegramClient.onPasswordRequired = {
             runOnUiThread {
                 binding.etPassword.visibility = View.VISIBLE
                 binding.btnVerifyPassword.visibility = View.VISIBLE
-                
-                // [FIX] Принудительно просим Autofill предложить пароль, когда поле стало видимым
+
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     try {
                         val afm = getSystemService(AutofillManager::class.java)
@@ -49,21 +45,18 @@ class AuthActivity : AppCompatActivity() {
                         afm?.requestAutofill(binding.etPassword)
                     } catch (_: Exception) {}
                 }
-                
+
                 Toast.makeText(this, getString(R.string.enter_cloud_password), Toast.LENGTH_SHORT).show()
             }
         }
 
         telegramClient.onClientReady = {
             runOnUiThread {
-                // [FIX] Явный сигнал системе Autofill: данные верны, сохрани их в базу.
-                // Без этого в Release-сборках (без суффикса .debug) система часто не предлагает сохранение.
+                // Явный сигнал системе Autofill: форма успешно отправлена, сохрани credentials.
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     try {
                         getSystemService(AutofillManager::class.java)?.commit()
-                    } catch (_: Exception) {
-                        // Autofill не критичен для работы, подавляем возможные системные ошибки
-                    }
+                    } catch (_: Exception) {}
                 }
 
                 Toast.makeText(this, getString(R.string.auth_success), Toast.LENGTH_SHORT).show()
@@ -85,17 +78,15 @@ class AuthActivity : AppCompatActivity() {
         }
 
         setupClickListeners()
-        
+
         // Настройка автозаполнения для Android 8.0+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             binding.etPhone.setAutofillHints(View.AUTOFILL_HINT_PHONE)
-            // SMS_OTP доступен с API 28+, для старых используем общую подсказку
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                binding.etCode.setAutofillHints("smsOTPCode") // Синхронизируем с XML
+                binding.etCode.setAutofillHints("smsOTPCode")
             }
             binding.etPassword.setAutofillHints(View.AUTOFILL_HINT_PASSWORD)
-            
-            // Принудительный запрос при фокусе
+
             binding.etPhone.setOnFocusChangeListener { v, hasFocus ->
                 if (hasFocus) {
                     try {
@@ -121,7 +112,6 @@ class AuthActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            // Telegram требует номер в международном формате (начиная с +)
             if (!phone.startsWith("+")) {
                 phone = "+$phone"
                 binding.etPhone.setText(phone)
@@ -192,8 +182,6 @@ class AuthActivity : AppCompatActivity() {
     }
 
     private fun showError(message: String) {
-        // [FIX] Убран cancel() — он убивал сессию Autofill при ошибке ввода (например, неверный код),
-        // из-за чего последующий успешный commit() не срабатывал.
         binding.tvError.text = message
         binding.tvError.visibility = View.VISIBLE
     }
