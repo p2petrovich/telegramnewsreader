@@ -39,9 +39,15 @@
 A hybrid algorithm for detecting duplicate news:
 - **Anchor Fingerprints** — Extracts unique entities: numbers (amounts, dates, percentages), abbreviations, and proper nouns.
 - **Jaccard Similarity Index** — Fallback comparison using sets of significant words.
-- **Persistent History** — Stores fingerprints of the last 500 articles to filter repeats even after app restart.
+- **Persistent History** — Stores fingerprints of the last 500 articles.
+- **Smart Mark-as-Read** — News are marked as "read" only when playback actually starts, ensuring that unplayed news remain available in future collections.
 
-### 2. Speech & Audio Processing
+### 2. Collection Stability & Telegram
+- **Forced Synchronization** — Uses `OpenChat` and controlled sync delays to ensure the most up-to-date data is fetched from Telegram servers.
+- **Reliable Pagination** — A recursive history loading algorithm prevents message gaps, even when the API returns incomplete data batches.
+- **Clean Playlists** — Automatically removes channel headers for channels that contain zero news after filtering and deduplication.
+
+### 3. Speech & Audio Processing
 - **Deep Text Transformation** — Number normalization, abbreviation expansion, and Genitive case date conversion for natural speech.
 - **Native WAV Processing** — FFmpeg removed in favor of pure Kotlin and MediaCodec, reducing APK size by 73 MB and speeding up audio operations.
 - **PcmResampler** — Custom audio normalization (24kHz / 16-bit / Mono) for seamless stitching of mixed TTS sources.
