@@ -36,6 +36,16 @@ class AuthActivity : AppCompatActivity() {
 
         telegramClient.onClientReady = {
             runOnUiThread {
+                // [FIX] Явный сигнал системе Autofill: данные верны, сохрани их в базу.
+                // Без этого в Release-сборках (без суффикса .debug) система часто не предлагает сохранение.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    try {
+                        getSystemService(AutofillManager::class.java)?.commit()
+                    } catch (_: Exception) {
+                        // Autofill не критичен для работы, подавляем возможные системные ошибки
+                    }
+                }
+
                 Toast.makeText(this, getString(R.string.auth_success), Toast.LENGTH_SHORT).show()
                 PreferenceManager.setAuthorized(this, true)
                 startActivity(Intent(this, MainActivity::class.java))
@@ -158,6 +168,14 @@ class AuthActivity : AppCompatActivity() {
     }
 
     private fun showError(message: String) {
+        // [FIX] Если произошла ошибка (неверный код/пароль), сигнализируем Autofill,
+        // что текущие данные не стоит сохранять как валидные.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                getSystemService(AutofillManager::class.java)?.cancel()
+            } catch (_: Exception) {}
+        }
+
         binding.tvError.text = message
         binding.tvError.visibility = View.VISIBLE
     }
