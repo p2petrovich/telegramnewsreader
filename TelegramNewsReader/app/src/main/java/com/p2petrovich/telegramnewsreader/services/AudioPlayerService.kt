@@ -5,9 +5,13 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.media.MediaPlayer
 import android.os.Build
 import android.os.Handler
@@ -58,6 +62,48 @@ class AudioPlayerService : Service() {
     private var newsFileIndices: Set<Int> = emptySet()
     private var lastActionTime = 0L
 
+    private lateinit var audioManager: AudioManager
+    private var audioFocusRequest: AudioFocusRequest? = null
+    private var playOnFocusGain = false
+
+    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS -> {
+                Log.d(TAG, "AudioFocus: LOSS")
+                pause()
+                playOnFocusGain = false
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                Log.d(TAG, "AudioFocus: LOSS_TRANSIENT")
+                if (isActuallyPlaying()) {
+                    pause()
+                    playOnFocusGain = true
+                }
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                Log.d(TAG, "AudioFocus: LOSS_TRANSIENT_CAN_DUCK")
+                mediaPlayer?.setVolume(0.2f, 0.2f)
+            }
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                Log.d(TAG, "AudioFocus: GAIN")
+                mediaPlayer?.setVolume(1.0f, 1.0f)
+                if (playOnFocusGain) {
+                    play()
+                    playOnFocusGain = false
+                }
+            }
+        }
+    }
+
+    private val noisyReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
+                Log.d(TAG, "Audio becoming noisy (headphones disconnected)")
+                pause()
+            }
+        }
+    }
+
     private val handler = Handler(Looper.getMainLooper())
     private val progressRunnable = object : Runnable {
         override fun run() {
@@ -71,8 +117,45 @@ class AudioPlayerService : Service() {
 
     override fun onCreate() { 
         super.onCreate()
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        
+        // Регистрация ресивера для отключения наушников
+        val filter = IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+        registerReceiver(noisyReceiver, filter)
+
         createChannel()
         restoreState()
+    }
+
+    private fun requestAudioFocus(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val playbackAttributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build()
+            audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(playbackAttributes)
+                .setAcceptsDelayedFocusGain(true)
+                .setOnAudioFocusChangeListener(audioFocusChangeListener)
+                .build()
+            audioManager.requestAudioFocus(audioFocusRequest!!) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.requestAudioFocus(
+                audioFocusChangeListener,
+                AudioManager.STREAM_MUSIC,
+                AudioManager.AUDIOFOCUS_GAIN
+            ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        }
+    }
+
+    private fun abandonAudioFocus() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.abandonAudioFocus(audioFocusChangeListener)
+        }
     }
 
     private fun restoreState() {
@@ -135,6 +218,10 @@ class AudioPlayerService : Service() {
         super.onDestroy()
         stopProgressUpdates()
         releasePlayer()
+        abandonAudioFocus()
+        try {
+            unregisterReceiver(noisyReceiver)
+        } catch (_: Exception) {}
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) stopForeground(STOP_FOREGROUND_REMOVE)
             else @Suppress("DEPRECATION") stopForeground(true)
@@ -224,6 +311,12 @@ class AudioPlayerService : Service() {
 
     private fun play() {
         if (playlist.isEmpty()) return
+        
+        if (!requestAudioFocus()) {
+            Log.w(TAG, "Failed to request audio focus")
+            return
+        }
+
         val mp = mediaPlayer
         if (mp == null) { prepareAndPlay(); return }
         safeStart(mp)
@@ -235,6 +328,7 @@ class AudioPlayerService : Service() {
         val mp = mediaPlayer ?: return
         try { if (mp.isPlaying) mp.pause() } catch (_: Exception) {}
         stopProgressUpdates()
+        abandonAudioFocus()
         val (cur, total) = computeProgress()
         sendProgress(cur, total, false)
         updateNotification()

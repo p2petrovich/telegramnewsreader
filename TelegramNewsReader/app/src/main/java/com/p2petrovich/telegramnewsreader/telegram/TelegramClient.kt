@@ -12,9 +12,7 @@ import com.p2petrovich.telegramnewsreader.models.Channel
 import com.p2petrovich.telegramnewsreader.utils.DebugConfig
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.SecurityManager
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.CompletableDeferred
-import kotlin.coroutines.resume
+import kotlinx.coroutines.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -240,9 +238,12 @@ class TelegramClient(private val context: Context) {
     fun loadChannels(callback: (List<Channel>) -> Unit) {
         if (!isInitialized) { callback(emptyList()); return }
 
-        Thread {
-            if (!waitForReady(15)) { callback(emptyList()); return@Thread }
-            if (!isAuthorized) { callback(emptyList()); return@Thread }
+        // Используем CoroutineScope для безопасного ожидания готовности клиента.
+        // Используем Dispatchers.IO, так как TDLib делает сетевые запросы.
+        @OptIn(DelicateCoroutinesApi::class)
+        GlobalScope.launch(Dispatchers.IO) {
+            if (!waitForReady(15)) { callback(emptyList()); return@launch }
+            if (!isAuthorized) { callback(emptyList()); return@launch }
 
             val callbackFired = AtomicBoolean(false)
             val handler = Handler(Looper.getMainLooper())
@@ -353,7 +354,7 @@ class TelegramClient(private val context: Context) {
 
         if (!isInitialized || !isAuthorized || client == null) {
             Log.w(TAG, "getChannelMessagesPaginated: Client not ready for channel $channelId")
-            continuation.resume(emptyList())
+            continuation.resume(emptyList()) { }
             return@suspendCancellableCoroutine
         }
 
@@ -584,7 +585,11 @@ class TelegramClient(private val context: Context) {
         tryDc(listOf(2, 1, 3))
     }
 
-    private fun waitForReady(timeoutSec: Int): Boolean {
+    /**
+     * Ожидает готовности клиента и завершения авторизации.
+     * Переведено на suspend/delay вместо Thread.sleep для предотвращения ANR.
+     */
+    private suspend fun waitForReady(timeoutSec: Int): Boolean {
         return try {
             val startTime = System.currentTimeMillis()
             val timeoutMs = timeoutSec * 1000L
@@ -593,12 +598,12 @@ class TelegramClient(private val context: Context) {
                 if (isReady && authDeferred?.isCompleted == true) {
                     return true
                 }
-                Thread.sleep(100)
+                delay(100)
             }
 
             false
-        } catch (e: InterruptedException) {
-            Log.e(TAG, "Interrupted while waiting for ready", e)
+        } catch (e: CancellationException) {
+            Log.e(TAG, "Waiting for ready was cancelled", e)
             false
         } catch (e: Exception) {
             Log.e(TAG, "Error waiting for ready", e)
