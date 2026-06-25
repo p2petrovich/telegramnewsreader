@@ -192,14 +192,8 @@ class AuthActivity : AppCompatActivity() {
     }
 
     private fun showError(message: String) {
-        // [FIX] Если произошла ошибка (неверный код/пароль), сигнализируем Autofill,
-        // что текущие данные не стоит сохранять как валидные.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            try {
-                getSystemService(AutofillManager::class.java)?.cancel()
-            } catch (_: Exception) {}
-        }
-
+        // [FIX] Убран cancel() — он убивал сессию Autofill при ошибке ввода (например, неверный код),
+        // из-за чего последующий успешный commit() не срабатывал.
         binding.tvError.text = message
         binding.tvError.visibility = View.VISIBLE
     }
