@@ -382,7 +382,7 @@ object TextProcessor {
             .toSet()
 
         // ── АББРЕВИАТУРЫ (кросс-язычные), исключая шум ──────────────
-        val abbreviations = Regex("(?U)\\b\\p{Lu}{2,6}\\b")
+        val abbreviations = Regex("\\b\\p{Lu}{2,6}\\b")
             .findAll(body)
             .map { it.value.lowercase() }
             .filter { it !in stop && it !in NOISE_ANCHORS }
@@ -396,7 +396,7 @@ object TextProcessor {
         // 3. Или если в начале, то это должно быть достаточно длинное или специфичное слово
         // Но для простоты и точности дедупликации лучше разрешить всё, кроме стоп-слов и шума,
         // так как ложноположительный якорь "Сегодня" всё равно отсеется через stop.
-        val properNames = Regex("(?U)\\b\\p{Lu}\\p{Ll}{2,}\\b", RegexOption.MULTILINE)
+        val properNames = Regex("\\b\\p{Lu}\\p{Ll}{2,}\\b", RegexOption.MULTILINE)
             .findAll(body)
             .map { it.value.lowercase() }
             .filter { it !in stop && it !in NOISE_ANCHORS }
@@ -562,7 +562,7 @@ object TextProcessor {
         currencyScales.forEach { (symbol, scalePattern, name) ->
             if (scalePattern.isNotEmpty()) {
                 // Правило для масштаба: $50 млн
-                val regex = Regex("(?U)$symbol\\s?(\\d[\\d\\s,.]*)\\s*$scalePattern\\b", RegexOption.IGNORE_CASE)
+                val regex = Regex("$symbol\\s?(\\d[\\d\\s,.]*)\\s*$scalePattern\\b", RegexOption.IGNORE_CASE)
                 t = t.replace(regex) { m ->
                     val num = m.groupValues[1].trim()
                     val scale = if (m.groupValues[2].lowercase().startsWith("млн")) "миллионов" else "миллиардов"
