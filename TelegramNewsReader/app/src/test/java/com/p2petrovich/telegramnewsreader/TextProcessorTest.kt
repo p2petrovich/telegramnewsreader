@@ -12,16 +12,12 @@ import org.junit.Test
  *   - isSameEvent         (детекция дублей)
  *   - normalizeNumbers    (нормализация чисел/валют/процентов для TTS)
  *
- * Все функции — чистые (вход → выход), без Android-окружения.
+ * ВАЖНО: тесты предполагают исправленный extractFingerprint с флагом (?U)
+ * в регэкспах abbreviations/properNames. Без (?U) кириллические якоря НЕ
+ * извлекаются (баг с не-Unicode границей слова \b), и тесты с ВТБ/Крым упадут.
  *
- * ВАЖНЫЕ ОСОБЕННОСТИ КОДА, учтённые в тестах:
- *  1) extractFingerprint НЕ кладёт первое слово текста в strongAnchors
- *     (регэкспы properNames/abbreviations содержат (?<!^) и (?<![.!?…]\s)).
- *     Поэтому искомые имена в тестах стоят НЕ в начале строки.
- *  2) normalizeNumbers для $ и € выдаёт порядок "число валюта масштаб"
- *     ("50 долларов млн"), а не "число масштаб валюта". Это зафиксировано
- *     характеризационными тестами как текущее поведение (см. CODE_REVIEW).
- *  3) normalizeNumbers НЕ раскрывает "№" из-за \b перед не-словесным символом.
+ * Также: extractFingerprint НЕ кладёт ПЕРВОЕ слово текста в strongAnchors
+ * (регэксп properNames содержит (?<!^)), поэтому искомые имена стоят НЕ в начале.
  *
  * Группы:
  *   [STABLE]           — поведенческие проверки наличия/отсутствия признака.
@@ -35,7 +31,6 @@ class TextProcessorTest {
 
     @Test  // [STABLE]
     fun `fingerprint срезает префикс времени и извлекает число и имя`() {
-        // Имя НЕ в начале — иначе (?<!^) исключит его из strongAnchors.
         val fp = TextProcessor.extractFingerprint("08:30 — Банк ВТБ повысил ставку до 21")
         assertTrue("число 21 должно попасть в numbers", "21" in fp.numbers)
         assertTrue("имя 'втб' должно попасть в strongAnchors", "втб" in fp.strongAnchors)
@@ -61,18 +56,23 @@ class TextProcessorTest {
 
     @Test  // [STABLE]
     fun `fingerprint игнорирует одиночные цифры`() {
-        // numbers фильтрует значения короче 2 символов
         val fp = TextProcessor.extractFingerprint("Цена 5 рублей")
         assertFalse("одиночная '5' не попадает в numbers", "5" in fp.numbers)
     }
 
     @Test  // [STABLE]
     fun `fingerprint работает с латиницей и приводит к нижнему регистру`() {
-        // Первое слово исключается (?<!^), поэтому имена ставим в середину.
         val fp = TextProcessor.extractFingerprint("Today Putin met Biden in Geneva")
         assertTrue("putin" in fp.strongAnchors)
         assertTrue("biden" in fp.strongAnchors)
         assertTrue("geneva" in fp.strongAnchors)
+    }
+
+    @Test  // [STABLE] регрессионный тест на баг (?U): кириллический якорь извлекается
+    fun `fingerprint извлекает кириллический якорь (регрессия на баг U)`() {
+        val fp = TextProcessor.extractFingerprint("Сегодня Газпром подписал контракт на 15 лет")
+        assertTrue("кириллическое имя 'газпром' должно быть в strongAnchors",
+            "газпром" in fp.strongAnchors)
     }
 
     // ============================================================
@@ -81,8 +81,6 @@ class TextProcessorTest {
 
     @Test  // [STABLE]
     fun `sameEvent — общий сильный якорь плюс общее число = дубль`() {
-        // Критерий B: >=1 strongAnchor && >=1 number.
-        // Имена НЕ в начале строки, иначе не попадут в strongAnchors.
         val a = TextProcessor.extractFingerprint("Банк ВТБ повысил ставку до 21 процента")
         val b = TextProcessor.extractFingerprint("Ставка банка ВТБ выросла до 21")
         assertTrue(TextProcessor.isSameEvent(a, b))
@@ -97,7 +95,6 @@ class TextProcessorTest {
 
     @Test  // [STABLE]
     fun `sameEvent — два общих числа = дубль`() {
-        // Критерий C: >=2 общих числа.
         val a = TextProcessor.extractFingerprint("Землетрясение 5.8 в Японии, погибли 12")
         val b = TextProcessor.extractFingerprint("В Японии землетрясение магнитудой 5.8, жертв 12")
         assertTrue(TextProcessor.isSameEvent(a, b))
@@ -105,8 +102,6 @@ class TextProcessorTest {
 
     @Test  // [STABLE]
     fun `sameEvent — критерий B не зависит от высокого threshold`() {
-        // B (сильный якорь + число) срабатывает независимо от threshold,
-        // который влияет только на критерии A и D.
         val a = TextProcessor.extractFingerprint("Банк ВТБ повысил ставку до 21 процента")
         val b = TextProcessor.extractFingerprint("Ставка банка ВТБ выросла до 21")
         assertTrue(TextProcessor.isSameEvent(a, b, threshold = 0.95))
@@ -149,7 +144,6 @@ class TextProcessorTest {
 
     @Test  // [STABLE]
     fun `normalize — НЕ ломает 4-значные годы`() {
-        // Правило диапазона ограничено 1–3 значными числами, годы не трогает.
         val result = TextProcessor.normalizeNumbers("в 2024-2025 годах")
         assertFalse(
             "правило диапазона не должно применяться к годам",

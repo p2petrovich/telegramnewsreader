@@ -7,16 +7,7 @@ import org.junit.Test
 
 /**
  * Юнит-тесты для UpdateChecker.versionCodeFromTag.
- *
- * Функция парсит тег релиза GitHub ("v3.0.487") в versionCode (487)
- * для сравнения с BuildConfig.VERSION_CODE. Ошибка здесь = обновления
- * либо не предлагаются, либо предлагаются ошибочно.
- *
- * Функция помечена `internal`, поэтому тест должен лежать в том же
- * модуле (app) — тогда видимость internal сохраняется.
- *
- * Реализация (для справки):
- *   tag.removePrefix("v").substringAfterLast(".").toIntOrNull()
+ * Реализация: tag.removePrefix("v").substringAfterLast(".").toIntOrNull()
  */
 class UpdateCheckerTest {
 
@@ -52,7 +43,6 @@ class UpdateCheckerTest {
 
     @Test
     fun `тег без точек v3 берёт всю строку после v`() {
-        // substringAfterLast(".") при отсутствии "." вернёт всю строку → "3" → 3
         assertEquals(3, UpdateChecker.versionCodeFromTag("v3"))
     }
 

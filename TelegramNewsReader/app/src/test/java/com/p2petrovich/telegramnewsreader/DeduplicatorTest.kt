@@ -8,18 +8,11 @@ import org.junit.Test
 
 /**
  * Юнит-тесты для Deduplicator — детектора дублей с состоянием (историей).
+ * Каждый тест создаёт свежий экземпляр.
  *
- * Каждый тест создаёт свежий экземпляр (Deduplicator хранит состояние).
- *
- * ВАЖНО: дубль определяется через TextProcessor.isSameEvent, который
- * опирается на strongAnchors. Поскольку extractFingerprint НЕ включает
- * первое слово текста в strongAnchors, во всех «дублирующихся» парах
- * сильное имя (ВТБ) стоит НЕ в начале строки — иначе isSameEvent вернёт
- * false и дубль не задетектится.
- *
- * Размещение: testOptions { unitTests.returnDefaultValues = true } в
- * build.gradle уже включён, поэтому Logx/android.util.Log не мешают
- * запуску в src/test/.
+ * Дубль определяется через TextProcessor.isSameEvent (strongAnchors + numbers).
+ * Имена в "дублирующихся" парах стоят НЕ в начале строки (см. (?<!^)).
+ * Предполагается исправленный extractFingerprint с (?U) для кириллицы.
  */
 class DeduplicatorTest {
 
@@ -35,11 +28,10 @@ class DeduplicatorTest {
     fun `повтор после добавления в историю распознаётся как дубль`() {
         val dedup = Deduplicator()
         val first = "Банк ВТБ повысил ключевую ставку до 21 процента"
-        val second = "Ставка банка ВТБ выросла до 21 процента годовых" // то же событие
+        val second = "Ставка банка ВТБ выросла до 21 процента годовых"
 
         assertFalse("первое появление — не дубль", dedup.isDuplicate(first))
         dedup.addToHistory(first)
-
         assertTrue("второе появление того же события — дубль", dedup.isDuplicate(second))
     }
 
@@ -60,7 +52,7 @@ class DeduplicatorTest {
         val dedup = Deduplicator(isEnabled = false)
         val text = "Банк ВТБ повысил ключевую ставку до 21 процента"
 
-        dedup.addToHistory(text) // при isEnabled=false addToHistory — no-op
+        dedup.addToHistory(text)
         assertFalse(dedup.isDuplicate(text))
         assertEquals(0, dedup.getHistorySize())
     }
@@ -70,7 +62,6 @@ class DeduplicatorTest {
     @Test
     fun `слишком короткий текст не считается дублем`() {
         val dedup = Deduplicator()
-        // < 3 значимых слов → isDuplicate возвращает false, не сравнивая
         assertFalse(dedup.isDuplicate("Срочно"))
         assertFalse(dedup.isDuplicate("Фото дня"))
     }
@@ -91,7 +82,7 @@ class DeduplicatorTest {
         val b = "Ставка банка ВТБ выросла до 21 процента годовых"
 
         dedup.addToHistory(a)
-        dedup.addToHistory(b) // то же событие — не должно увеличить историю
+        dedup.addToHistory(b)
         assertEquals(1, dedup.getHistorySize())
     }
 
@@ -141,7 +132,6 @@ class DeduplicatorTest {
     fun `история не превышает historySize и вытесняет старое`() {
         val dedup = Deduplicator(historySize = 3)
 
-        // 5 заведомо РАЗНЫХ событий (разные имена не в начале + числа)
         dedup.addToHistory("Компания Alpha заключила контракт на 100 миллионов долларов")
         dedup.addToHistory("Город Beta открыл новый мост стоимостью 200 миллионов рублей")
         dedup.addToHistory("Завод Gamma выпустил 300 тысяч единиц продукции")
@@ -155,13 +145,12 @@ class DeduplicatorTest {
 
     @Test
     fun `записи старше окна вытесняются при следующей проверке`() {
-        // Окно 0 минут: любая запись мгновенно считается просроченной.
-        val dedup = Deduplicator(timeWindowMinutes = 0)
+        // Окно -1 минута: cutoff = now + 60000 → заведомо в будущем относительно
+        // timestamp записи, поэтому любая запись считается просроченной без гонки по мс.
+        val dedup = Deduplicator(timeWindowMinutes = -1)
         val first = "Банк ВТБ повысил ключевую ставку до 21 процента"
 
         dedup.addToHistory(first)
-        // cleanOldEntries() вызывается внутри isDuplicate(); при окне 0
-        // запись уже "старая" → её выкинут, и дубль НЕ распознается.
         val isDup = dedup.isDuplicate("Ставка банка ВТБ выросла до 21 процента годовых")
         assertFalse("просроченная запись не должна давать совпадение", isDup)
     }

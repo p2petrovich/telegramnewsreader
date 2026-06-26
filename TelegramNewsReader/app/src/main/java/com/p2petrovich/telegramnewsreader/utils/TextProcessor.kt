@@ -382,14 +382,14 @@ object TextProcessor {
             .toSet()
 
         // ── АББРЕВИАТУРЫ (кросс-язычные), исключая шум ──────────────
-        val abbreviations = Regex("\\b\\p{Lu}{2,6}\\b")
+        val abbreviations = Regex("(?U)\\b\\p{Lu}{2,6}\\b")
             .findAll(body)
             .map { it.value.lowercase() }
             .filter { it !in stop && it !in NOISE_ANCHORS }
             .toSet()
 
         // ── ИМЕНА (заглавная не в начале предложения), исключая шум ──
-        val properNames = Regex("(?<![.!?…]\\s)(?<!^)\\b\\p{Lu}\\p{Ll}{2,}\\b", RegexOption.MULTILINE)
+        val properNames = Regex("(?U)(?<![.!?…]\\s)(?<!^)\\b\\p{Lu}\\p{Ll}{2,}\\b", RegexOption.MULTILINE)
             .findAll(body)
             .map { it.value.lowercase() }
             .filter { it !in stop && it !in NOISE_ANCHORS }
