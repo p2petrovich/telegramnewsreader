@@ -153,9 +153,6 @@ class MainViewModel : ViewModel() {
     private val _totalProgressSteps = MutableLiveData(0)
     val totalProgressSteps: LiveData<Int> = _totalProgressSteps
 
-    fun setStartTime(time: Long) {
-        _startTime.postValue(time)
-    }
 
     fun setCurrentProgressStep(step: Int) {
         _currentProgressStep.postValue(step)
@@ -252,6 +249,7 @@ class MainViewModel : ViewModel() {
                 _errorEvent.postValue(e.message)
             } finally {
                 _isCollecting.postValue(false)
+                _startTime.postValue(0L)
                 newsCollectionJob = null
             }
         }

@@ -317,7 +317,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun startTimer() {
         stopTimer()
-        viewModel.setStartTime(System.currentTimeMillis())
         progressExecutor = Executors.newSingleThreadScheduledExecutor()
         progressExecutor?.scheduleWithFixedDelay({
             runOnUiThread { updateETA() }
@@ -327,7 +326,6 @@ class MainActivity : AppCompatActivity() {
     private fun stopTimer() {
         progressExecutor?.shutdown()
         progressExecutor = null
-        viewModel.setStartTime(0L)
     }
 
     private fun showProgressPanels() {
