@@ -75,6 +75,14 @@ class TextProcessorTest {
             "газпром" in fp.strongAnchors)
     }
 
+    @Test // [STABLE] тест на распознавание имени собственного в самом начале строки
+    fun `fingerprint должен извлекать имя собственное в начале строки`() {
+        // Сейчас это падает, так как в регулярке стоит (?<!^)
+        val fp = TextProcessor.extractFingerprint("ВТБ повысил ставки")
+        assertTrue("имя 'втб' в начале строки должно попасть в strongAnchors",
+            "втб" in fp.strongAnchors)
+    }
+
     // ============================================================
     //  isSameEvent
     // ============================================================
@@ -127,14 +135,14 @@ class TextProcessorTest {
         assertEquals("5 миллиардов рублей", TextProcessor.normalizeNumbers("5 млрд руб"))
     }
 
-    @Test  // [CHARACTERIZATION] факт: для $ порядок "число валюта масштаб"
+    @Test  // [STABLE]
     fun `normalize — доллары с масштабом`() {
-        assertEquals("цена 50 долларов млн", TextProcessor.normalizeNumbers("цена \$50 млн"))
+        assertEquals("цена 50 миллионов долларов", TextProcessor.normalizeNumbers("цена \$50 млн"))
     }
 
-    @Test  // [CHARACTERIZATION] факт: для € порядок "число валюта масштаб"
+    @Test  // [STABLE]
     fun `normalize — евро с масштабом`() {
-        assertEquals("бюджет 20 евро млрд", TextProcessor.normalizeNumbers("бюджет €20 млрд"))
+        assertEquals("бюджет 20 миллиардов евро", TextProcessor.normalizeNumbers("бюджет €20 млрд"))
     }
 
     @Test  // [CHARACTERIZATION]
@@ -151,8 +159,8 @@ class TextProcessorTest {
         )
     }
 
-    @Test  // [CHARACTERIZATION] факт: "№" НЕ раскрывается (баг с \b перед не-словом)
-    fun `normalize — знак номера не раскрывается`() {
-        assertEquals("№ 5", TextProcessor.normalizeNumbers("№ 5"))
+    @Test  // [STABLE]
+    fun `normalize — знак номера раскрывается`() {
+        assertEquals("номер 5", TextProcessor.normalizeNumbers("№ 5"))
     }
 }

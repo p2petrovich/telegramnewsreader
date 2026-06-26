@@ -388,8 +388,15 @@ object TextProcessor {
             .filter { it !in stop && it !in NOISE_ANCHORS }
             .toSet()
 
-        // ── ИМЕНА (заглавная не в начале предложения), исключая шум ──
-        val properNames = Regex("(?U)(?<![.!?…]\\s)(?<!^)\\b\\p{Lu}\\p{Ll}{2,}\\b", RegexOption.MULTILINE)
+        // ── ИМЕНА СОБСТВЕННЫЕ ──
+        // Убрали (?<!^), чтобы захватывать первое слово.
+        // Чтобы не хватать вообще любое первое слово (с большой буквы), требуем либо:
+        // 1. Быть аббревиатурой (уже есть в abbreviations)
+        // 2. Быть в середине предложения (есть строчная буква перед)
+        // 3. Или если в начале, то это должно быть достаточно длинное или специфичное слово
+        // Но для простоты и точности дедупликации лучше разрешить всё, кроме стоп-слов и шума,
+        // так как ложноположительный якорь "Сегодня" всё равно отсеется через stop.
+        val properNames = Regex("(?U)\\b\\p{Lu}\\p{Ll}{2,}\\b", RegexOption.MULTILINE)
             .findAll(body)
             .map { it.value.lowercase() }
             .filter { it !in stop && it !in NOISE_ANCHORS }
@@ -538,9 +545,38 @@ object TextProcessor {
         if (NewsService.isChannelHeader(text)) return text
 
         var t = text
-        t = t.replace(Regex("\\b№\\s*(\\d+)"), "номер $1")
+        t = t.replace(Regex("(?<!\\w)№\\s*(\\d+)"), "номер $1")
 
-        // 1. Валюты с масштабом: ₽100 тыс, 5 млрд руб, 10 млн. руб
+        // 1. Валюты (сначала сложные с миллионами, потом простые)
+        val currencyScales = listOf(
+            // Сначала масштаб: $50 млн, €20 млрд
+            Triple("\\$", "(млн|млрд)", "долларов"),
+            Triple("€", "(млн|млрд)", "евро"),
+            Triple("£", "(млн|млрд)", "фунтов"),
+            // Затем одиночные: $50, €20
+            Triple("\\$", "", "долларов"),
+            Triple("€", "", "евро"),
+            Triple("£", "", "фунтов")
+        )
+
+        currencyScales.forEach { (symbol, scalePattern, name) ->
+            if (scalePattern.isNotEmpty()) {
+                // Правило для масштаба: $50 млн
+                val regex = Regex("(?U)$symbol\\s?(\\d[\\d\\s,.]*)\\s*$scalePattern\\b", RegexOption.IGNORE_CASE)
+                t = t.replace(regex) { m ->
+                    val num = m.groupValues[1].trim()
+                    val scale = if (m.groupValues[2].lowercase().startsWith("млн")) "миллионов" else "миллиардов"
+                    "$num $scale $name"
+                }
+            } else {
+                // Одиночное правило: $50
+                val regex = Regex("$symbol\\s?(\\d+)\\b")
+                t = t.replace(regex, "$1 $name")
+            }
+        }
+
+        // 2. Рубли: обрабатываются отдельно из-за сложности (префиксы и суффиксы)
+        // Сначала рубли с масштабом: ₽100 тыс, 5 млрд руб, 10 млн. руб
         t = t.replace(Regex("(?i)(?:₽|руб\\.?|р\\.)?\\s*(\\d+[\\d\\s,.]*)\\s*(тыс\\.?|млн\\.?|млрд\\.?)\\s*(?:₽|руб\\.?|р\\.)?")) { match ->
             val num = match.groupValues[1].trim().replace(" ", "").replace(",", ".")
             val scaleRaw = match.groupValues[2].lowercase().trim('.')
@@ -550,41 +586,15 @@ object TextProcessor {
                 scaleRaw.startsWith("млрд") -> "миллиардов"
                 else -> scaleRaw
             }
-            // Проверяем, был ли знак рубля до или после
             val hasRuble = match.value.contains("₽") || match.value.contains("руб", ignoreCase = true) || match.value.contains("р.", ignoreCase = true)
             if (hasRuble) "$num $scale рублей" else match.value
         }
 
-        // 2. Обычные рубли: ₽100, 100р.
+        // Затем обычные рубли: ₽100, 100р.
         t = t.replace(Regex("(?i)₽\\s?(\\d+[\\d\\s]*)|\\b(\\d+[\\d\\s]*)\\s?(?:₽|руб\\.?|р\\.)\\b")) { match ->
             val num = (match.groupValues[1].takeIf { it.isNotEmpty() } ?: match.groupValues[2]).trim().replace(" ", "")
             "$num рублей"
         }
-
-        t = t.replace(
-            Regex("\\$\\s?(\\d[\\d\\s,.]*)\\s*(млн|млрд)\\b", RegexOption.IGNORE_CASE)
-        ) { m ->
-            val num = m.groupValues[1].trim()
-            val scale = if (m.groupValues[2].lowercase() == "млн") "миллионов" else "миллиардов"
-            "$num $scale долларов"
-        }
-        t = t.replace(
-            Regex("€(\\d+[\\d\\s,.]*)\\s*(млн|млрд)\\b", RegexOption.IGNORE_CASE)
-        ) { m ->
-            val num = m.groupValues[1].trim()
-            val scale = if (m.groupValues[2].lowercase() == "млн") "миллионов" else "миллиардов"
-            "$num $scale евро"
-        }
-        t = t.replace(
-            Regex("£(\\d+[\\d\\s,.]*)\\s*(млн|млрд)\\b", RegexOption.IGNORE_CASE)
-        ) { m ->
-            val num = m.groupValues[1].trim()
-            val scale = if (m.groupValues[2].lowercase() == "млн") "миллионов" else "миллиардов"
-            "$num $scale фунтов"
-        }
-        t = t.replace(Regex("\\$\\s?(\\d+)"), "$1 долларов")
-        t = t.replace(Regex("€(\\d+)"), "$1 евро")
-        t = t.replace(Regex("£(\\d+)"), "$1 фунтов")
 
         t = t.replace(Regex("на\\s+(\\d+[,.]?\\d*)\\s?%")) { "на ${it.groupValues[1]} процентов" }
         t = t.replace(Regex("(\\d+[,.]?\\d*)%-й")) { "${it.groupValues[1]}-процентный" }
