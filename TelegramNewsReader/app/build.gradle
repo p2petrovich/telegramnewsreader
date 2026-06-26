@@ -111,6 +111,14 @@ android {
         viewBinding true
         buildConfig = true
     }
+
+    // [TEST] JVM-юнит-тесты доменного ядра (TextProcessor / Deduplicator / UpdateChecker).
+    // Logx — обёртка над android.util.Log, а часть классов вызывает Log напрямую.
+    // Без returnDefaultValues такие вызовы в src/test падают с "Method ... not mocked".
+    // Опция возвращает дефолты (0/false/null/no-op) для незамоканных Android-вызовов.
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
 }
 
 dependencies {
