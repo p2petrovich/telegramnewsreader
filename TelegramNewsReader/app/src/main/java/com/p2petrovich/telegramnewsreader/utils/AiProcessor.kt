@@ -100,6 +100,8 @@ object AiProcessor {
             }
             if (response.isSuccessful) {
                 true to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_model_available)
+            } else if (response.code == 429) {
+                false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_error_429)
             } else {
                 val errorMsg = response.body?.string() ?: response.message
                 false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_error_format, response.code, errorMsg)

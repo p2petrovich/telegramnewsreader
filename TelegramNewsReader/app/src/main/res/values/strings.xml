@@ -205,6 +205,7 @@
     <string name="ai_api_key_missing">API key is missing</string>
     <string name="ai_model_available">Model is available</string>
     <string name="ai_error_format">Error %1$d: %2$s</string>
+    <string name="ai_error_429">Rate limit hit (429). Please wait a minute.</string>
     <string name="ai_network_unavailable">Network unavailable: %1$s</string>
     <string name="edit">Edit</string>
 

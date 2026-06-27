@@ -205,6 +205,7 @@
     <string name="ai_api_key_missing">API ключ отсутствует</string>
     <string name="ai_model_available">Модель доступна</string>
     <string name="ai_error_format">Ошибка %1$d: %2$s</string>
+    <string name="ai_error_429">Превышен лимит запросов (429). Подождите минуту.</string>
     <string name="ai_network_unavailable">Сеть недоступна: %1$s</string>
     <string name="edit">Редактировать</string>
 
