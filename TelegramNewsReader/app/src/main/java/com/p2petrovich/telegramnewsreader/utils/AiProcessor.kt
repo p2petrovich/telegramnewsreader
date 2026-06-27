@@ -16,6 +16,7 @@ object AiProcessor {
     private const val TAG = "AiProcessor"
     private const val OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
     private const val GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+    private const val GEMINI_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s"
 
     private val client = HttpClients.shared
 
@@ -29,6 +30,11 @@ object AiProcessor {
         val model = PreferenceManager.getAiModel(context)
         return when (provider) {
             "groq" -> Triple(GROQ_URL, PreferenceManager.getGroqApiKey(context), model)
+            "gemini" -> {
+                val apiKey = PreferenceManager.getGeminiApiKey(context)
+                val url = String.format(GEMINI_URL_TEMPLATE, model, apiKey)
+                Triple(url, apiKey, model)
+            }
             else   -> Triple(OPENROUTER_URL, PreferenceManager.getOpenRouterApiKey(context), model)
         }
     }
@@ -41,16 +47,32 @@ object AiProcessor {
         val (apiUrl, apiKey, _) = providerConfig(context)
         if (apiKey.isBlank()) return false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_api_key_missing)
 
-        val json = JSONObject().apply {
-            put("model", modelName)
-            val messages = JSONArray().apply {
-                put(JSONObject().apply {
-                    put("role", "user")
-                    put("content", "ping")
+        val provider = PreferenceManager.getAiProvider(context)
+        val json = if (provider == "gemini") {
+            JSONObject().apply {
+                put("contents", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("parts", JSONArray().apply {
+                            put(JSONObject().put("text", "ping"))
+                        })
+                    })
+                })
+                put("generationConfig", JSONObject().apply {
+                    put("maxOutputTokens", 5)
                 })
             }
-            put("messages", messages)
-            put("max_tokens", 5) // Минимум токенов для проверки
+        } else {
+            JSONObject().apply {
+                put("model", modelName)
+                val messages = JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        put("content", "ping")
+                    })
+                }
+                put("messages", messages)
+                put("max_tokens", 5)
+            }
         }
 
         val mediaType = "application/json; charset=utf-8".toMediaType()
@@ -58,10 +80,13 @@ object AiProcessor {
 
         val requestBuilder = Request.Builder()
             .url(apiUrl)
-            .addHeader("Authorization", "Bearer $apiKey")
             .post(body)
 
-        if (PreferenceManager.getAiProvider(context) == "openrouter") {
+        if (provider != "gemini") {
+            requestBuilder.addHeader("Authorization", "Bearer $apiKey")
+        }
+
+        if (provider == "openrouter") {
             requestBuilder
                 .addHeader("HTTP-Referer", "https://github.com/p2petrovich/TelegramNewsReader")
                 .addHeader("X-Title", "TelegramNewsReader")
@@ -140,17 +165,42 @@ object AiProcessor {
             else       -> (safeText.length / 3).coerceIn(60, 800)
         }
 
-        val json = JSONObject().apply {
-            put("model", modelName)
-            val messages = JSONArray().apply {
-                put(JSONObject().apply {
-                    put("role", "user")
-                    put("content", prompt)
+        val json = if (PreferenceManager.getAiProvider(context) == "gemini") {
+            // Формат Google Gemini
+            JSONObject().apply {
+                put("contents", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("parts", JSONArray().apply {
+                            put(JSONObject().put("text", prompt))
+                        })
+                    })
+                })
+                put("generationConfig", JSONObject().apply {
+                    put("temperature", temperature)
+                    put("maxOutputTokens", maxOutputTokens)
+                    // Отключаем "thinking" для моделей 2.0/2.5 Flash
+                    if (modelName.contains("flash")) {
+                        put("thinkingConfig", JSONObject().apply {
+                            put("includeThoughts", false)
+                            put("thinkingBudget", 0)
+                        })
+                    }
                 })
             }
-            put("messages", messages)
-            put("temperature", temperature)
-            put("max_tokens", maxOutputTokens)
+        } else {
+            // Формат OpenAI (Groq / OpenRouter)
+            JSONObject().apply {
+                put("model", modelName)
+                val messages = JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        put("content", prompt)
+                    })
+                }
+                put("messages", messages)
+                put("temperature", temperature)
+                put("max_tokens", maxOutputTokens)
+            }
         }
 
         val mediaType = "application/json; charset=utf-8".toMediaType()
@@ -161,12 +211,17 @@ object AiProcessor {
             for (attempt in 1..3) {
                 try {
                     val body = json.toString().toRequestBody(mediaType)
+                    val provider = PreferenceManager.getAiProvider(context)
+                    
                     val requestBuilder = Request.Builder()
                         .url(apiUrl)
-                        .addHeader("Authorization", "Bearer $apiKey")
                         .post(body)
 
-                    if (PreferenceManager.getAiProvider(context) == "openrouter") {
+                    if (provider != "gemini") {
+                        requestBuilder.addHeader("Authorization", "Bearer $apiKey")
+                    }
+
+                    if (provider == "openrouter") {
                         requestBuilder
                             .addHeader("HTTP-Referer", "https://github.com/p2petrovich/TelegramNewsReader")
                             .addHeader("X-Title", "TelegramNewsReader")
@@ -178,13 +233,28 @@ object AiProcessor {
 
                     if (response.isSuccessful && responseBody != null) {
                         val jsonResponse = JSONObject(responseBody)
-                        val choices = jsonResponse.getJSONArray("choices")
-                        if (choices.length() > 0) {
-                            val summarized = choices.getJSONObject(0)
-                                .getJSONObject("message")
-                                .getString("content")
+                        
+                        val summarized = if (provider == "gemini") {
+                            // Разбор ответа Gemini: candidates[0].content.parts[0].text
+                            jsonResponse.getJSONArray("candidates")
+                                .getJSONObject(0)
+                                .getJSONObject("content")
+                                .getJSONArray("parts")
+                                .getJSONObject(0)
+                                .getString("text")
                                 .trim()
+                        } else {
+                            // Разбор ответа OpenAI
+                            val choices = jsonResponse.getJSONArray("choices")
+                            if (choices.length() > 0) {
+                                choices.getJSONObject(0)
+                                    .getJSONObject("message")
+                                    .getString("content")
+                                    .trim()
+                            } else null
+                        }
 
+                        if (summarized != null) {
                             return@withContext if (summarized.isBlank()) safeText else summarized
                         } else return@withContext "[AI Empty Response] $safeText"
                     } else if (response.code == 429) {

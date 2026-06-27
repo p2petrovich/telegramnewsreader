@@ -1327,17 +1327,23 @@ class MainActivity : AppCompatActivity() {
         val etOpenRouterKey  = dialogView.findViewById<TextInputEditText>(R.id.et_openrouter_key)
         val tilGroqKey       = dialogView.findViewById<TextInputLayout>(R.id.til_groq_key)
         val etGroqKey        = dialogView.findViewById<TextInputEditText>(R.id.et_groq_key)
+        val tilGeminiKey      = dialogView.findViewById<TextInputLayout>(R.id.til_gemini_key)
+        val etGeminiKey       = dialogView.findViewById<TextInputEditText>(R.id.et_gemini_key)
+
         etOpenRouterKey?.setText(PreferenceManager.getOpenRouterApiKey(this))
         etGroqKey?.setText(PreferenceManager.getGroqApiKey(this))
+        etGeminiKey?.setText(PreferenceManager.getGeminiApiKey(this))
 
         fun updateKeyFieldVisibility(provider: String) {
-            tilOpenRouterKey?.visibility = if (provider != "groq") View.VISIBLE else View.GONE
+            tilOpenRouterKey?.visibility = if (provider == "openrouter") View.VISIBLE else View.GONE
             tilGroqKey?.visibility       = if (provider == "groq")  View.VISIBLE else View.GONE
+            tilGeminiKey?.visibility     = if (provider == "gemini") View.VISIBLE else View.GONE
         }
 
         val providers = listOf(
             "openrouter" to "OpenRouter",
-            "groq"       to "Groq"
+            "groq"       to "Groq",
+            "gemini"     to "Google Gemini"
         )
         val providerAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, providers.map { it.second })
         providerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
@@ -1348,6 +1354,12 @@ class MainActivity : AppCompatActivity() {
         updateKeyFieldVisibility(currentProvider)
 
         fun getModelsForProvider(provider: String): List<Pair<String, String>> = when (provider) {
+            "gemini" -> listOf(
+                "gemini-2.0-flash" to "Gemini 2.0 Flash — сверхбыстрый",
+                "gemini-2.0-flash-lite" to "Gemini 2.0 Flash-Lite — легкий",
+                "gemini-1.5-flash" to "Gemini 1.5 Flash — быстрый",
+                "gemini-1.5-pro" to "Gemini 1.5 Pro — умный"
+            )
             "groq" -> listOf(
                 "llama-3.3-70b-versatile"                  to getString(R.string.ai_model_llama_fast),
                 "llama-3.1-8b-instant"                     to getString(R.string.ai_model_llama_instant),
@@ -1474,9 +1486,10 @@ class MainActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setView(dialogView)
             .setPositiveButton(R.string.save) { _, _ ->
-                //  API-   
+                // Сохраняем API-ключи
                 PreferenceManager.saveOpenRouterApiKey(this, etOpenRouterKey?.text?.toString()?.trim() ?: "")
                 PreferenceManager.saveGroqApiKey(this, etGroqKey?.text?.toString()?.trim() ?: "")
+                PreferenceManager.saveGeminiApiKey(this, etGeminiKey?.text?.toString()?.trim() ?: "")
                 PreferenceManager.setAiSummaryEnabled(this, switchEnabled.isChecked)
                 val selectedModel = currentModels[spinnerModel.selectedItemPosition].first
                 val selectedStyle = styles[spinnerStyle.selectedItemPosition].first

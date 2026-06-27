@@ -30,7 +30,7 @@ object SettingsBackup {
     private const val BACKUP_VERSION = 1
     
     private val SENSITIVE_KEYS = setOf(
-        "phone_number", "openrouter_api_key", "groq_api_key"
+        "phone_number", "openrouter_api_key", "groq_api_key", "gemini_api_key"
     )
 
     private fun getDatedFileName(): String {
@@ -65,6 +65,7 @@ object SettingsBackup {
         // Добавляем API ключи вручную (они в отдельном secure-файле)
         val openRouterKey = PreferenceManager.getOpenRouterApiKey(context)
         val groqKey = PreferenceManager.getGroqApiKey(context)
+        val geminiKey = PreferenceManager.getGeminiApiKey(context)
         if (openRouterKey.isNotEmpty()) {
             val newsPrefs = allPrefsJson.optJSONObject("telegram_news_prefs") ?: JSONObject()
             newsPrefs.put("openrouter_api_key", openRouterKey)
@@ -73,6 +74,11 @@ object SettingsBackup {
         if (groqKey.isNotEmpty()) {
             val newsPrefs = allPrefsJson.optJSONObject("telegram_news_prefs") ?: JSONObject()
             newsPrefs.put("groq_api_key", groqKey)
+            allPrefsJson.put("telegram_news_prefs", newsPrefs)
+        }
+        if (geminiKey.isNotEmpty()) {
+            val newsPrefs = allPrefsJson.optJSONObject("telegram_news_prefs") ?: JSONObject()
+            newsPrefs.put("gemini_api_key", geminiKey)
             allPrefsJson.put("telegram_news_prefs", newsPrefs)
         }
 
@@ -285,6 +291,10 @@ object SettingsBackup {
                             PreferenceManager.saveGroqApiKey(context, value.toString())
                             return@forEach
                         }
+                        if (key == "gemini_api_key") {
+                            PreferenceManager.saveGeminiApiKey(context, value.toString())
+                            return@forEach
+                        }
 
                         when (value) {
                             is Boolean -> editor.putBoolean(key, value)
@@ -317,6 +327,10 @@ object SettingsBackup {
                     }
                     if (key == "groq_api_key") {
                         PreferenceManager.saveGroqApiKey(context, value.toString())
+                        return@forEach
+                    }
+                    if (key == "gemini_api_key") {
+                        PreferenceManager.saveGeminiApiKey(context, value.toString())
                         return@forEach
                     }
                     when (value) {

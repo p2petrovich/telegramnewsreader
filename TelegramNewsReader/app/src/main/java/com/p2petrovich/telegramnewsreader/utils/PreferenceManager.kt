@@ -55,6 +55,7 @@ object PreferenceManager {
     private const val ENCRYPTED_PREFS_NAME = "secure_api_keys"
     private const val KEY_OPENROUTER_API_KEY = "openrouter_api_key"
     private const val KEY_GROQ_API_KEY = "groq_api_key"
+    private const val KEY_GEMINI_API_KEY = "gemini_api_key"
 
     private const val KEY_LAST_REAL_NEWS_COUNT = "last_real_news_count"
     private const val KEY_LAST_NEWS_FILE_INDICES = "last_news_indices"
@@ -450,6 +451,15 @@ object PreferenceManager {
 
     fun saveGroqApiKey(context: Context, key: String) {
         try { getEncryptedPreferences(context)?.edit()?.putString(KEY_GROQ_API_KEY, key)?.apply() }
+        catch (_: Exception) {}
+    }
+
+    fun getGeminiApiKey(context: Context): String =
+        try { getEncryptedPreferences(context)?.getString(KEY_GEMINI_API_KEY, "") ?: "" }
+        catch (_: Exception) { "" }
+
+    fun saveGeminiApiKey(context: Context, key: String) {
+        try { getEncryptedPreferences(context)?.edit()?.putString(KEY_GEMINI_API_KEY, key)?.apply() }
         catch (_: Exception) {}
     }
 }
