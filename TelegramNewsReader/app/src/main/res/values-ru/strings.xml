@@ -277,10 +277,14 @@
     <string name="ai_style_extreme">Радио-молния (1 предложение)</string>
 
     <string name="ai_model_deepseek_v3_1_free">DeepSeek V3.1 (Лучший для RU) — FREE</string>
-    <string name="ai_model_gemma_4_free">Gemma 4 31B (140+ языков) — FREE</string>
-    <string name="ai_model_qwen_3_next_free">Qwen 3 Next 80B — FREE</string>
+    <string name="ai_model_gemma_4_31b_free">Gemma 4 31B (Осн, 140+ языков) — FREE</string>
+    <string name="ai_model_gpt_oss_120b_free">GPT-OSS 120B (OpenAI Fallback) — FREE</string>
+    <string name="ai_model_qwen_3_next_free">Qwen 3 Next 80B (Fallback 2) — FREE</string>
+    <string name="ai_model_gemma_4_26b_free">Gemma 4 26B (Быстрый MoE) — FREE</string>
     <string name="ai_model_nemotron_3_super_free">Nemotron 3 Super 120B — FREE</string>
-    <string name="ai_model_gpt_oss_120b_free">GPT-OSS 120B (Сильный) — FREE</string>
+    <string name="ai_model_llama_fast">Llama 3.3 70B — быстрый ⚡</string>
+    <string name="ai_model_llama_instant">Llama 3.1 8B — сверхбыстрый ⚡</string>
+    <string name="ai_model_llama_new">Llama 4 Scout — новый ⚡</string>
 
     <string name="ai_settings_saved">Настройки ИИ сохранены</string>
     <string name="openrouter_api_key_hint">API-ключ OpenRouter</string>

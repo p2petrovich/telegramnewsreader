@@ -180,13 +180,11 @@ object AiProcessor {
                 put("generationConfig", JSONObject().apply {
                     put("temperature", temperature)
                     put("maxOutputTokens", maxOutputTokens)
-                    // Отключаем "thinking" для моделей 2.0/2.5 Flash
-                    if (modelName.contains("flash")) {
-                        put("thinkingConfig", JSONObject().apply {
-                            put("includeThoughts", false)
-                            put("thinkingBudget", 0)
-                        })
-                    }
+                    // Обязательно отключаем "thinking" и ставим бюджет 0 для AI Studio
+                    put("thinkingConfig", JSONObject().apply {
+                        put("includeThoughts", false)
+                        put("thinkingBudget", 0)
+                    })
                 })
             }
         } else {

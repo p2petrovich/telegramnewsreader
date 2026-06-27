@@ -1355,10 +1355,7 @@ class MainActivity : AppCompatActivity() {
 
         fun getModelsForProvider(provider: String): List<Pair<String, String>> = when (provider) {
             "gemini" -> listOf(
-                "gemini-2.0-flash" to "Gemini 2.0 Flash — сверхбыстрый",
-                "gemini-2.0-flash-lite" to "Gemini 2.0 Flash-Lite — легкий",
-                "gemini-1.5-flash" to "Gemini 1.5 Flash — быстрый",
-                "gemini-1.5-pro" to "Gemini 1.5 Pro — умный"
+                "gemini-2.0-flash-lite" to "Gemini 2.0 Flash-Lite (AI Studio) — FREE"
             )
             "groq" -> listOf(
                 "llama-3.3-70b-versatile"                  to getString(R.string.ai_model_llama_fast),
@@ -1366,10 +1363,12 @@ class MainActivity : AppCompatActivity() {
                 "meta-llama/llama-4-scout-17b-16e-instruct" to getString(R.string.ai_model_llama_new)
             )
             else -> listOf(
-                "deepseek/deepseek-chat-v3.1:free" to getString(R.string.ai_model_deepseek_free),
-                "meta-llama/llama-4-scout:free"    to getString(R.string.ai_model_llama4_scout_free),
-                "qwen/qwen3-235b-a22b:free"       to getString(R.string.ai_model_qwen3_free),
-                "openai/gpt-oss-120b:free"        to getString(R.string.ai_model_gpt_free)
+                "google/gemma-4-31b-it:free"             to getString(R.string.ai_model_gemma_4_31b_free),
+                "openai/gpt-oss-120b:free"              to getString(R.string.ai_model_gpt_oss_120b_free),
+                "qwen/qwen3-next-80b-a3b-instruct:free" to getString(R.string.ai_model_qwen_3_next_free),
+                "google/gemma-4-26b-a4b-it:free"        to getString(R.string.ai_model_gemma_4_26b_free),
+                "nvidia/nemotron-3-super-120b-a12b:free" to getString(R.string.ai_model_nemotron_3_super_free),
+                "deepseek/deepseek-chat-v3.1:free"       to getString(R.string.ai_model_deepseek_v3_1_free)
             )
         }
 
