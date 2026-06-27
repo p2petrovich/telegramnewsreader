@@ -276,7 +276,6 @@
     <string name="ai_style_balanced">Balanced (2x compression)</string>
     <string name="ai_style_extreme">Radio-Flash (1 sentence)</string>
 
-    <string name="ai_model_deepseek_v3_1_free">DeepSeek V3.1 (Best for RU) — FREE</string>
     <string name="ai_model_gemma_4_31b_free">Gemma 4 31B (Primary, 140+ lang) — FREE</string>
     <string name="ai_model_gpt_oss_120b_free">GPT-OSS 120B (OpenAI Fallback) — FREE</string>
     <string name="ai_model_qwen_3_next_free">Qwen 3 Next 80B (Fallback 2) — FREE</string>

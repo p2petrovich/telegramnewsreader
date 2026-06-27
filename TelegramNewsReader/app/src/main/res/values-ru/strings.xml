@@ -276,7 +276,6 @@
     <string name="ai_style_balanced">Сбалансированное сжатие (в 2 раза)</string>
     <string name="ai_style_extreme">Радио-молния (1 предложение)</string>
 
-    <string name="ai_model_deepseek_v3_1_free">DeepSeek V3.1 (Лучший для RU) — FREE</string>
     <string name="ai_model_gemma_4_31b_free">Gemma 4 31B (Осн, 140+ языков) — FREE</string>
     <string name="ai_model_gpt_oss_120b_free">GPT-OSS 120B (OpenAI Fallback) — FREE</string>
     <string name="ai_model_qwen_3_next_free">Qwen 3 Next 80B (Fallback 2) — FREE</string>
