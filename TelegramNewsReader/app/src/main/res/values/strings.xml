@@ -276,13 +276,11 @@
     <string name="ai_style_balanced">Balanced (2x compression)</string>
     <string name="ai_style_extreme">Radio-Flash (1 sentence)</string>
 
-    <string name="ai_model_llama_fast">Llama 3.3 70B — fast ⚡</string>
-    <string name="ai_model_llama_instant">Llama 3.1 8B — instant ⚡</string>
-    <string name="ai_model_llama_new">Llama 4 Scout — new ⚡</string>
-    <string name="ai_model_deepseek_free">DeepSeek V3.1 (Best for RU) — FREE</string>
-    <string name="ai_model_llama4_scout_free">Llama 4 Scout (Fast) — FREE</string>
-    <string name="ai_model_qwen3_free">Qwen 3 235B (Strong RU) — FREE</string>
-    <string name="ai_model_gpt_free">GPT-OSS 120B (Strong) — FREE</string>
+    <string name="ai_model_deepseek_v3_1_free">DeepSeek V3.1 (Best for RU) — FREE</string>
+    <string name="ai_model_gemma_4_free">Gemma 4 31B (140+ langs) — FREE</string>
+    <string name="ai_model_qwen_3_next_free">Qwen 3 Next 80B — FREE</string>
+    <string name="ai_model_nemotron_3_super_free">Nemotron 3 Super 120B — FREE</string>
+    <string name="ai_model_gpt_oss_120b_free">GPT-OSS 120B (Strong) — FREE</string>
 
     <string name="ai_settings_saved">AI Settings saved</string>
     <string name="openrouter_api_key_hint">OpenRouter API Key</string>
