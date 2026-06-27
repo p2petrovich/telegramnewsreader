@@ -547,44 +547,69 @@ object TextProcessor {
         var t = text
 
         // 0. Склеивание разрядов чисел: "19 169" -> "19169"
-        // Находим числа, разделенные пробелом (неразрывным или обычным), где после пробела ровно 3 цифры.
         t = t.replace(Regex("(?<=\\d)[\\s\u00A0](?=\\d{3}(?:\\b|\\D))"), "")
 
         t = t.replace(Regex("(?<!\\w)№\\s*(\\d+)"), "номер $1")
 
-        // 1. Валюты (сначала сложные с миллионами, потом простые)
-        val currencyScales = listOf(
-            // Сначала масштаб: $50 млн, €20 млрд
-            Triple("\\$", "(млн|млрд)", "долларов"),
-            Triple("€", "(млн|млрд)", "евро"),
-            Triple("£", "(млн|млрд)", "фунтов"),
-            // Затем одиночные: $50, €20
-            Triple("\\$", "", "долларов"),
-            Triple("€", "", "евро"),
-            Triple("£", "", "фунтов")
+        // 1. Вспомогательная функция для склонения разменных единиц
+        fun getSubunitName(amount: Int, type: String): String {
+            val mod10 = amount % 10
+            val mod100 = amount % 100
+            return when (type) {
+                "kop" -> when {
+                    mod100 in 11..14 -> "копеек"
+                    mod10 == 1 -> "копейка"
+                    mod10 in 2..4 -> "копейки"
+                    else -> "копеек"
+                }
+                "cent" -> when {
+                    mod100 in 11..14 -> "центов"
+                    mod10 == 1 -> "цент"
+                    mod10 in 2..4 -> "цента"
+                    else -> "центов"
+                }
+                "pence" -> when {
+                    mod100 in 11..14 -> "пенсов"
+                    mod10 == 1 -> "пенс"
+                    mod10 in 2..4 -> "пенса"
+                    else -> "пенсов"
+                }
+                else -> ""
+            }
+        }
+
+        // 2. Валюты (Доллары, Евро, Фунты)
+        val currencies = listOf(
+            Triple("\\$", "долларов", "cent"),
+            Triple("€", "евро", "cent"),
+            Triple("£", "фунтов", "pence")
         )
 
-        currencyScales.forEach { (symbol, scalePattern, name) ->
-            if (scalePattern.isNotEmpty()) {
-                // Правило для масштаба: $50 млн
-                val regex = Regex("$symbol\\s?(\\d[\\d,.]*)\\s*$scalePattern\\b", RegexOption.IGNORE_CASE)
-                t = t.replace(regex) { m ->
-                    val num = m.groupValues[1].trim().replace(",", ".")
-                    val scale = if (m.groupValues[2].lowercase().startsWith("млн")) "миллионов" else "миллиардов"
-                    "$num $scale $name"
-                }
-            } else {
-                // Одиночное правило: $50.50
-                val regex = Regex("$symbol\\s?(\\d+(?:[,.]\\d+)?)\\b")
-                t = t.replace(regex) { m ->
-                    val num = m.groupValues[1].replace(",", ".")
-                    "$num $name"
+        currencies.forEach { (symbol, mainName, subType) ->
+            // Сначала масштаб: $50 млн
+            val scaleRegex = Regex("$symbol\\s?(\\d[\\d,.]*)\\s*(млн|млрд)\\b", RegexOption.IGNORE_CASE)
+            t = t.replace(scaleRegex) { m ->
+                val num = m.groupValues[1].trim().replace(",", ".")
+                val scale = if (m.groupValues[2].lowercase().startsWith("млн")) "миллионов" else "миллиардов"
+                "$num $scale $mainName"
+            }
+            // Затем обычные суммы с центами: $10.50
+            val priceRegex = Regex("$symbol\\s?(\\d+)(?:[,.](\\d{1,2}))?\\b")
+            t = t.replace(priceRegex) { m ->
+                val main = m.groupValues[1]
+                val subRaw = m.groupValues[2]
+                if (subRaw.isEmpty()) {
+                    "$main $mainName"
+                } else {
+                    val subInt = if (subRaw.length == 1) subRaw.toInt() * 10 else subRaw.toInt()
+                    val subName = getSubunitName(subInt, subType)
+                    "$main $mainName $subInt $subName"
                 }
             }
         }
 
-        // 2. Рубли: обрабатываются отдельно из-за сложности (префиксы и суффиксы)
-        // Сначала рубли с масштабом: ₽100 тыс, 5 млрд руб, 10 млн. руб
+        // 3. Рубли (₽)
+        // Сначала рубли с масштабом: ₽100 тыс, 5 млрд руб
         t = t.replace(Regex("(?i)(?:₽|руб\\.?|р\\.)?\\s*(\\d+[\\d,.]*)\\s*(тыс\\.?|млн\\.?|млрд\\.?)\\s*(?:₽|руб\\.?|р\\.)?")) { match ->
             val num = match.groupValues[1].trim().replace(",", ".")
             val scaleRaw = match.groupValues[2].lowercase().trim('.')
@@ -598,11 +623,19 @@ object TextProcessor {
             if (hasRuble) "$num $scale рублей" else match.value
         }
 
-        // Затем обычные рубли: ₽19169,38 или 100р.
-        // Группы: 1 - префикс ₽, 2 - число, 3 - суффикс руб.
-        t = t.replace(Regex("(?i)(₽)\\s?(\\d+(?:[,.]\\d+)?)|(\\d+(?:[,.]\\d+)?)\\s?(?:₽|руб\\.?|р\\.)\\b")) { match ->
-            val num = (if (match.groupValues[2].isNotEmpty()) match.groupValues[2] else match.groupValues[3]).replace(",", ".")
-            "$num рублей"
+        // Обычные рубли с копейками: ₽19169,38 или 100р.
+        val rubleRegex = Regex("(?i)(₽)\\s?(\\d+)(?:[,.](\\d{1,2}))?|(\\d+)(?:[,.](\\d{1,2}))?\\s?(?:₽|руб\\.?|р\\.)\\b")
+        t = t.replace(rubleRegex) { match ->
+            val rub = if (match.groupValues[2].isNotEmpty()) match.groupValues[2] else match.groupValues[4]
+            val kopRaw = if (match.groupValues[3].isNotEmpty()) match.groupValues[3] else match.groupValues[5]
+            
+            if (kopRaw.isEmpty()) {
+                "$rub рублей"
+            } else {
+                val kopInt = if (kopRaw.length == 1) kopRaw.toInt() * 10 else kopRaw.toInt()
+                val kopName = getSubunitName(kopInt, "kop")
+                "$rub рублей $kopInt $kopName"
+            }
         }
 
         t = t.replace(Regex("на\\s+(\\d+[,.]?\\d*)\\s?%")) { "на ${it.groupValues[1].replace(",", ".")} процентов" }
