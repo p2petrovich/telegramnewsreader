@@ -333,7 +333,17 @@ class NewsService(
 
                     Log.d(TAG, "═══════ AI ОБРАБОТКА ВКЛЮЧЕНА (на вход: $totalToSynthesizeBeforeAi новостей) ═══════")
 
-                    val semaphore = Semaphore(10) // Increase to 10
+                    val provider = PreferenceManager.getAiProvider(context)
+                    // Groq хорошо держит 10 параллельных запросов даже на free tier.
+                    // Gemini (RPM 15) требует более бережного подхода (оставляем 4).
+                    // OpenRouter — среднее значение 8.
+                    val parallelLimit = when (provider) {
+                        "groq" -> 10
+                        "gemini" -> 4
+                        "openrouter" -> 8
+                        else -> 5
+                    }
+                    val semaphore = Semaphore(parallelLimit)
                     var processedCount = 0
 
                     val results = afterDropTrivial.map { msg ->
