@@ -137,7 +137,7 @@ object PreferenceManager {
     }
 
     fun getAiModel(context: Context): String =
-        getPreferences(context).getString(KEY_AI_MODEL, "z-ai/glm-4.5-air:free") ?: "z-ai/glm-4.5-air:free"
+        getPreferences(context).getString(KEY_AI_MODEL, "deepseek/deepseek-chat-v3.1:free") ?: "deepseek/deepseek-chat-v3.1:free"
 
     fun setAiModel(context: Context, model: String) {
         getPreferences(context).edit().putString(KEY_AI_MODEL, model).apply()

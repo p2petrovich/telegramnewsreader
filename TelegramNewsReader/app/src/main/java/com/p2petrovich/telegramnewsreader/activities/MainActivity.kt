@@ -1366,9 +1366,10 @@ class MainActivity : AppCompatActivity() {
                 "meta-llama/llama-4-scout-17b-16e-instruct" to getString(R.string.ai_model_llama_new)
             )
             else -> listOf(
-                "z-ai/glm-4.5-air:free"                  to getString(R.string.ai_model_glm_free),
-                "openai/gpt-oss-120b:free"               to getString(R.string.ai_model_gpt_free),
-                "nvidia/nemotron-3-super-120b-a12b:free" to getString(R.string.ai_model_nemotron_free)
+                "deepseek/deepseek-chat-v3.1:free" to getString(R.string.ai_model_deepseek_free),
+                "meta-llama/llama-4-scout:free"    to getString(R.string.ai_model_llama4_scout_free),
+                "qwen/qwen3-235b-a22b:free"       to getString(R.string.ai_model_qwen3_free),
+                "openai/gpt-oss-120b:free"        to getString(R.string.ai_model_gpt_free)
             )
         }
 

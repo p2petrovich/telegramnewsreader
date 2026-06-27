@@ -279,9 +279,10 @@
     <string name="ai_model_llama_fast">Llama 3.3 70B — fast ⚡</string>
     <string name="ai_model_llama_instant">Llama 3.1 8B — instant ⚡</string>
     <string name="ai_model_llama_new">Llama 4 Scout — new ⚡</string>
-    <string name="ai_model_glm_free">GLM-4.5 Air (Good Russian) — FREE</string>
+    <string name="ai_model_deepseek_free">DeepSeek V3.1 (Best for RU) — FREE</string>
+    <string name="ai_model_llama4_scout_free">Llama 4 Scout (Fast) — FREE</string>
+    <string name="ai_model_qwen3_free">Qwen 3 235B (Strong RU) — FREE</string>
     <string name="ai_model_gpt_free">GPT-OSS 120B (Strong) — FREE</string>
-    <string name="ai_model_nemotron_free">Nemotron-3 Super (Stable) — FREE</string>
 
     <string name="ai_settings_saved">AI Settings saved</string>
     <string name="openrouter_api_key_hint">OpenRouter API Key</string>
