@@ -110,7 +110,7 @@ class MainActivity : AppCompatActivity() {
 
     private var lastUsedVoice: String? = null
     private var isClientReadyCallbackProcessed = false
-    private var savedDurationInfo: String? = null
+    // [FIX] savedDurationInfo перенесён в MainViewModel, чтобы переживать recreate().
     private val pendingPhotos = mutableMapOf<Long, String>()
 
     private var progressExecutor: ScheduledExecutorService? = null
@@ -146,9 +146,11 @@ class MainActivity : AppCompatActivity() {
                     else getString(R.string.status_ready, cur, total)
                 } else ""
 
+                // [FIX] Длительность читаем из ViewModel (переживает recreate).
+                val savedDuration = viewModel.getSavedDurationInfoValue()
                 val finalText = when {
-                    savedDurationInfo != null && text.isNotEmpty() -> "$text\n$savedDurationInfo"
-                    text.isEmpty() && savedDurationInfo != null -> savedDurationInfo ?: ""
+                    savedDuration != null && text.isNotEmpty() -> "$text\n$savedDuration"
+                    text.isEmpty() && savedDuration != null -> savedDuration
                     else -> text
                 }
                 binding.tvStatus.text = finalText
@@ -158,7 +160,7 @@ class MainActivity : AppCompatActivity() {
                     updatePlayerButtons(isPlaying)
                     PreferenceManager.savePlayerIndex(context, cur - 1)
                     PreferenceManager.savePlayerIsPlaying(context, isPlaying)
-                    
+
                     if (isPlaying) {
                         viewModel.markAsRead(context, cur - 1)
                     }
@@ -184,7 +186,7 @@ class MainActivity : AppCompatActivity() {
         viewModel.isClientReady.observe(this) { ready ->
             if (ready) {
                 updateUIForReadyClient()
-                // Если список еще пуст - пробуем загрузить
+                //     -  
                 if (channelAdapter.getAllChannels().isEmpty()) {
                     loadChannels()
                 }
@@ -226,12 +228,12 @@ class MainActivity : AppCompatActivity() {
         viewModel.detailedStatus.observe(this) { status ->
             val cur = viewModel.currentProgressStep.value ?: -1
             val tot = viewModel.totalProgressSteps.value ?: 100
-            
+
             if (status == "init") updateDetailedProgress(getString(R.string.status_collection_starting), 0, 100)
             else if (status == "done") updateDetailedProgress(getString(R.string.status_collection_done), 100, 100)
             else updateDetailedProgress(status, cur, tot)
-            
-            if (status.contains(getString(R.string.status_synthesis_starting)) || status.contains("Синтез")) {
+
+            if (status.contains(getString(R.string.status_synthesis_starting)) || status.contains("")) {
                 binding.cardCollectionProgress.visibility = View.VISIBLE
             }
         }
@@ -265,7 +267,13 @@ class MainActivity : AppCompatActivity() {
                 viewModel.clearEvents()
             }
         }
-        
+
+        // [FIX] Реакция на изменение сохранённой длительности (важно после recreate).
+        viewModel.savedDurationInfo.observe(this) {
+            // Основной рендер длительности идёт в progressReceiver и handleCollectionResult.
+            // Здесь наблюдатель оставлен как точка расширения при необходимости.
+        }
+
         viewModel.totalProgressSteps.observe(this) { updateETA() }
         viewModel.currentProgressStep.observe(this) { updateETA() }
     }
@@ -319,12 +327,14 @@ class MainActivity : AppCompatActivity() {
         stopTimer()
         progressExecutor = Executors.newSingleThreadScheduledExecutor()
         progressExecutor?.scheduleWithFixedDelay({
-            runOnUiThread { updateETA() }
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed) updateETA()
+            }
         }, 0, 1, TimeUnit.SECONDS)
     }
 
     private fun stopTimer() {
-        progressExecutor?.shutdown()
+        progressExecutor?.shutdownNow()
         progressExecutor = null
     }
 
@@ -443,7 +453,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateETA() {
         val startTime = viewModel.startTime.value ?: 0L
-        if (startTime == 0L) return
+        if (startTime == 0L) {
+            // [FIX] Сбор завершён/не начат: не затираем итоговый статус,
+            // просто прекращаем обновление ETA. Итоговое время фиксирует
+            // updateDetailedProgress при статусе "done".
+            return
+        }
         val elapsedMs = System.currentTimeMillis() - startTime
         val elapsedSec = elapsedMs / 1000
 
@@ -488,7 +503,7 @@ class MainActivity : AppCompatActivity() {
                 getString(R.string.eta_hours, hours, min)
             }
         }
-        
+
         binding.tvEta.text = getString(R.string.collection_status_combined, elapsedText, etaText)
     }
 
@@ -698,7 +713,7 @@ class MainActivity : AppCompatActivity() {
             resetPlayerButtons()
             binding.llPlayer.visibility = View.GONE
             binding.tvStatus.text = ""
-            savedDurationInfo = null
+            viewModel.setSavedDurationInfo(null)
         }
 
         binding.btnNext.setOnClickListener {
@@ -728,7 +743,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadChannels() {
-        // Мы вызываем это только когда точно знаем что клиент готов
+        //          
         binding.progressBar.visibility = View.VISIBLE
         updateStatus(getString(R.string.status_loading_channels))
 
@@ -772,7 +787,7 @@ class MainActivity : AppCompatActivity() {
                     loadInitialNewsForChannels(filtered)
                     presetController.refreshPresetChips()
                 } else {
-                    // Если совсем пусто при первом запуске - пробуем еще раз через пару секунд
+                    //       -      
                     if (viewModel.isClientReady.value == true) {
                         binding.root.postDelayed({ loadChannels() }, 3000)
                     }
@@ -839,9 +854,11 @@ class MainActivity : AppCompatActivity() {
 
             val baseStatus = getString(R.string.found_news, audio.realNewsCount)
             if (durationMin > 0) {
-                savedDurationInfo = getString(R.string.duration_info, durationMin)
-                updateStatus("$baseStatus\n$savedDurationInfo")
+                val durationInfo = getString(R.string.duration_info, durationMin)
+                viewModel.setSavedDurationInfo(durationInfo)
+                updateStatus("$baseStatus\n$durationInfo")
             } else {
+                viewModel.setSavedDurationInfo(null)
                 updateStatus(baseStatus)
             }
 
@@ -872,7 +889,7 @@ class MainActivity : AppCompatActivity() {
 
             Toast.makeText(this, getString(R.string.found_messages, audio.realNewsCount), Toast.LENGTH_SHORT).show()
         } else {
-            // Если новых новостей нет, но дедупликатор что-то пропустил — сообщаем пользователю
+            //    ,   -    
             val skipped = viewModel.lastSkippedDuplicates.value ?: 0
             if (skipped > 0) {
                 val msg = getString(R.string.no_new_news) + "\n" + getString(R.string.skipped_duplicates, skipped)
@@ -882,11 +899,11 @@ class MainActivity : AppCompatActivity() {
                 updateStatus(getString(R.string.no_new_news))
                 Toast.makeText(this, getString(R.string.no_new_news), Toast.LENGTH_LONG).show()
             }
-            
-            // Важно: если плейлист пуст, скрываем старый плеер, так как он больше не актуален
+
+            // :   ,   ,      
             binding.llPlayer.visibility = View.GONE
         }
-        
+
         viewModel.stopCollection()
         stopTimer()
     }
@@ -897,7 +914,7 @@ class MainActivity : AppCompatActivity() {
         binding.progressBarDetailed.progress = percentage
         binding.tvProgressPercentage.text = getString(R.string.percentage, percentage)
 
-        // Обновляем время при каждом шаге прогресса
+        //      
         val startTime = viewModel.startTime.value ?: 0L
         if (startTime != 0L) {
             val elapsedMs = System.currentTimeMillis() - startTime
@@ -1299,7 +1316,7 @@ class MainActivity : AppCompatActivity() {
         val btnTestManual = dialogView.findViewById<android.widget.Button>(R.id.btn_test_ai_model)
         val tvStatusManual = dialogView.findViewById<android.widget.TextView>(R.id.tv_ai_test_status)
 
-        // Включаем кнопки проверки
+        //   
         btnTestManual?.visibility = View.VISIBLE
         tvStatusManual?.visibility = View.VISIBLE
 
@@ -1345,7 +1362,7 @@ class MainActivity : AppCompatActivity() {
 
         val currentModels = getModelsForProvider(currentProvider).toMutableList()
         val modelStatuses = mutableMapOf<String, String>()
-        
+
         val modelAdapter = object : android.widget.ArrayAdapter<Pair<String, String>>(
             this, R.layout.item_model_status, currentModels
         ) {
@@ -1360,14 +1377,14 @@ class MainActivity : AppCompatActivity() {
                 val item = if (position < count) getItem(position) else null
                 val tvName = view.findViewById<TextView>(R.id.tv_model_name)
                 val tvStatus = view.findViewById<TextView>(R.id.tv_model_status)
-                
+
                 tvName.text = item?.second ?: ""
                 val status = modelStatuses[item?.first] ?: ""
                 tvStatus.text = status
-                
+
                 when (status) {
-                    "✅" -> tvStatus.setTextColor(Color.GREEN)
-                    "❌" -> tvStatus.setTextColor(Color.RED)
+                    "" -> tvStatus.setTextColor(Color.GREEN)
+                    "" -> tvStatus.setTextColor(Color.RED)
                     else -> tvStatus.setTextColor(Color.GRAY)
                 }
                 return view
@@ -1379,7 +1396,7 @@ class MainActivity : AppCompatActivity() {
             currentModels.clear()
             currentModels.addAll(getModelsForProvider(provider))
             modelAdapter.notifyDataSetChanged()
-            
+
             val savedModel = PreferenceManager.getAiModel(this)
             val modelIdx = currentModels.indexOfFirst { it.first == savedModel }.coerceAtLeast(0)
             spinnerModel.setSelection(modelIdx)
@@ -1389,11 +1406,11 @@ class MainActivity : AppCompatActivity() {
                     modelStatuses[modelPair.first] = ""
                 }
                 modelAdapter.notifyDataSetChanged()
-                
+
                 currentModels.map { modelPair ->
                     async {
                         val result = AiProcessor.testModelAvailability(modelPair.first, this@MainActivity)
-                        modelStatuses[modelPair.first] = if (result.first) "✅" else "❌"
+                        modelStatuses[modelPair.first] = if (result.first) "" else ""
                         withContext(Dispatchers.Main) { modelAdapter.notifyDataSetChanged() }
                     }
                 }.awaitAll()
@@ -1417,8 +1434,8 @@ class MainActivity : AppCompatActivity() {
 
         btnTestManual?.setOnClickListener {
             val selectedModel = currentModels[spinnerModel.selectedItemPosition].first
-            
-            // Сохраняем ключи перед проверкой, чтобы AiProcessor их увидел
+
+            //    ,  AiProcessor  
             PreferenceManager.saveOpenRouterApiKey(this, etOpenRouterKey?.text?.toString()?.trim() ?: "")
             PreferenceManager.saveGroqApiKey(this, etGroqKey?.text?.toString()?.trim() ?: "")
 
@@ -1431,9 +1448,9 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     tvStatusManual?.text = if (result.first) getString(R.string.ai_model_available) else result.second
                     tvStatusManual?.setTextColor(if (result.first) Color.GREEN else Color.RED)
-                    
-                    // Обновляем и иконку в списке
-                    modelStatuses[selectedModel] = if (result.first) "✅" else "❌"
+
+                    //     
+                    modelStatuses[selectedModel] = if (result.first) "" else ""
                     modelAdapter.notifyDataSetChanged()
                 }
             }
@@ -1560,8 +1577,8 @@ class MainActivity : AppCompatActivity() {
             .setOnCancelListener { showSettingsDialog() }
             .create()
 
-        // Кнопка поддержки разработчика: открывает Boosty во внешнем браузере.
-        // Закрываем диалог "О программе" и возвращаемся в настройки для единообразной навигации.
+        //   :  Boosty   .
+        //   " "       .
         dialogView.findViewById<View>(R.id.btn_support_developer)?.setOnClickListener {
             dialog.dismiss()
             openDonationPage()
@@ -1572,16 +1589,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Открывает страницу поддержки разработчика во внешнем браузере.
+     *       .
      *
-     * Внешняя ссылка (ACTION_VIEW), а не платёжный SDK:
-     *  - не требует разрешений и зависимостей;
-     *  - соответствует правилам сторов (добровольная поддержка, не покупка функций);
-     *  - Boosty принимает карты РФ, СБП и рубли без ИП.
-     * fallback: если браузера нет — короткое уведомление.
+     *   (ACTION_VIEW),    SDK:
+     *  -     ;
+     *  -    ( ,   );
+     *  - Boosty   ,     .
+     * fallback:      .
      */
     private fun openDonationPage() {
-        val url = "https://boosty.to/telegramnewsreader" // ← TODO: подставить реальный адрес Boosty
+        val url = "https://boosty.to/telegramnewsreader" //  TODO:    Boosty
         try {
             startActivity(
                 Intent(Intent.ACTION_VIEW, Uri.parse(url))
@@ -1712,6 +1729,21 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+
+        // [FIX] Восстановление таймера сбора после сворачивания.
+        // onStop() убивает executor через stopTimer(), а сам сбор живёт в
+        // viewModelScope. При возврате LiveData isCollecting не эмитит повторно
+        // (значение не менялось), поэтому таймер нужно перезапустить вручную,
+        // иначе счётчик "Прошло/Осталось" замирает, хотя сбор продолжается.
+        if (viewModel.isCollecting.value == true && progressExecutor == null) {
+            showProgressPanels()
+            binding.cardCollectionProgress.visibility = View.VISIBLE
+            binding.progressBar.visibility = View.VISIBLE
+            binding.btnCollectNews.text = getString(R.string.btn_stop_collection)
+            startTimer()
+            updateETA() // немедленно показать актуальное время, не дожидаясь первого тика
+        }
+
         if (::ttsManager.isInitialized) {
             val currentVoice = PreferenceManager.getTtsVoiceName(this)
             if (lastUsedVoice != null && lastUsedVoice != currentVoice) {

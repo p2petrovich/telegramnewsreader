@@ -133,7 +133,7 @@ class MainViewModel : ViewModel() {
             }
             return
         }
-        
+
         val text = lastOriginalMessages[msgIdx]
         if (!NewsService.isChannelHeader(text)) {
             if (DebugConfig.LOG_PLAYER_EVENTS) {
@@ -161,6 +161,18 @@ class MainViewModel : ViewModel() {
     fun setTotalProgressSteps(steps: Int) {
         _totalProgressSteps.postValue(steps)
     }
+
+    // --- Сохранённая длительность последнего плейлиста ---
+    // [FIX] Перенесено из MainActivity, чтобы переживать recreate()
+    // (смена темы, восстановление бэкапа) и поворот экрана.
+    private val _savedDurationInfo = MutableLiveData<String?>(null)
+    val savedDurationInfo: LiveData<String?> = _savedDurationInfo
+
+    fun setSavedDurationInfo(info: String?) {
+        _savedDurationInfo.postValue(info)
+    }
+
+    fun getSavedDurationInfoValue(): String? = _savedDurationInfo.value
 
     // --- Состояния процесса сбора ---
     private val _collectionStatus = MutableLiveData<String>("")
@@ -207,7 +219,7 @@ class MainViewModel : ViewModel() {
     ) {
         if (newsCollectionJob?.isActive == true) {
             stopCollection()
-            _collectionStatus.postValue("stopped") 
+            _collectionStatus.postValue("stopped")
             return
         }
 
@@ -224,8 +236,8 @@ class MainViewModel : ViewModel() {
 
         newsCollectionJob = viewModelScope.launch {
             try {
-                _collectionStatus.postValue("starting") 
-                _detailedStatus.postValue("init")       
+                _collectionStatus.postValue("starting")
+                _detailedStatus.postValue("init")
 
                 val audio = newsService.collectAndSynthesizePlaylist(
                     channels = selectedChannels,
@@ -240,7 +252,7 @@ class MainViewModel : ViewModel() {
 
                 updateCounters(skipped = getDeduplicator(context).getSkippedCount())
                 _collectionFinishedEvent.postValue(audio to durationMin)
-                
+
             } catch (e: CancellationException) {
                 Log.d(TAG, "News collection cancelled")
                 _collectionStatus.postValue("cancelled")
