@@ -345,12 +345,13 @@ class TelegramClient(private val context: Context) {
 
     /**
      * ПАТЧ 1: рекурсивная пагинация + caption'ы из медиа + префикс HH:mm — текст.
+     * Возвращает список пар (отформатированный текст, системная дата сообщения).
      */
     suspend fun getChannelMessagesPaginated(
         channelId: Long,
         fromDate: Long,
         maxMessages: Int = 3000
-    ): List<String> = suspendCancellableCoroutine { continuation ->
+    ): List<Pair<String, Int>> = suspendCancellableCoroutine { continuation ->
 
         if (!isInitialized || !isAuthorized || client == null) {
             Log.w(TAG, "getChannelMessagesPaginated: Client not ready for channel $channelId")
@@ -361,7 +362,7 @@ class TelegramClient(private val context: Context) {
         // Принудительная синхронизация
         client?.send(TdApi.OpenChat(channelId)) { }
 
-        val messages = mutableListOf<String>()
+        val messages = mutableListOf<Pair<String, Int>>()
         val isCancelled = AtomicBoolean(false)
         val isResumed = AtomicBoolean(false)
         val isChatClosed = AtomicBoolean(false)
@@ -379,7 +380,7 @@ class TelegramClient(private val context: Context) {
             closeChatOnce()
         }
 
-        fun resumeOnce(result: List<String>) {
+        fun resumeOnce(result: List<Pair<String, Int>>) {
             if (isResumed.getAndSet(true)) return
             closeChatOnce()
             if (DebugConfig.LOG_TG_HISTORY) {
@@ -433,7 +434,7 @@ class TelegramClient(private val context: Context) {
                             }
 
                             if (!text.isNullOrBlank()) {
-                                messages.add(timeStr + TIME_SEPARATOR + text)
+                                messages.add((timeStr + TIME_SEPARATOR + text) to msg.date)
                             }
                         }
 

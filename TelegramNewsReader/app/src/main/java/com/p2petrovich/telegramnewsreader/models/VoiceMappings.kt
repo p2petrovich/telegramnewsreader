@@ -63,11 +63,11 @@ object VoiceMappings {
         val baseName = when (gender) {
             VoiceEntry.Gender.MALE -> {
                 val names = listOf("Владимир", "Сергей", "Алексей", "Павел", "Игорь", "Петр", "Артем", "Евгений")
-                names[Math.abs(systemName.hashCode()) % names.size]
+                names[(systemName.hashCode() and 0x7FFFFFFF) % names.size]
             }
             VoiceEntry.Gender.FEMALE -> {
                 val names = listOf("Ольга", "Татьяна", "Наталья", "Ирина", "Светлана", "Юлия", "Марина", "Людмила")
-                names[Math.abs(systemName.hashCode()) % names.size]
+                names[(systemName.hashCode() and 0x7FFFFFFF) % names.size]
             }
             VoiceEntry.Gender.NEUTRAL -> context.getString(com.p2petrovich.telegramnewsreader.R.string.voice)
         }

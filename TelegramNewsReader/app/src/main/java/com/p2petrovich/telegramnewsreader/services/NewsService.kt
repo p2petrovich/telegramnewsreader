@@ -221,9 +221,9 @@ class NewsService(
                         channelResults.forEach { (channel, messages) ->
                             if (messages.isNotEmpty()) {
                                 allMessages.add(makeChannelHeader(channel.title, context))
-                                allMessages.addAll(messages)
+                                allMessages.addAll(messages.map { it.first })
                                 realNewsCount += messages.size
-                                newsPreview.addAll(messages.take(5))
+                                newsPreview.addAll(messages.take(5).map { it.first })
                             }
                         }
                     }
@@ -231,25 +231,27 @@ class NewsService(
                         channelResults.forEach { (channel, messages) ->
                             if (messages.isNotEmpty()) {
                                 allMessages.add(makeChannelHeader(channel.title, context))
-                                allMessages.addAll(messages.reversed())
+                                allMessages.addAll(messages.map { it.first }.reversed())
                                 realNewsCount += messages.size
-                                newsPreview.addAll(messages.reversed().take(5))
+                                newsPreview.addAll(messages.map { it.first }.reversed().take(5))
                             }
                         }
                     }
                     2 -> {
                         val mixedMessages = channelResults.flatMap { it.second }
-                        val sorted = mixedMessages.sortedByDescending { it.take(5) }
-                        allMessages.addAll(sorted)
+                        // [FIX D7] Сортировка по реальному timestamp (Int), а не по строке "HH:mm"
+                        val sorted = mixedMessages.sortedByDescending { it.second }
+                        allMessages.addAll(sorted.map { it.first })
                         realNewsCount = sorted.size
-                        newsPreview.addAll(sorted.take(5))
+                        newsPreview.addAll(sorted.take(5).map { it.first })
                     }
                     3 -> {
                         val mixedMessages = channelResults.flatMap { it.second }
-                        val sorted = mixedMessages.sortedBy { it.take(5) }
-                        allMessages.addAll(sorted)
+                        // [FIX D7] Сортировка по реальному timestamp (Int), а не по строке "HH:mm"
+                        val sorted = mixedMessages.sortedBy { it.second }
+                        allMessages.addAll(sorted.map { it.first })
                         realNewsCount = sorted.size
-                        newsPreview.addAll(sorted.take(5))
+                        newsPreview.addAll(sorted.take(5).map { it.first })
                     }
                 }
 
@@ -439,7 +441,7 @@ class NewsService(
         }
     }
 
-    private suspend fun processChannelWithTimeout(channel: Channel, fromDate: Long): Pair<Channel, List<String>> {
+    private suspend fun processChannelWithTimeout(channel: Channel, fromDate: Long): Pair<Channel, List<Pair<String, Int>>> {
         return try {
             withTimeout(CHANNEL_TIMEOUT_MS) {
                 val messages = telegramClient.getChannelMessagesPaginated(channel.id, fromDate)

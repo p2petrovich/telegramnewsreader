@@ -16,7 +16,7 @@ class Deduplicator(
     private val history = LinkedList<HistoryEntry>()
     private var skippedCount = 0
 
-    fun isDuplicate(text: String): Boolean {
+    fun isDuplicate(text: String): Boolean = synchronized(this) {
         if (!isEnabled) return false
         cleanOldEntries()
 
@@ -47,7 +47,7 @@ class Deduplicator(
      * Добавляет новость в историю "прочитанных".
      * Должно вызываться только когда новость реально попала в плейлист/была прослушана.
      */
-    fun addToHistory(text: String) {
+    fun addToHistory(text: String) = synchronized(this) {
         if (!isEnabled) return
         val fingerprint = TextProcessor.extractFingerprint(text)
         
@@ -61,13 +61,13 @@ class Deduplicator(
         }
     }
 
-    fun getSkippedCount(): Int = skippedCount
+    fun getSkippedCount(): Int = synchronized(this) { skippedCount }
 
-    fun resetSkippedCount() {
+    fun resetSkippedCount() = synchronized(this) {
         skippedCount = 0
     }
 
-    fun reset() {
+    fun reset() = synchronized(this) {
         Logx.d("Deduplicator") { "History reset requested. Current size: ${history.size}" }
         val oldSize = history.size
         history.clear()
@@ -75,7 +75,7 @@ class Deduplicator(
         Logx.d("Deduplicator") { "History reset completed. Previous size: $oldSize" }
     }
 
-    fun getHistorySize(): Int = history.size
+    fun getHistorySize(): Int = synchronized(this) { history.size }
 
     private fun cleanOldEntries() {
         val cutoff = System.currentTimeMillis() - timeWindowMinutes * 60 * 1000L
