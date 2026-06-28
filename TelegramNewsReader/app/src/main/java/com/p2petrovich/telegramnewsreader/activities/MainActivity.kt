@@ -617,6 +617,9 @@ class MainActivity : AppCompatActivity() {
 
         channelAdapter.filterByPreset(preset.channelIds)
         channelAdapter.refreshVisibleItems()
+        
+        // [FIX] Обновляем счетчики новостей для нового периода пресета
+        loadInitialNewsForChannels(allChannels)
 
         updateNewsCollectionButton()
         PresetManager.saveLastSelection(this, preset.channelIds, preset.timePeriodIndex)
@@ -803,7 +806,11 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
-                val newsCounts = newsService.getAllChannelsNewsCount(channels, 0.5)
+                // [FIX] Используем текущий выбранный период вместо жестких 30 минут
+                val currentHours = if (currentTimePeriodIndex in timeValues.indices)
+                    timeValues[currentTimePeriodIndex] else 0.5
+                
+                val newsCounts = newsService.getAllChannelsNewsCount(channels, currentHours)
                 channels.forEach { it.newMessagesCount = newsCounts[it.id] ?: 0 }
                 runOnUiThread { channelAdapter.refreshVisibleItems() }
             } catch (e: Exception) {
@@ -964,6 +971,8 @@ class MainActivity : AppCompatActivity() {
                 currentTimePeriodIndex = which
                 updateTimePeriodButton()
                 saveCurrentSelection()
+                // [FIX] Пересчитываем новости сразу после смены периода
+                loadInitialNewsForChannels(channelAdapter.getAllChannels())
             }.show()
     }
 
