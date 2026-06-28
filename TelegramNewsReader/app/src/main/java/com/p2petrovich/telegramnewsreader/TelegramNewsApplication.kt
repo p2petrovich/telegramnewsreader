@@ -32,6 +32,7 @@ class TelegramNewsApplication : Application() {
         AppCompatDelegate.setDefaultNightMode(nightMode)
         instance = this
         AndroidThreeTen.init(this)
+        com.p2petrovich.telegramnewsreader.utils.NewsCache.cleanup(this)
         cleanupOldTempFiles()
     }
 
@@ -45,11 +46,14 @@ class TelegramNewsApplication : Application() {
             cacheDir.listFiles()?.forEach { file ->
                 if (file.isFile && (now - file.lastModified()) > maxAge) {
                     if (file.name.startsWith("tts_") ||
-                        file.name.endsWith("_combined.wav")) {
+                        file.name.endsWith("_combined.wav") ||
+                        file.name.startsWith("silence_")) {
                         file.delete()
                     }
                 }
             }
+            // Также вызываем очистку основного кэша новостей
+            com.p2petrovich.telegramnewsreader.utils.NewsCache.cleanup(this)
         } catch (_: Exception) {}
     }
 }

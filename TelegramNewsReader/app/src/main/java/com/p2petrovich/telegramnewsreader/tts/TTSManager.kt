@@ -670,6 +670,9 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             }
         }
 
+        // Применяем лимиты кэша после завершения синтеза
+        NewsCache.cleanup(context)
+
         return AudioPlaylist(chapterFiles, actualNewsCount, newsFileIndices, finalFileToMsgIndex)
     }
 
