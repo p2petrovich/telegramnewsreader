@@ -804,6 +804,11 @@ class MainActivity : AppCompatActivity() {
         val isClientReady = viewModel.isClientReady.value ?: false
         if (!isClientReady) return
 
+        // [FIX] Моментально сбрасываем старые счетчики, чтобы пользователь
+        // не видел данные от предыдущего периода/набора во время загрузки.
+        channels.forEach { it.newMessagesCount = -1 }
+        channelAdapter.refreshVisibleItems()
+
         lifecycleScope.launch {
             try {
                 // [FIX] Используем текущий выбранный период вместо жестких 30 минут
