@@ -17,6 +17,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.security.GeneralSecurityException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -25,10 +26,12 @@ import java.util.Locale
 data class BackupItem(val displayName: String, val uri: Uri, val dateMillis: Long)
 
 object SettingsBackup {
+    private const val TAG = "SettingsBackup"
     private const val BACKUP_FILE_NAME = "telegram_news_backup.json"
     private const val APP_SIGNATURE = "telegram_news_reader"
     private const val BACKUP_VERSION = 1
-    
+    private const val NEWS_PREFS_FILE = "telegram_news_prefs"
+
     private val SENSITIVE_KEYS = setOf(
         "phone_number", "openrouter_api_key", "groq_api_key", "gemini_api_key"
     )
@@ -43,14 +46,21 @@ object SettingsBackup {
         json.put("app_signature", APP_SIGNATURE)
         json.put("backup_version", BACKUP_VERSION)
 
-        // Сохраняем ВСЕ настройки из SharedPreferences (Общие и Авторизация)
-        val prefFiles = listOf("telegram_news_prefs", "auth_status")
+        // Сохраняем ВСЕ настройки из SharedPreferences (Общие и Авторизация),
+        // чувствительные ключи (SENSITIVE_KEYS) вырезаем в отдельный шифрованный блок.
+        val prefFiles = listOf(NEWS_PREFS_FILE, "auth_status")
         val allPrefsJson = JSONObject()
-        
+        val secretsJson = JSONObject()
+
         prefFiles.forEach { fileName ->
             val p = context.getSharedPreferences(fileName, Context.MODE_PRIVATE)
             val fileJson = JSONObject()
             p.all.forEach { (key, value) ->
+                if (value == null) return@forEach
+                if (key in SENSITIVE_KEYS) {
+                    secretsJson.put(key, value.toString())  // ← в шифрованный блок
+                    return@forEach
+                }
                 if (value is Set<*>) {
                     val array = JSONArray()
                     value.forEach { array.put(it) }
@@ -61,28 +71,22 @@ object SettingsBackup {
             }
             allPrefsJson.put(fileName, fileJson)
         }
-        
-        // Добавляем API ключи вручную (они в отдельном secure-файле)
-        val openRouterKey = PreferenceManager.getOpenRouterApiKey(context)
-        val groqKey = PreferenceManager.getGroqApiKey(context)
-        val geminiKey = PreferenceManager.getGeminiApiKey(context)
-        if (openRouterKey.isNotEmpty()) {
-            val newsPrefs = allPrefsJson.optJSONObject("telegram_news_prefs") ?: JSONObject()
-            newsPrefs.put("openrouter_api_key", openRouterKey)
-            allPrefsJson.put("telegram_news_prefs", newsPrefs)
-        }
-        if (groqKey.isNotEmpty()) {
-            val newsPrefs = allPrefsJson.optJSONObject("telegram_news_prefs") ?: JSONObject()
-            newsPrefs.put("groq_api_key", groqKey)
-            allPrefsJson.put("telegram_news_prefs", newsPrefs)
-        }
-        if (geminiKey.isNotEmpty()) {
-            val newsPrefs = allPrefsJson.optJSONObject("telegram_news_prefs") ?: JSONObject()
-            newsPrefs.put("gemini_api_key", geminiKey)
-            allPrefsJson.put("telegram_news_prefs", newsPrefs)
-        }
+
+        // API-ключи хранятся в отдельном secure-файле — добавляем в шифрованный блок.
+        PreferenceManager.getOpenRouterApiKey(context).takeIf { it.isNotEmpty() }
+            ?.let { secretsJson.put("openrouter_api_key", it) }
+        PreferenceManager.getGroqApiKey(context).takeIf { it.isNotEmpty() }
+            ?.let { secretsJson.put("groq_api_key", it) }
+        PreferenceManager.getGeminiApiKey(context).takeIf { it.isNotEmpty() }
+            ?.let { secretsJson.put("gemini_api_key", it) }
 
         json.put("all_pref_files", allPrefsJson)
+
+        // Шифруем секреты ключом устройства (Android Keystore).
+        // Файл в Downloads теперь безопасен: без ключа устройства secrets_enc бесполезен.
+        if (secretsJson.length() > 0) {
+            json.put("secrets_enc", BackupKey.encrypt(secretsJson.toString()))
+        }
 
         val presets = PresetManager.getAllPresets(context)
         val presetsArray = JSONArray()
@@ -353,6 +357,35 @@ object SettingsBackup {
 
             // После загрузки всех настроек - инвалидируем кеш менеджера
             PreferenceManager.invalidate()
+
+            // Расшифровка чувствительного блока (новый формат, Вариант A).
+            // Деградация: если бэкап с другого устройства / Keystore сброшен —
+            // несекретная часть уже восстановлена, секреты пропускаем без падения импорта.
+            val encBlob = json.optString("secrets_enc", "")
+            if (encBlob.isNotEmpty()) {
+                try {
+                    val secrets = JSONObject(BackupKey.decrypt(encBlob))
+                    val keyIt = secrets.keys()
+                    while (keyIt.hasNext()) {
+                        val k = keyIt.next()
+                        val v = secrets.getString(k)
+                        when (k) {
+                            "openrouter_api_key" -> PreferenceManager.saveOpenRouterApiKey(context, v)
+                            "groq_api_key"       -> PreferenceManager.saveGroqApiKey(context, v)
+                            "gemini_api_key"     -> PreferenceManager.saveGeminiApiKey(context, v)
+                            else -> {
+                                // phone_number и другие SENSITIVE_KEYS — в основной файл prefs
+                                context.getSharedPreferences(NEWS_PREFS_FILE, Context.MODE_PRIVATE)
+                                    .edit().putString(k, v).apply()
+                            }
+                        }
+                    }
+                } catch (e: GeneralSecurityException) {
+                    // Другое устройство / сброшенный Keystore / повреждение blob —
+                    // несекретная часть уже восстановлена, просто логируем и продолжаем.
+                    android.util.Log.w(TAG, "Секреты бэкапа не расшифрованы: ${e.javaClass.simpleName}")
+                }
+            }
 
             if (json.has("presets")) {
                 val presetsArray = json.getJSONArray("presets")

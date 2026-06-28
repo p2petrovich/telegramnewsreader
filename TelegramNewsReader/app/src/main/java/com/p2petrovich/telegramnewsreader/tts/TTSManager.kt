@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.resume
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.withTimeoutOrNull
+import com.p2petrovich.telegramnewsreader.BuildConfig
 
 object TTSManagerSingleton {
     @Volatile
@@ -76,7 +77,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         // true — печатает то, что реально идёт в TTS, кусками по 800 символов.
         // Удобно для проверки чистки. Выключи в релизе.
         // private const val LOG_SYNTH_INPUT = true
-        private const val LOG_SYNTH_INPUT = true
+        private val LOG_SYNTH_INPUT = BuildConfig.DEBUG
     }
 
     private var tts: TextToSpeech? = null

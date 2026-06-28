@@ -135,9 +135,16 @@ class AudioPlayerService : Service() {
             isActive = true
         }
         
-        // Регистрация ресивера для отключения наушников
+        // Регистрация ресивера для отключения наушников.
+        // ACTION_AUDIO_BECOMING_NOISY рассылает система → требуется RECEIVER_EXPORTED.
+        // На targetSdk 34 отсутствие флага у динамического ресивера → SecurityException.
         val filter = IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
-        registerReceiver(noisyReceiver, filter)
+        ContextCompat.registerReceiver(
+            this,
+            noisyReceiver,
+            filter,
+            ContextCompat.RECEIVER_EXPORTED
+        )
 
         createChannel()
         restoreState()
