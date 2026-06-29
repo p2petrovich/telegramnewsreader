@@ -29,7 +29,7 @@
 - **Presets** — Create themed channel groups for quick one-tap launch.
 - **MTProto Proxy** — Built-in client with proxy list, auto-switching, and ping monitoring.
 - **Themes** — Classic purple, modern teal, and light themes.
-- **Full Backup System** — Export all settings, presets, channel list, auth status, and AI keys to JSON with instant restore.
+- **Full Backup System** — Export settings, presets, channel list, and AI keys to JSON. Sensitive data (keys, phone number) is encrypted with a device-specific key for security in public storage.
 
 ---
 
@@ -96,7 +96,7 @@ A hybrid algorithm for detecting duplicate news:
 
 - **Encryption** — TDLib database is encrypted with a 256-bit key stored in the system Keystore.
 - **Privacy First** — No analytics, no trackers, no third-party logging systems.
-- **Secure Backups** — Restore everything in one step with synchronous JSON import.
+- **Secure Backups** — Secrets in the JSON file are encrypted via Android Keystore. This allows safe storage of backups in the Downloads folder.
 
 ---
 

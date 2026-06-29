@@ -25,7 +25,8 @@ The App operates primarily locally but interacts with external services to provi
 - **Encryption**: The TDLib database is encrypted with a 256-bit key. Access to encryption and AI API keys is protected by the Android system Keystore, preventing theft even with root access.
 - **Local Algorithms**: Deduplication, ad filtering, and text cleaning logic run **entirely locally** on your device.
 - **Backups**: Backup data is saved as a JSON file in your `Downloads` folder.
-    - **WARNING**: The backup file contains settings (including your phone number and AI API keys) in plain text to allow easy restoration on other devices. Do not share backup files with third parties.
+    - **SECURITY**: Sensitive data (phone number and AI API keys) is encrypted using **Android Keystore**. This ensures the file can be safely stored in public folders.
+    - **LIMITATION**: Encrypted data can only be restored on the **same device**. When transferring a backup to a different phone, non-sensitive settings (channels, presets) will be restored, but API keys must be re-entered manually.
 
 ## 3. Analytics and Advertising
 
