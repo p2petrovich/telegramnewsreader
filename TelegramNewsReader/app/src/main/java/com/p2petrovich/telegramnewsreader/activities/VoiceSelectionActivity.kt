@@ -51,6 +51,8 @@ class VoiceSelectionActivity : AppCompatActivity() {
     private lateinit var tvEdgePitch: TextView
     private lateinit var btnTestEdge: Button
 
+    private var previewPlayer: android.media.MediaPlayer? = null
+
     private val edgeVoices by lazy {
         val systemLang = resources.configuration.locales[0].language
         val enVoices = listOf(
@@ -257,21 +259,26 @@ class VoiceSelectionActivity : AppCompatActivity() {
     }
 
     private fun playPreviewWav(file: File) {
-        var mp: android.media.MediaPlayer? = null
         try {
-            mp = android.media.MediaPlayer().apply {
+            previewPlayer?.release()
+            previewPlayer = android.media.MediaPlayer().apply {
                 setDataSource(file.absolutePath)
                 prepare()
                 start()
-                setOnCompletionListener { release() }
-                setOnErrorListener { _, _, _ ->
-                    release()
+                setOnCompletionListener { 
+                    it.release()
+                    if (previewPlayer == it) previewPlayer = null
+                }
+                setOnErrorListener { it, _, _ ->
+                    it.release()
+                    if (previewPlayer == it) previewPlayer = null
                     true
                 }
             }
         } catch (e: Exception) {
             Log.e("VoiceSelection", "Preview playback failed: ${e.message}")
-            mp?.release()
+            previewPlayer?.release()
+            previewPlayer = null
         }
     }
 
@@ -368,6 +375,8 @@ class VoiceSelectionActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        previewPlayer?.release()
+        previewPlayer = null
         pendingVoiceRestore?.let { recyclerView.removeCallbacks(it) }
         pendingVoiceRestore = null
     }

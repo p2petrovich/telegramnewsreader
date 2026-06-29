@@ -375,73 +375,83 @@ class EdgeTtsProvider(
 
     private fun decodeMp3ToPcm(mp3Bytes: ByteArray): ByteArray {
         val extractor = MediaExtractor()
-        extractor.setDataSource(object : android.media.MediaDataSource() {
-            override fun readAt(position: Long, buffer: ByteArray, offset: Int, size: Int): Int {
-                val remaining = (mp3Bytes.size - position).toInt()
-                if (remaining <= 0) return -1
-                val read = minOf(size, remaining)
-                System.arraycopy(mp3Bytes, position.toInt(), buffer, offset, read)
-                return read
-            }
-            override fun getSize() = mp3Bytes.size.toLong()
-            override fun close() {}
-        })
+        try {
+            extractor.setDataSource(object : android.media.MediaDataSource() {
+                override fun readAt(position: Long, buffer: ByteArray, offset: Int, size: Int): Int {
+                    val remaining = (mp3Bytes.size - position).toInt()
+                    if (remaining <= 0) return -1
+                    val read = minOf(size, remaining)
+                    System.arraycopy(mp3Bytes, position.toInt(), buffer, offset, read)
+                    return read
+                }
+                override fun getSize() = mp3Bytes.size.toLong()
+                override fun close() {}
+            })
 
-        var audioFormat: android.media.MediaFormat? = null
-        var trackIndex = -1
-        for (i in 0 until extractor.trackCount) {
-            val fmt = extractor.getTrackFormat(i)
-            if (fmt.getString(android.media.MediaFormat.KEY_MIME)?.startsWith("audio/") == true) {
-                audioFormat = fmt
-                trackIndex = i
-                break
-            }
-        }
-        if (trackIndex < 0 || audioFormat == null) return ByteArray(0)
-        extractor.selectTrack(trackIndex)
-
-        val mime = audioFormat.getString(android.media.MediaFormat.KEY_MIME)!!
-        val codec = MediaCodec.createDecoderByType(mime)
-        codec.configure(audioFormat, null, null, 0)
-        codec.start()
-
-        val output = ByteArrayOutputStream()
-        val info = MediaCodec.BufferInfo()
-        var sawEOS = false
-
-        while (true) {
-            if (!sawEOS) {
-                val inIdx = codec.dequeueInputBuffer(10_000)
-                if (inIdx >= 0) {
-                    val buf = codec.getInputBuffer(inIdx)!!
-                    val sampleSize = extractor.readSampleData(buf, 0)
-                    if (sampleSize < 0) {
-                        codec.queueInputBuffer(inIdx, 0, 0, 0,
-                            MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                        sawEOS = true
-                    } else {
-                        codec.queueInputBuffer(inIdx, 0, sampleSize,
-                            extractor.sampleTime, 0)
-                        extractor.advance()
-                    }
+            var audioFormat: android.media.MediaFormat? = null
+            var trackIndex = -1
+            for (i in 0 until extractor.trackCount) {
+                val fmt = extractor.getTrackFormat(i)
+                if (fmt.getString(android.media.MediaFormat.KEY_MIME)?.startsWith("audio/") == true) {
+                    audioFormat = fmt
+                    trackIndex = i
+                    break
                 }
             }
-            val outIdx = codec.dequeueOutputBuffer(info, 10_000)
-            if (outIdx >= 0) {
-                val buf = codec.getOutputBuffer(outIdx)!!
-                val chunk = ByteArray(info.size)
-                buf.get(chunk)
-                output.write(chunk)
-                codec.releaseOutputBuffer(outIdx, false)
-                if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) break
-            }
-            if (sawEOS && outIdx < 0) break
-        }
+            if (trackIndex < 0 || audioFormat == null) return ByteArray(0)
+            extractor.selectTrack(trackIndex)
 
-        codec.stop()
-        codec.release()
-        extractor.release()
-        return output.toByteArray()
+            val mime = audioFormat.getString(android.media.MediaFormat.KEY_MIME)!!
+            val codec = MediaCodec.createDecoderByType(mime)
+            try {
+                codec.configure(audioFormat, null, null, 0)
+                codec.start()
+
+                val output = ByteArrayOutputStream()
+                val info = MediaCodec.BufferInfo()
+                var sawEOS = false
+
+                while (true) {
+                    if (!sawEOS) {
+                        val inIdx = codec.dequeueInputBuffer(10_000)
+                        if (inIdx >= 0) {
+                            val buf = codec.getInputBuffer(inIdx)!!
+                            val sampleSize = extractor.readSampleData(buf, 0)
+                            if (sampleSize < 0) {
+                                codec.queueInputBuffer(inIdx, 0, 0, 0,
+                                    MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                                sawEOS = true
+                            } else {
+                                codec.queueInputBuffer(inIdx, 0, sampleSize,
+                                    extractor.sampleTime, 0)
+                                extractor.advance()
+                            }
+                        }
+                    }
+                    val outIdx = codec.dequeueOutputBuffer(info, 10_000)
+                    if (outIdx >= 0) {
+                        val buf = codec.getOutputBuffer(outIdx)!!
+                        val chunk = ByteArray(info.size)
+                        buf.get(chunk)
+                        output.write(chunk)
+                        codec.releaseOutputBuffer(outIdx, false)
+                        if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) break
+                    }
+                    if (sawEOS && outIdx < 0) break
+                }
+                return output.toByteArray()
+            } finally {
+                // [FIX D8] Гарантированное освобождение кодека
+                try { codec.stop() } catch (_: Exception) {}
+                try { codec.release() } catch (_: Exception) {}
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "decodeMp3ToPcm failed: ${e.message}")
+            return ByteArray(0)
+        } finally {
+            // [FIX D8] Гарантированное освобождение экстрактора
+            try { extractor.release() } catch (_: Exception) {}
+        }
     }
 
     private fun concatPcmWavFiles(files: List<File>, output: File): Boolean {

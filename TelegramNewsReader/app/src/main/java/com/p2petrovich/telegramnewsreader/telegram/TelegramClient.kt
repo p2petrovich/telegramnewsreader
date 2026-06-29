@@ -45,6 +45,10 @@ class TelegramClient(private val context: Context) {
     private val TAG = "TelegramClient"
     private var authDeferred: CompletableDeferred<Boolean>? = null
 
+    // [FIX D2] Управляемый CoroutineScope для задач клиента.
+    // Все задачи (loadChannels и др.) будут отменены при close() или logout.
+    private val clientScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     private val fileIdToChatId = ConcurrentHashMap<Int, Long>()
     private val chatIdToChannel = ConcurrentHashMap<Long, Channel>()
     private val chatIdToSmallId = ConcurrentHashMap<Long, Int>()
@@ -238,10 +242,8 @@ class TelegramClient(private val context: Context) {
     fun loadChannels(callback: (List<Channel>) -> Unit) {
         if (!isInitialized) { callback(emptyList()); return }
 
-        // Используем CoroutineScope для безопасного ожидания готовности клиента.
-        // Используем Dispatchers.IO, так как TDLib делает сетевые запросы.
-        @OptIn(DelicateCoroutinesApi::class)
-        GlobalScope.launch(Dispatchers.IO) {
+        // [FIX D2] Используем clientScope вместо GlobalScope.
+        clientScope.launch {
             if (!waitForReady(15)) { callback(emptyList()); return@launch }
             if (!isAuthorized) { callback(emptyList()); return@launch }
 
@@ -322,7 +324,7 @@ class TelegramClient(private val context: Context) {
                     }
                 }
             }
-        }.start()
+        }
     }
 
     fun redownloadPendingPhotos() {
@@ -479,6 +481,7 @@ class TelegramClient(private val context: Context) {
 
     fun logoutAndReset(callback: () -> Unit) {
         isLoggingOut = true
+        clientScope.cancel() // [FIX D2] Отменяем все задачи клиента
         client?.send(TdApi.LogOut()) {
             isInitialized = false
             isAuthorized = false
@@ -489,6 +492,7 @@ class TelegramClient(private val context: Context) {
     }
 
     fun close() {
+        clientScope.cancel() // [FIX D2] Отменяем все задачи клиента
         client?.send(TdApi.Close()) { }
     }
 
