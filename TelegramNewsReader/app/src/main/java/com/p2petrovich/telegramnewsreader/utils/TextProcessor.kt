@@ -754,7 +754,7 @@ object TextProcessor {
             Regex("\\bМИД\\b")                              to "министерство иностранных дел",
             Regex("\\bФСБ\\b")                              to "ФСБ",
             Regex("\\bМЧС\\b")                              to "МЧС",
-            Regex("\\bВСУ\\b")                              to "вэ-эс-у",
+            Regex("\\bВСУ\\b")                              to "вэсэу",
             Regex("\\bБПЛА\\b")                             to "беспилотник",
             Regex("\\bНАТО\\b")                             to "НАТО",
             Regex("\\bпр-т\\b")                             to "проспект",
