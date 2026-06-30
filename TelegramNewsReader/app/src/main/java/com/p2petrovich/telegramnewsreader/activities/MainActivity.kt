@@ -1377,7 +1377,6 @@ class MainActivity : AppCompatActivity() {
                 "meta-llama/llama-4-scout-17b-16e-instruct" to getString(R.string.ai_model_llama_new)
             )
             else -> listOf(
-                "google/gemma-2-9b-it:free"             to getString(R.string.ai_model_gemma_2_9b_free),
                 "openai/gpt-oss-120b:free"              to getString(R.string.ai_model_gpt_oss_120b_free),
                 "google/gemma-4-26b-a4b-it:free"        to getString(R.string.ai_model_gemma_4_26b_free),
                 "nvidia/nemotron-3-super-120b-a12b:free" to getString(R.string.ai_model_nemotron_3_super_free)

@@ -137,7 +137,7 @@ object PreferenceManager {
     }
 
     fun getAiModel(context: Context): String =
-        getPreferences(context).getString(KEY_AI_MODEL, "deepseek/deepseek-chat-v3.1:free") ?: "deepseek/deepseek-chat-v3.1:free"
+        getPreferences(context).getString(KEY_AI_MODEL, "nvidia/nemotron-3-super-120b-a12b:free") ?: "nvidia/nemotron-3-super-120b-a12b:free"
 
     fun setAiModel(context: Context, model: String) {
         getPreferences(context).edit().putString(KEY_AI_MODEL, model).apply()
@@ -429,9 +429,9 @@ object PreferenceManager {
 
     fun getDefaultModelForProvider(provider: String): String = when (provider) {
         "groq"       -> "llama-3.3-70b-versatile"
-        "openrouter" -> "google/gemma-2-9b-it:free"
+        "openrouter" -> "nvidia/nemotron-3-super-120b-a12b:free"
         "gemini"     -> "gemini-2.5-flash-lite"
-        else         -> "google/gemma-2-9b-it:free"
+        else         -> "nvidia/nemotron-3-super-120b-a12b:free"
     }
 
     // ===================== AI API Keys (encrypted storage) =====================
