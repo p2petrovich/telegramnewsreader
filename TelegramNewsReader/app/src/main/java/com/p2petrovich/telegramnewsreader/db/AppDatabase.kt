@@ -5,12 +5,9 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.p2petrovich.telegramnewsreader.models.TelegramChannel
-import com.p2petrovich.telegramnewsreader.models.NewsMessage
-import com.p2petrovich.telegramnewsreader.models.AudioTrack
-import com.p2petrovich.telegramnewsreader.models.UserSettings
 
 @Database(
-    entities = [TelegramChannel::class, NewsMessage::class, AudioTrack::class, UserSettings::class],
+    entities = [TelegramChannel::class],
     version = 1,
     exportSchema = false
 )

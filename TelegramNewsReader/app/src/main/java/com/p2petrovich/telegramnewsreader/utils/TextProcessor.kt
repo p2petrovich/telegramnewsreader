@@ -1,7 +1,5 @@
 package com.p2petrovich.telegramnewsreader.utils
 
-import com.p2petrovich.telegramnewsreader.services.NewsService
-
 object TextProcessor {
 
     private const val TAG = "TextProcessor"
@@ -168,9 +166,9 @@ object TextProcessor {
         var i = 0
         while (i < messages.size) {
             val current = messages[i]
-            if (NewsService.isChannelHeader(current)) {
+            if (HeaderUtils.isChannelHeader(current)) {
                 // Если это заголовок, смотрим следующее сообщение
-                if (i + 1 < messages.size && !NewsService.isChannelHeader(messages[i + 1])) {
+                if (i + 1 < messages.size && !HeaderUtils.isChannelHeader(messages[i + 1])) {
                     // За заголовком идет новость — оставляем
                     result.add(current)
                 } else {
@@ -205,7 +203,7 @@ object TextProcessor {
         var droppedTooLong = 0
 
         val cleanedList = messages.mapNotNull { original ->
-            if (NewsService.isChannelHeader(original)) return@mapNotNull original
+            if (HeaderUtils.isChannelHeader(original)) return@mapNotNull original
 
             val trimmed = original.trim()
 
@@ -277,7 +275,7 @@ object TextProcessor {
             var newsCount = 0
             var droppedNews = 0
             limited = cleanedList.filter { item ->
-                if (NewsService.isChannelHeader(item)) {
+                if (HeaderUtils.isChannelHeader(item)) {
                     true
                 } else if (newsCount < maxNews) {
                     newsCount++
@@ -293,7 +291,7 @@ object TextProcessor {
             }
         }
 
-        val newsKept = limited.count { !NewsService.isChannelHeader(it) }
+        val newsKept = limited.count { !HeaderUtils.isChannelHeader(it) }
         Logx.i(TAG) { "====== FILTER RESULT: ${messages.size} -> ${limited.size} (news: $newsKept) ======" }
         Logx.i(TAG) { "  too_short=$droppedTooShort url=$droppedUrlOnly emoji=$droppedEmojiOnly" }
         Logx.i(TAG) { "  media=$droppedBracketTime promo=$droppedPromo empty_clean=$droppedAfterClean trim=$droppedTooLong" }
@@ -328,7 +326,7 @@ object TextProcessor {
         var removedCount = 0
 
         for (msg in messages) {
-            if (NewsService.isChannelHeader(msg)) {
+            if (HeaderUtils.isChannelHeader(msg)) {
                 result.add(msg)
                 continue
             }
@@ -467,7 +465,7 @@ object TextProcessor {
      * Android TTS и добавляется отдельным шагом в TTSManager.
      */
     fun prepareForSpeech(text: String): String {
-        if (NewsService.isChannelHeader(text)) return text
+        if (HeaderUtils.isChannelHeader(text)) return text
         var t = cleanForTts(text)
         t = deduplicateLines(t)
         t = normalizeNumbers(t)
@@ -480,7 +478,7 @@ object TextProcessor {
     // ============ TTS очистка ============
 
     fun cleanForTts(text: String): String {
-        if (NewsService.isChannelHeader(text)) return text
+        if (HeaderUtils.isChannelHeader(text)) return text
 
         var t = text
 
@@ -532,7 +530,7 @@ object TextProcessor {
     }
 
     fun deduplicateLines(text: String): String {
-        if (NewsService.isChannelHeader(text)) return text
+        if (HeaderUtils.isChannelHeader(text)) return text
 
         val seen = HashSet<String>()
         return text.lines()
@@ -542,7 +540,7 @@ object TextProcessor {
     }
 
     fun normalizeNumbers(text: String): String {
-        if (NewsService.isChannelHeader(text)) return text
+        if (HeaderUtils.isChannelHeader(text)) return text
 
         var t = text
 
@@ -672,7 +670,7 @@ object TextProcessor {
     }
 
     fun formatForIntonation(text: String): String {
-        if (NewsService.isChannelHeader(text)) return text
+        if (HeaderUtils.isChannelHeader(text)) return text
 
         var t = text
 
@@ -717,7 +715,7 @@ object TextProcessor {
     }
 
     fun expandAbbreviations(text: String): String {
-        if (NewsService.isChannelHeader(text)) return text
+        if (HeaderUtils.isChannelHeader(text)) return text
 
         var t = text
 
@@ -813,7 +811,7 @@ object TextProcessor {
     }
 
     fun formatForSpeech(text: String): String {
-        if (NewsService.isChannelHeader(text)) return text
+        if (HeaderUtils.isChannelHeader(text)) return text
 
         var t = text
 
@@ -862,7 +860,7 @@ object TextProcessor {
         var droppedTimecode = 0
 
         val result = texts.filter { text ->
-            if (NewsService.isChannelHeader(text)) return@filter true
+            if (HeaderUtils.isChannelHeader(text)) return@filter true
 
             val trimmed = text.trim()
 

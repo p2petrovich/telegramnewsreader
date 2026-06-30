@@ -10,6 +10,7 @@ import com.p2petrovich.telegramnewsreader.utils.AiProcessor
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.EdgeConfig
 import com.p2petrovich.telegramnewsreader.utils.DebugConfig
+import com.p2petrovich.telegramnewsreader.utils.HeaderUtils
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -39,15 +40,13 @@ class NewsService(
         private const val CHANNEL_TIMEOUT_MS = 15000L
         private const val TOTAL_TIMEOUT_MS = 600000L // 10 minutes
 
-        private const val HEADER_MARKER = "\u200B\u200C\u200B"
-
         // Захватывает время вместе с возможным тире/дефисом и пробелами.
         private val TIME_PREFIX_WITH_DASH = Regex("^\\d{2}:\\d{2}\\s*—?\\s*")
         private val TIME_ONLY = Regex("^\\d{2}:\\d{2}")
 
-        fun isChannelHeader(text: String): Boolean = text.contains(HEADER_MARKER)
+        fun isChannelHeader(text: String): Boolean = HeaderUtils.isChannelHeader(text)
         fun makeChannelHeader(title: String, context: android.content.Context): String =
-            "${HEADER_MARKER}${context.getString(com.p2petrovich.telegramnewsreader.R.string.channel_header_format, title)}"
+            HeaderUtils.makeChannelHeader(title, context)
     }
 
     /**
