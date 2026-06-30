@@ -8,7 +8,7 @@ import com.p2petrovich.telegramnewsreader.models.TelegramChannel
 
 @Database(
     entities = [TelegramChannel::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
