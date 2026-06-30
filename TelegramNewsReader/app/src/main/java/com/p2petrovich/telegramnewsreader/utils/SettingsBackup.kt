@@ -255,10 +255,11 @@ object SettingsBackup {
     /** Восстановление из выбранного бэкапа. */
     suspend fun restoreFromUri(context: Context, uri: Uri): Boolean = withContext(Dispatchers.IO) {
         try {
-            val jsonString = context.contentResolver.openInputStream(uri)
-                ?.bufferedReader(Charsets.UTF_8)
-                ?.use { it.readText() }
-                ?: return@withContext false
+            val jsonString = context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
+                    reader.readText()
+                }
+            } ?: return@withContext false
             importFromJson(context, jsonString)
         } catch (e: Exception) {
             e.printStackTrace()

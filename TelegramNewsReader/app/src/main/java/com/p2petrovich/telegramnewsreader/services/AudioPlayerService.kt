@@ -247,8 +247,7 @@ class AudioPlayerService : Service() {
             unregisterReceiver(noisyReceiver)
         } catch (_: Exception) {}
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) stopForeground(STOP_FOREGROUND_REMOVE)
-            else @Suppress("DEPRECATION") stopForeground(true)
+            stopForeground(STOP_FOREGROUND_REMOVE)
         } catch (_: Exception) {}
     }
 
@@ -383,8 +382,7 @@ class AudioPlayerService : Service() {
         stopProgressUpdates()
         releasePlayer()
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) stopForeground(STOP_FOREGROUND_REMOVE)
-            else @Suppress("DEPRECATION") stopForeground(true)
+            stopForeground(STOP_FOREGROUND_REMOVE)
         } catch (_: Exception) {}
         try { (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID) } catch (_: Exception) {}
         sendProgress(0, 0, false)
@@ -502,5 +500,5 @@ class AudioPlayerService : Service() {
         mediaSession.setMetadata(metadataBuilder.build())
     }
 
-    private fun pendingFlag(): Int = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+    private fun pendingFlag(): Int = PendingIntent.FLAG_IMMUTABLE
 }
