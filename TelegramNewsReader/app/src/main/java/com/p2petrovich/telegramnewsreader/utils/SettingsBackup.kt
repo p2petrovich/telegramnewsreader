@@ -180,19 +180,20 @@ object SettingsBackup {
             val uri = context.contentResolver.insert(
                 MediaStore.Downloads.EXTERNAL_CONTENT_URI,
                 contentValues
-            ) ?: return false
+            ) ?: throw Exception("MediaStore insert failed (returned null)")
 
             context.contentResolver.openOutputStream(uri)?.use { outputStream ->
                 outputStream.write(data)
-            } ?: return false
+            } ?: throw Exception("Failed to open output stream for Uri: $uri")
 
             contentValues.clear()
             contentValues.put(MediaStore.Downloads.IS_PENDING, 0)
             context.contentResolver.update(uri, contentValues, null, null)
 
+            android.util.Log.d(TAG, "Successfully saved to MediaStore: $fileName")
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e(TAG, "MediaStore save failed: ${e.message}", e)
             false
         }
     }
@@ -200,12 +201,16 @@ object SettingsBackup {
     private fun legacySaveToFile(data: ByteArray, fileName: String): Boolean {
         return try {
             val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            if (!downloadsDir.exists()) downloadsDir.mkdirs()
+            if (!downloadsDir.exists()) {
+                val created = downloadsDir.mkdirs()
+                android.util.Log.d(TAG, "Downloads dir created: $created")
+            }
             val backupFile = File(downloadsDir, fileName)
             backupFile.writeBytes(data)
+            android.util.Log.d(TAG, "Successfully saved to legacy storage: ${backupFile.absolutePath}")
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e(TAG, "Legacy save failed: ${e.message}", e)
             false
         }
     }
