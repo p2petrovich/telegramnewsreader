@@ -429,9 +429,9 @@ object PreferenceManager {
 
     fun getDefaultModelForProvider(provider: String): String = when (provider) {
         "groq"       -> "llama-3.3-70b-versatile"
-        "openrouter" -> "google/gemma-4-31b-it:free"
-        "gemini"     -> "gemini-2.0-flash-lite"
-        else         -> "google/gemma-4-31b-it:free"
+        "openrouter" -> "google/gemma-2-9b-it:free"
+        "gemini"     -> "gemini-2.5-flash-lite"
+        else         -> "google/gemma-2-9b-it:free"
     }
 
     // ===================== AI API Keys (encrypted storage) =====================
