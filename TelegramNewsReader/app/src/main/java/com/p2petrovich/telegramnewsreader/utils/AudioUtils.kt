@@ -1,7 +1,6 @@
 package com.p2petrovich.telegramnewsreader.utils
 
 import android.util.Log
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 
@@ -68,15 +67,6 @@ object AudioUtils {
                         val readHeader = isStream.read(header)
                         if (readHeader < 44) return@use
 
-                        val dataStart = findDataChunkOffset(header)
-                        if (dataStart > 0 && dataStart < 44) {
-                            // Если data-чанк внутри первых 44 байт (нестандартно, но бывает)
-                            val skip = dataStart
-                            // Нужно переоткрыть поток или пропустить правильно, 
-                            // но findDataChunkOffset обычно работает с полным заголовком.
-                            // Для простоты и надежности при 44-байтном стандартном заголовке:
-                        }
-                        
                         // Простейшая реализация: пропускаем первые 44 байта стандартного WAV
                         // Если в файле были метаданные до data, они попадут в шум, 
                         // но PcmResampler/EdgeTts делают стандартные файлы.

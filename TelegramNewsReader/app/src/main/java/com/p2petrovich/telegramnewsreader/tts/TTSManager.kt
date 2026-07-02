@@ -16,6 +16,7 @@ import com.p2petrovich.telegramnewsreader.utils.PcmResampler // [FFmpeg removed]
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.TextProcessor
 import com.p2petrovich.telegramnewsreader.utils.HttpClients
+import com.p2petrovich.telegramnewsreader.utils.Yoficator
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.Dispatchers
@@ -500,11 +501,18 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             if (isHeader) {
                 val cleanTitle = stripHeaderMarker(raw)
                 if (cleanTitle.isNotBlank()) {
-                    prepared += PreparedNews(newsIndex, "$cleanTitle...", true)
+                    // [ЁФИКАЦИЯ] Восстанавливаем «ё» и в заголовках тоже.
+                    val yoTitle = Yoficator.yoficate(cleanTitle)
+                    prepared += PreparedNews(newsIndex, "$yoTitle...", true)
                 }
             } else {
                 // Единый конвейер чистки — одинаковый результат с AI и без AI.
                 var finalText = TextProcessor.prepareForSpeech(raw)
+
+                // [ЁФИКАЦИЯ] Ставим «ё» на едином выходе чистки — ДО разбиения
+                // на части и ДО расчёта хэша кэша. Работает и для Edge, и для
+                // Android TTS, так как оба берут один и тот же finalText.
+                finalText = Yoficator.yoficate(finalText)
 
                 // Дополнительные паузы между предложениями нужны только Android TTS:
                 // Edge Neural на "..." реагирует ускорением темпа.
