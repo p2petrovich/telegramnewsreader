@@ -462,34 +462,34 @@ class EdgeTtsProvider(
         }
 
         return try {
-            val allPcm = ByteArrayOutputStream()
-
-            for (f in files) {
-                val bytes = f.readBytes()
-                if (bytes.size < 44) continue
-                val dataStart = findDataChunkOffset(bytes)
-                if (dataStart > 0 && dataStart < bytes.size) {
-                    allPcm.write(bytes, dataStart, bytes.size - dataStart)
-                } else {
-                    allPcm.write(bytes, 44, bytes.size - 44)
-                }
-            }
-
-            val pcmData   = allPcm.toByteArray()
-            val wavHeader = buildWavHeader(
-                pcmData.size,
-                sampleRate = 24000,
-                channels   = 1,
-                bitsPerSample = 16
-            )
-
             FileOutputStream(output).use { os ->
-                os.write(wavHeader)
-                os.write(pcmData)
+                // Пишем временный заголовок
+                val dummyHeader = buildWavHeader(0, 24000, 1, 16)
+                os.write(dummyHeader)
+
+                var actualPcmSize = 0L
+                val buffer = ByteArray(8192)
+
+                for (f in files) {
+                    f.inputStream().use { isStream ->
+                        // Пропускаем заголовок 44 байта
+                        isStream.skip(44)
+                        var bytesRead: Int
+                        while (isStream.read(buffer).also { bytesRead = it } != -1) {
+                            os.write(buffer, 0, bytesRead)
+                            actualPcmSize += bytesRead
+                        }
+                    }
+                }
+
+                // Обновляем заголовок
+                os.channel.position(0)
+                val finalHeader = buildWavHeader(actualPcmSize.toInt(), 24000, 1, 16)
+                os.write(finalHeader)
             }
             output.exists() && output.length() > 44
         } catch (e: Exception) {
-            Log.e(TAG, "concatPcmWavFiles: ${e.message}")
+            Log.e(TAG, "concatPcmWavFiles failed: ${e.message}")
             false
         }
     }

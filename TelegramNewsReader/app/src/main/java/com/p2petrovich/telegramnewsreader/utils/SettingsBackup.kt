@@ -33,7 +33,7 @@ object SettingsBackup {
     private const val NEWS_PREFS_FILE = "telegram_news_prefs"
 
     private val SENSITIVE_KEYS = setOf(
-        "phone_number", "openrouter_api_key", "groq_api_key", "gemini_api_key"
+        "openrouter_api_key", "groq_api_key", "gemini_api_key"
     )
 
     private fun getDatedFileName(): String {
@@ -380,7 +380,7 @@ object SettingsBackup {
                             "groq_api_key"       -> PreferenceManager.saveGroqApiKey(context, v)
                             "gemini_api_key"     -> PreferenceManager.saveGeminiApiKey(context, v)
                             else -> {
-                                // phone_number и другие SENSITIVE_KEYS — в основной файл prefs
+                                // Другие SENSITIVE_KEYS — в основной файл prefs
                                 context.getSharedPreferences(NEWS_PREFS_FILE, Context.MODE_PRIVATE)
                                     .edit().putString(k, v).apply()
                             }

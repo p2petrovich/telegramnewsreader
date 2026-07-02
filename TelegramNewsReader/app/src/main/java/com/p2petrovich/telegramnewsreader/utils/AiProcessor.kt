@@ -236,27 +236,35 @@ object AiProcessor {
                         
                         val summarized = if (provider == "gemini") {
                             // Разбор ответа Gemini: candidates[0].content.parts[0].text
-                            jsonResponse.getJSONArray("candidates")
-                                .getJSONObject(0)
-                                .getJSONObject("content")
-                                .getJSONArray("parts")
-                                .getJSONObject(0)
-                                .getString("text")
-                                .trim()
+                            val candidates = jsonResponse.optJSONArray("candidates")
+                            if (candidates != null && candidates.length() > 0) {
+                                candidates.optJSONObject(0)
+                                    ?.optJSONObject("content")
+                                    ?.optJSONArray("parts")
+                                    ?.optJSONObject(0)
+                                    ?.optString("text")
+                                    ?.trim()
+                            } else {
+                                Log.w(TAG, "Gemini: no candidates found. Possible safety block.")
+                                null
+                            }
                         } else {
                             // Разбор ответа OpenAI
-                            val choices = jsonResponse.getJSONArray("choices")
-                            if (choices.length() > 0) {
-                                choices.getJSONObject(0)
-                                    .getJSONObject("message")
-                                    .getString("content")
-                                    .trim()
+                            val choices = jsonResponse.optJSONArray("choices")
+                            if (choices != null && choices.length() > 0) {
+                                choices.optJSONObject(0)
+                                    ?.optJSONObject("message")
+                                    ?.optString("content")
+                                    ?.trim()
                             } else null
                         }
 
                         if (summarized != null) {
                             return@withContext if (summarized.isBlank()) safeText else summarized
-                        } else return@withContext "[AI Empty Response] $safeText"
+                        } else {
+                            Log.e(TAG, "AI summarized text is null. Provider: $provider, Response: $responseBody")
+                            return@withContext "[AI Empty Response] $safeText"
+                        }
                     } else if (response.code == 429) {
                         Log.w(TAG, "Rate limit hit (429), attempt $attempt/3. Waiting...")
                         lastAttemptResponse = "[AI Error 429: Rate Limit] $safeText"

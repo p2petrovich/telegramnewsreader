@@ -726,6 +726,7 @@ object TextProcessor {
         t = t.replace(Regex("\\bм/с\\b", RegexOption.IGNORE_CASE), "метров в секунду")
 
         val maps = mapOf(
+            Regex("(?<=\\d)\\s*г\\.\\b") to " года",
             Regex("\\bг\\.\\b") to "город",
             Regex("\\bобл\\.\\b") to "область",
             Regex("\\bул\\.\\b") to "улица",

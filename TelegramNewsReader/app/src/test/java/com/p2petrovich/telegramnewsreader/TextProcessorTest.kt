@@ -163,4 +163,28 @@ class TextProcessorTest {
     fun `normalize — знак номера раскрывается`() {
         assertEquals("номер 5", TextProcessor.normalizeNumbers("№ 5"))
     }
+
+    // ============================================================
+    //  expandAbbreviations (новые тесты)
+    // ============================================================
+
+    @Test
+    fun `expandAbbreviations - g posle goda`() {
+        assertEquals("2024 года", TextProcessor.expandAbbreviations("2024 г."))
+    }
+
+    @Test
+    fun `expandAbbreviations - g v nachale`() {
+        assertEquals("город Москва", TextProcessor.expandAbbreviations("г. Москва"))
+    }
+
+    @Test
+    fun `expandAbbreviations - d pered cifroy`() {
+        assertEquals("дом 5", TextProcessor.expandAbbreviations("д. 5"))
+    }
+
+    @Test
+    fun `expandAbbreviations - d vnutri slova`() {
+        assertEquals("вода", TextProcessor.expandAbbreviations("вода"))
+    }
 }

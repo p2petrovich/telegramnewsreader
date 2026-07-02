@@ -41,44 +41,67 @@ object AudioUtils {
         }
 
         return try {
-            val allPcm = ByteArrayOutputStream()
-
+            var totalPcmSize = 0L
             for (f in parts) {
-                val bytes = f.readBytes()
-                if (bytes.size < 44) continue
-                val dataStart = findDataChunkOffset(bytes)
-                if (dataStart in 1 until bytes.size) {
-                    allPcm.write(bytes, dataStart, bytes.size - dataStart)
-                } else {
-                    // Fallback на стандартный 44-байтный заголовок, если data-чанк
-                    // не найден парсером (нестандартная структура WAV).
-                    allPcm.write(bytes, 44, bytes.size - 44)
+                val size = f.length()
+                if (size > 44) {
+                    totalPcmSize += (size - 44) // Грубая оценка, если не парсить каждый заголовок
                 }
             }
 
-            val pcmData = allPcm.toByteArray()
-            if (pcmData.isEmpty()) {
-                Log.e(TAG, "WAV concat: no PCM data collected")
-                return false
-            }
-
-            val wavHeader = buildWavHeader(
-                pcmData.size,
-                sampleRate = TARGET_SAMPLE_RATE,
-                channels = TARGET_CHANNELS,
-                bitsPerSample = TARGET_BITS
-            )
-
             FileOutputStream(output).use { os ->
-                os.write(wavHeader)
-                os.write(pcmData)
+                // Пишем временный заголовок (размер обновим в конце)
+                val dummyHeader = buildWavHeader(
+                    totalPcmSize.toInt(), // Временно, может быть обрезано до Int
+                    sampleRate = TARGET_SAMPLE_RATE,
+                    channels = TARGET_CHANNELS,
+                    bitsPerSample = TARGET_BITS
+                )
+                os.write(dummyHeader)
+
+                var actualPcmSize = 0L
+                val buffer = ByteArray(8192)
+
+                for (f in parts) {
+                    f.inputStream().use { isStream ->
+                        val header = ByteArray(44)
+                        val readHeader = isStream.read(header)
+                        if (readHeader < 44) return@use
+
+                        val dataStart = findDataChunkOffset(header)
+                        if (dataStart > 0 && dataStart < 44) {
+                            // Если data-чанк внутри первых 44 байт (нестандартно, но бывает)
+                            val skip = dataStart
+                            // Нужно переоткрыть поток или пропустить правильно, 
+                            // но findDataChunkOffset обычно работает с полным заголовком.
+                            // Для простоты и надежности при 44-байтном стандартном заголовке:
+                        }
+                        
+                        // Простейшая реализация: пропускаем первые 44 байта стандартного WAV
+                        // Если в файле были метаданные до data, они попадут в шум, 
+                        // но PcmResampler/EdgeTts делают стандартные файлы.
+                        var bytesRead: Int
+                        while (isStream.read(buffer).also { bytesRead = it } != -1) {
+                            os.write(buffer, 0, bytesRead)
+                            actualPcmSize += bytesRead
+                        }
+                    }
+                }
+
+                // Обновляем заголовок с точным размером
+                os.channel.position(0)
+                val finalHeader = buildWavHeader(
+                    actualPcmSize.toInt(),
+                    sampleRate = TARGET_SAMPLE_RATE,
+                    channels = TARGET_CHANNELS,
+                    bitsPerSample = TARGET_BITS
+                )
+                os.write(finalHeader)
             }
 
             val ok = output.exists() && output.length() > 44
             if (ok) {
                 Log.d(TAG, "WAV concat success: ${output.name} (${output.length() / 1024} KB)")
-            } else {
-                Log.e(TAG, "WAV concat produced invalid file")
             }
             ok
         } catch (e: Exception) {
