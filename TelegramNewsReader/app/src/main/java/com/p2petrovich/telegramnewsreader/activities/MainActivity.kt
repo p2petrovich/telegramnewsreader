@@ -361,8 +361,8 @@ class MainActivity : AppCompatActivity() {
     private fun updatePipelineStatus() {
         binding.llPipelineStatus.visibility = View.VISIBLE
         val lastTotalCollected = viewModel.lastTotalCollected.value ?: 0
-        val lastAfterDedup = viewModel.lastAfterDedup.value ?: 0
         val lastAfterFilter = viewModel.lastAfterFilter.value ?: 0
+        val lastAfterDedup = viewModel.lastAfterDedup.value ?: 0
         val lastAfterAi = viewModel.lastAfterAi.value ?: 0
         val lastToSynthesize = viewModel.lastToSynthesize.value ?: 0
         val lastSkippedDuplicates = viewModel.lastSkippedDuplicates.value ?: 0
@@ -371,19 +371,19 @@ class MainActivity : AppCompatActivity() {
         val parts = mutableListOf<String>()
         parts.add(getString(R.string.collected_count, lastTotalCollected))
 
-        if (lastAfterDedup > 0) {
-            val removed = lastTotalCollected - lastAfterDedup
-            if (removed > 0) parts.add(getString(R.string.stat_dupes, removed))
-        }
-
-        if (lastAfterFilter > 0 && lastAfterDedup > 0) {
-            val removed = lastAfterDedup - lastAfterFilter
+        if (lastAfterFilter > 0) {
+            val removed = lastTotalCollected - lastAfterFilter
             if (removed > 0) parts.add(getString(R.string.stat_spam, removed))
         }
 
+        if (lastAfterDedup > 0 && lastAfterFilter > 0) {
+            val removed = lastAfterFilter - lastAfterDedup
+            if (removed > 0) parts.add(getString(R.string.stat_dupes, removed))
+        }
+
         val baseForTrash = when {
-            lastAfterFilter > 0 -> lastAfterFilter
             lastAfterDedup > 0 -> lastAfterDedup
+            lastAfterFilter > 0 -> lastAfterFilter
             else -> lastTotalCollected
         }
 

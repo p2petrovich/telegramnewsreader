@@ -285,20 +285,29 @@ class NewsService(
 
                 ensureActive()
 
-                progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.deduplication_status), 0, 100)
-                // ПОРОГ совпадения берётся из ползунка настроек — управляет якорной дедупликацией
-                val crossThreshold = PreferenceManager.getDedupThreshold(context).toDouble()
-                val deduplicated = TextProcessor.deduplicateAcrossChannels(filteredMessages, crossThreshold)
+                val isDedupEnabled = PreferenceManager.isDedupEnabled(context)
+                val deduplicated = if (isDedupEnabled) {
+                    progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.deduplication_status), 0, 100)
+                    // ПОРОГ совпадения берётся из ползунка настроек — управляет якорной дедупликацией
+                    val crossThreshold = PreferenceManager.getDedupThreshold(context).toDouble()
+                    val result = TextProcessor.deduplicateAcrossChannels(filteredMessages, crossThreshold)
+                    val dedupNewsCount = result.count { !isChannelHeader(it) }
+                    Log.d(TAG, "After across-channel dedup: ${result.size} (news: $dedupNewsCount, threshold=$crossThreshold)")
+                    result
+                } else {
+                    Log.d(TAG, "Across-channel dedup SKIPPED (disabled in settings)")
+                    filteredMessages
+                }
+
                 val dedupNewsCount = deduplicated.count { !isChannelHeader(it) }
-                Log.d(TAG, "After across-channel dedup: ${deduplicated.size} (news: $dedupNewsCount, threshold=$crossThreshold)")
 
                 // ───────── ЭТАП 3: ПОСЛЕ ДЕДУПЛИКАЦИИ МЕЖДУ КАНАЛАМИ ─────────
                 logStage("3_DEDUP", deduplicated)
 
-                progressCallback.onDeduplicationComplete(totalCollected, dedupNewsCount)
+                progressCallback.onMessageFiltered(totalCollected, filteredNewsCount)
+                progressCallback.onDeduplicationComplete(filteredNewsCount, dedupNewsCount)
 
                 val preparedMessages = deduplicated
-                progressCallback.onMessageFiltered(filteredNewsCount, dedupNewsCount)
 
                 ensureActive()
 
