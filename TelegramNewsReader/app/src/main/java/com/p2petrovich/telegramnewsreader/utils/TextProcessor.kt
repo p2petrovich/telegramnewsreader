@@ -124,8 +124,9 @@ object TextProcessor {
 
     // "вспышка звезды" — здесь "звезды" род. падеж ед. числа ("звезды́",
     // ударение на "ы"), а не им. падеж мн. числа "звёзды". Без акута
-    // движок читает как "звёзды".
-    private val STRESS_ZVEZDY_PATTERN = Regex("(?i)(вспышк[а-яё]*\\s+звезд)ы\\b")
+    // движок читает как "звёзды". Допускаем 0-3 промежуточных слова
+    // ("вспышка Новой звезды", "вспышка яркой звезды" и т.п.).
+    private val STRESS_ZVEZDY_PATTERN = Regex("(?i)\\bвспышк[а-яё]*(?:\\s+[а-яё]+){0,3}?\\s+звезды\\b")
     // "перекачивать/перекачивает/перекачивают/..." — ударение на первое "а"
     // (пере-КА-чивать), иначе движок ставит на "и".
     private val STRESS_PEREKACHIVAT_PATTERN = Regex("(?i)\\b(перек)а(чива[а-яё]*)\\b")
@@ -853,7 +854,7 @@ object TextProcessor {
         if (HeaderUtils.isChannelHeader(text)) return text
 
         var t = text
-        t = STRESS_ZVEZDY_PATTERN.replace(t) { m -> "${m.groupValues[1]}ы$STRESS" }
+        t = STRESS_ZVEZDY_PATTERN.replace(t) { m -> m.value.dropLast(1) + "ы" + STRESS }
         t = STRESS_PEREKACHIVAT_PATTERN.replace(t) { m -> "${m.groupValues[1]}а$STRESS${m.groupValues[2]}" }
         t = STRESS_POLOTNO_PATTERN.replace(t) { m -> "${m.value}$STRESS" }
         return t
