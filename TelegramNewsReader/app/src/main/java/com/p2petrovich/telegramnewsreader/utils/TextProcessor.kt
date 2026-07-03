@@ -116,6 +116,22 @@ object TextProcessor {
     // Префикс времени — единое определение, используется везде
     private val TIME_PREFIX_PATTERN = Regex("^\\d{2}:\\d{2}\\s*—?\\s*")
 
+    // ─── Форсированные ударения для TTS ──────────────────────────────
+    // U+0301 (комбинированный акут) ставится СРАЗУ после гласной, на
+    // которую нужно перенести ударение. Edge Neural без него читает
+    // некоторые слова с ошибкой (омографы, редкие формы).
+    private const val STRESS = "\u0301"
+
+    // "вспышка звезды" — здесь "звезды" род. падеж ед. числа ("звезды́",
+    // ударение на "ы"), а не им. падеж мн. числа "звёзды". Без акута
+    // движок читает как "звёзды".
+    private val STRESS_ZVEZDY_PATTERN = Regex("(?i)(вспышк[а-яё]*\\s+звезд)ы\\b")
+    // "перекачивать/перекачивает/перекачивают/..." — ударение на первое "а"
+    // (пере-КА-чивать), иначе движок ставит на "и".
+    private val STRESS_PEREKACHIVAT_PATTERN = Regex("(?i)\\b(перек)а(чива[а-яё]*)\\b")
+    // "полотно" (дорожное полотно и т.п.) — ударение на последнее "о".
+    private val STRESS_POLOTNO_PATTERN = Regex("(?i)\\bполотно\\b")
+
     // ============ Стоп-слова (RU + EN) ============
 
     private val STOP_WORDS_RU = setOf(
@@ -472,6 +488,7 @@ object TextProcessor {
         t = expandAbbreviations(t)
         t = formatForIntonation(t)
         t = formatForSpeech(t)
+        t = applyStressMarks(t)
         return t.trim()
     }
 
@@ -725,6 +742,21 @@ object TextProcessor {
         t = t.replace(Regex("\\bкв\\.?\\s*м\\b", RegexOption.IGNORE_CASE), "квадратных метров")
         t = t.replace(Regex("\\bм/с\\b", RegexOption.IGNORE_CASE), "метров в секунду")
 
+        // ── Фразовые сокращения (два слова, раскрываем ДО одиночных ──
+        //    аббревиатур, иначе "СК"/"ВС" не будут распознаны отдельно)
+        t = t.replace(Regex("\\bСК\\s+России\\b"), "Следственный комитет России")
+        t = t.replace(Regex("\\bВС\\s+России\\b"), "Вооружённые силы России")
+
+        // "N зв.вел." / "N зв. вел." — звёздная величина
+        t = t.replace(Regex("(\\d+)\\s*зв\\.?\\s*вел\\.?", RegexOption.IGNORE_CASE)) { m ->
+            val n = m.groupValues[1].toIntOrNull()
+            if (n != null) "${numberToOrdinalFeminineGenitive(n)} звёздной величины" else m.value
+        }
+
+        // Латинские фразы — читаем транслитерацией
+        t = t.replace(Regex("(?i)\\bAstro\\s+Channel\\b"), "Астро Ченнел")
+        t = t.replace(Regex("(?i)\\bTime\\s*Lapse\\b"), "тайм лапс")
+
         val maps = mapOf(
             Regex("(?<=\\d)\\s*г\\.\\b") to " года",
             Regex("\\bг\\.\\b") to "город",
@@ -735,8 +767,11 @@ object TextProcessor {
             Regex("\\bт\\.п\\.\\b") to "тому подобное",
             Regex("\\bсм\\.\\b") to "смотрите",
             Regex("\\bстр\\.\\b") to "страница",
-            Regex("\\bтыс\\.") to "тысяч",
-            Regex("\\bчел\\.\\b") to "человек"
+            // "тыс" с точкой ИЛИ без ("11 тыс" / "11 тыс."), но не внутри
+            // "тысяча/тысячи/тысячный" (продолжение на "я") — искл. через lookahead
+            Regex("(?i)\\bтыс\\.?(?!я)") to "тысяч",
+            Regex("\\bчел\\.\\b") to "человек",
+            Regex("(?i)\\bАЗС\\b") to "А ЗЭ ЭС"
         )
         maps.forEach { (regex, replacement) ->
             t = t.replace(regex, replacement)
@@ -811,6 +846,19 @@ object TextProcessor {
         return t
     }
 
+    // Форсированные ударения (см. STRESS_*_PATTERN выше). Вызывается
+    // последним в пайплайне, чтобы акут не мешал предыдущим regex'ам
+    // (\b, поиск гласных и т.п.) в expandAbbreviations/formatForIntonation.
+    fun applyStressMarks(text: String): String {
+        if (HeaderUtils.isChannelHeader(text)) return text
+
+        var t = text
+        t = STRESS_ZVEZDY_PATTERN.replace(t) { m -> "${m.groupValues[1]}ы$STRESS" }
+        t = STRESS_PEREKACHIVAT_PATTERN.replace(t) { m -> "${m.groupValues[1]}а$STRESS${m.groupValues[2]}" }
+        t = STRESS_POLOTNO_PATTERN.replace(t) { m -> "${m.value}$STRESS" }
+        return t
+    }
+
     fun formatForSpeech(text: String): String {
         if (HeaderUtils.isChannelHeader(text)) return text
 
@@ -822,6 +870,7 @@ object TextProcessor {
 
         val techAbbreviations = mapOf(
             "AI" to "искусственный интеллект",
+            "ИИ" to "искусственный интеллект",
             "VR" to "виртуальная реальность", "AR" to "дополненная реальность",
             "GPS" to "Джи-Пи-Эс", "USB" to "ЮСБ", "WIFI" to "Вай-Фай"
         )
@@ -961,5 +1010,12 @@ object TextProcessor {
         26 -> "двадцать шестого"; 27 -> "двадцать седьмого"; 28 -> "двадцать восьмого"
         29 -> "двадцать девятого"; 30 -> "тридцатого"; 31 -> "тридцать первого"
         else -> number.toString()
+    }
+
+    // Родительный/дательный падеж, женский род: "первой звёздной величины"
+    private fun numberToOrdinalFeminineGenitive(number: Int): String = when (number) {
+        1 -> "первой"; 2 -> "второй"; 3 -> "третьей"; 4 -> "четвёртой"; 5 -> "пятой"
+        6 -> "шестой"; 7 -> "седьмой"; 8 -> "восьмой"; 9 -> "девятой"; 10 -> "десятой"
+        else -> "${number}-й"
     }
 }
