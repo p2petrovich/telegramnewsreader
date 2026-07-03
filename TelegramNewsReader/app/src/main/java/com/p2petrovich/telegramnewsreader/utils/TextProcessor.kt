@@ -535,7 +535,11 @@ object TextProcessor {
 
         // 5) Markdown, кавычки, многоточие
         t = TTS_MARKDOWN_PATTERN.replace(t, "")
-        t = TTS_QUOTES_PATTERN.replace(t, "\"")
+        // [FIX] Заменяем обычные кавычки на типографские или пробелы, 
+        // чтобы они не ломали SSML в Edge TTS (особенно в координатах)
+        t = t.replace("\"", "«")
+        t = t.replace("'", " ") 
+        t = TTS_QUOTES_PATTERN.replace(t, "«")
         t = TTS_ELLIPSIS_PATTERN.replace(t, "…")
 
         // 6) Нормализация пробелов и переносов

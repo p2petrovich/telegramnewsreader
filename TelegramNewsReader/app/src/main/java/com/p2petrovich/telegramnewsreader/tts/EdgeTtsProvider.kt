@@ -89,7 +89,7 @@ class EdgeTtsProvider(
 
         private const val WIN_EPOCH              = 11_644_473_600L
 
-        private const val MAX_CHARS = 3000
+        private const val MAX_CHARS = 2000
 
         private val sharedClient = HttpClients.shared
 
@@ -113,7 +113,7 @@ class EdgeTtsProvider(
     suspend fun synthesizeToWav(text: String, outputFile: File): Boolean {
         if (text.isBlank()) return false
 
-        return withTimeoutOrNull(60_000L) {
+        return withTimeoutOrNull(120_000L) {
             if (text.length <= MAX_CHARS) {
                 synthesizePart(text, outputFile)
             } else {
@@ -326,6 +326,12 @@ class EdgeTtsProvider(
         safe = SSML_VARIATION_SELECTOR_PATTERN.replace(safe, "")
         safe = SSML_EMOJI_PATTERN.replace(safe, " ")
         safe = SSML_CONTROL_PATTERN.replace(safe, "")
+        
+        // [FIX] Дополнительная чистка для предотвращения ошибок в SSML
+        // Одинарные и двойные кавычки могут конфликтовать с атрибутами SSML
+        safe = safe.replace("'", " ")
+        safe = safe.replace("\"", " ")
+
         safe = SSML_MULTI_SPACE_PATTERN.replace(safe, " ").trim()
 
         val escaped = safe
