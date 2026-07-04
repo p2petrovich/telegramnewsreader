@@ -3,8 +3,8 @@ package com.p2petrovich.telegramnewsreader.telegram
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import com.p2petrovich.telegramnewsreader.ApiConfig
+import com.p2petrovich.telegramnewsreader.utils.Logx
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean // [FIX reset] для watchdog-страховки
 
@@ -46,13 +46,13 @@ object TelegramClientManager {
 
         // Устанавливаем слушатель на окончательное закрытие клиента
         c.setOnLoggedOutListener {
-            Log.d("TelegramClientManager", "Client reported Closed. Waiting before deletion...")
+            Logx.d("TelegramClientManager") { "Client reported Closed. Waiting before deletion..." }
             finalize()
         }
 
         // [FIX reset] Watchdog: принудительно завершаем сброс, если Closed не наступил.
         handler.postDelayed({
-            Log.w("TelegramClientManager", "Logout watchdog fired — forcing cleanup")
+            Logx.w("TelegramClientManager", "Logout watchdog fired — forcing cleanup")
             finalize()
         }, LOGOUT_WATCHDOG_MS)
 
@@ -67,20 +67,20 @@ object TelegramClientManager {
         val dbDir = ApiConfig.tdlibDatabaseDir(context)
         val filesDir = ApiConfig.tdlibFilesDir(context)
         
-        Log.d("TelegramClientManager", "Deleting TDLib dirs: ${dbDir.absolutePath} and ${filesDir.absolutePath}")
+        Logx.d("TelegramClientManager") { "Deleting TDLib dirs: ${dbDir.absolutePath} and ${filesDir.absolutePath}" }
         
         try {
             val dbDeleted = dbDir.deleteRecursively()
-            Log.d("TelegramClientManager", "DB dir deleted: $dbDeleted")
+            Logx.d("TelegramClientManager") { "DB dir deleted: $dbDeleted" }
         } catch (e: Exception) {
-            Log.e("TelegramClientManager", "Failed to delete DB dir", e)
+            Logx.e("TelegramClientManager", "Failed to delete DB dir", e)
         }
         
         try {
             val filesDeleted = filesDir.deleteRecursively()
-            Log.d("TelegramClientManager", "Files dir deleted: $filesDeleted")
+            Logx.d("TelegramClientManager") { "Files dir deleted: $filesDeleted" }
         } catch (e: Exception) {
-            Log.e("TelegramClientManager", "Failed to delete files dir", e)
+            Logx.e("TelegramClientManager", "Failed to delete files dir", e)
         }
     }
 

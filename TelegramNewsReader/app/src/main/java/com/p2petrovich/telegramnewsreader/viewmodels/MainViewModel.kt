@@ -1,6 +1,5 @@
 package com.p2petrovich.telegramnewsreader.viewmodels
 
-import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -11,6 +10,7 @@ import com.p2petrovich.telegramnewsreader.utils.AudioUtils
 import com.p2petrovich.telegramnewsreader.utils.Deduplicator
 import com.p2petrovich.telegramnewsreader.utils.DebugConfig
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
+import com.p2petrovich.telegramnewsreader.utils.Logx
 import android.content.Context
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -40,14 +40,14 @@ class MainViewModel : ViewModel() {
 
     fun setClientReady(ready: Boolean) {
         if (_isClientReady.value != ready) {
-            Log.d(TAG, "isClientReady changed: $ready")
+            Logx.d(TAG) { "isClientReady changed: $ready" }
             _isClientReady.postValue(ready)
         }
     }
 
     fun setAuthorized(auth: Boolean) {
         if (_isAuthorized.value != auth) {
-            Log.d(TAG, "isAuthorized changed: $auth")
+            Logx.d(TAG) { "isAuthorized changed: $auth" }
             _isAuthorized.postValue(auth)
         }
     }
@@ -93,7 +93,7 @@ class MainViewModel : ViewModel() {
     }
 
     fun resetProgressCounters() {
-        Log.d(TAG, "resetProgressCounters called")
+        Logx.d(TAG) { "resetProgressCounters called" }
         updateCounters(0, 0, 0, 0, 0, 0, 0)
     }
 
@@ -111,7 +111,7 @@ class MainViewModel : ViewModel() {
     private var lastOriginalMessages: List<String> = emptyList()
 
     fun setPlaylistData(files: List<File>, newsCount: Int, indices: Set<Int>, mapping: IntArray = intArrayOf(), messages: List<String> = emptyList()) {
-        Log.d(TAG, "Playlist updated: ${files.size} files, real news: $newsCount")
+        Logx.d(TAG) { "Playlist updated: ${files.size} files, real news: $newsCount" }
         _currentPlaylist.postValue(files)
         _currentRealNewsCount.postValue(newsCount)
         _currentNewsFileIndices.postValue(indices)
@@ -122,14 +122,14 @@ class MainViewModel : ViewModel() {
     fun markAsRead(context: Context, fileIndex: Int) {
         if (fileIndex < 0 || fileIndex >= lastFileToMsgIndex.size) {
             if (DebugConfig.LOG_PLAYER_EVENTS) {
-                Log.v(TAG, "markAsRead: invalid fileIndex $fileIndex (size=${lastFileToMsgIndex.size})")
+                Logx.v(TAG) { "markAsRead: invalid fileIndex $fileIndex (size=${lastFileToMsgIndex.size})" }
             }
             return
         }
         val msgIdx = lastFileToMsgIndex[fileIndex]
         if (msgIdx < 0 || msgIdx >= lastOriginalMessages.size) {
             if (DebugConfig.LOG_PLAYER_EVENTS) {
-                Log.v(TAG, "markAsRead: invalid msgIdx $msgIdx (size=${lastOriginalMessages.size})")
+                Logx.v(TAG) { "markAsRead: invalid msgIdx $msgIdx (size=${lastOriginalMessages.size})" }
             }
             return
         }
@@ -137,7 +137,7 @@ class MainViewModel : ViewModel() {
         val text = lastOriginalMessages[msgIdx]
         if (!NewsService.isChannelHeader(text)) {
             if (DebugConfig.LOG_PLAYER_EVENTS) {
-                Log.d(TAG, "markAsRead: marking news at $fileIndex (msg $msgIdx) as read")
+                Logx.d(TAG) { "markAsRead: marking news at $fileIndex (msg $msgIdx) as read" }
             }
             getDeduplicator(context).addToHistory(text)
         }
@@ -229,7 +229,7 @@ class MainViewModel : ViewModel() {
 
         val currentDeduplicator = getDeduplicator(context)
         currentDeduplicator.resetSkippedCount() // Сбрасываем счетчик перед началом нового сбора
-        Log.d(TAG, "Collection START. Deduplicator status: enabled=${currentDeduplicator.isEnabled}, history_size=${currentDeduplicator.getHistorySize()}")
+        Logx.d(TAG) { "Collection START. Deduplicator status: enabled=${currentDeduplicator.isEnabled}, history_size=${currentDeduplicator.getHistorySize()}" }
 
         selectedChannels.forEach { it.newMessagesCount = -1 }
         _channelProgress.postValue(selectedChannels)
@@ -254,10 +254,10 @@ class MainViewModel : ViewModel() {
                 _collectionFinishedEvent.postValue(audio to durationMin)
 
             } catch (e: CancellationException) {
-                Log.d(TAG, "News collection cancelled")
+                Logx.d(TAG) { "News collection cancelled" }
                 _collectionStatus.postValue("cancelled")
             } catch (e: Exception) {
-                Log.e(TAG, "Error collecting news", e)
+                Logx.e(TAG, "Error collecting news", e)
                 _errorEvent.postValue(e.message)
             } finally {
                 _isCollecting.postValue(false)
@@ -357,7 +357,7 @@ class MainViewModel : ViewModel() {
     }
 
     fun resetDeduplicator() {
-        Log.d(TAG, "resetDeduplicator called")
+        Logx.d(TAG) { "resetDeduplicator called" }
         deduplicator?.reset()
         deduplicator = null
     }

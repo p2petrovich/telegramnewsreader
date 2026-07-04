@@ -1,6 +1,5 @@
 package com.p2petrovich.telegramnewsreader.utils
 
-import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
 
@@ -34,7 +33,7 @@ object AudioUtils {
                 parts[0].copyTo(output, overwrite = true)
                 output.exists() && output.length() > 44
             } catch (e: Exception) {
-                Log.e(TAG, "WAV single-copy exception", e)
+                Logx.e(TAG, "WAV single-copy exception", e)
                 false
             }
         }
@@ -91,11 +90,11 @@ object AudioUtils {
 
             val ok = output.exists() && output.length() > 44
             if (ok) {
-                Log.d(TAG, "WAV concat success: ${output.name} (${output.length() / 1024} KB)")
+                Logx.d(TAG) { "WAV concat success: ${output.name} (${output.length() / 1024} KB)" }
             }
             ok
         } catch (e: Exception) {
-            Log.e(TAG, "WAV concat exception", e)
+            Logx.e(TAG, "WAV concat exception", e)
             false
         }
     }
@@ -113,7 +112,7 @@ object AudioUtils {
                 val durationStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
                 totalMs += durationStr?.toLongOrNull() ?: 0L
             } catch (e: Exception) {
-                Log.w(TAG, "Error getting duration of ${file.name}", e)
+                Logx.w(TAG, "Error getting duration of ${file.name}: ${e.message}")
             }
         }
         try { retriever.release() } catch (_: Exception) {}

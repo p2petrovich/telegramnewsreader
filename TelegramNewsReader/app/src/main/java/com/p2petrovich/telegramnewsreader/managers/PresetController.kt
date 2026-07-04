@@ -1,8 +1,6 @@
 package com.p2petrovich.telegramnewsreader.managers
 
 import android.app.Activity
-import android.content.Context
-import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
@@ -249,7 +247,7 @@ class PresetController(
                 Toast.makeText(activity, activity.getString(R.string.preset_n_updated, name), Toast.LENGTH_SHORT).show()
                 showPresetsManagerDialog(onOpenSettings)
             }
-            .setNegativeButton(R.string.cancel) { _, _ -> showPresetsManagerDialog(onOpenSettings) }
+            .setNegativeButton(R.string.cancel, null)
             .setOnCancelListener { showPresetsManagerDialog(onOpenSettings) }
             .show()
     }

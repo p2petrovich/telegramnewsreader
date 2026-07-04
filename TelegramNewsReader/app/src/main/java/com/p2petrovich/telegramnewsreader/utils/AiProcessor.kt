@@ -1,7 +1,6 @@
 package com.p2petrovich.telegramnewsreader.utils
 
 import android.content.Context
-import android.util.Log
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -121,7 +120,7 @@ object AiProcessor {
         val (apiUrl, apiKey, modelName) = providerConfig(context)
 
         if (apiKey.isBlank()) {
-            Log.e(TAG, "AI API Key is missing for ${PreferenceManager.getAiProvider(context)}!")
+            Logx.e(TAG, "AI API Key is missing for ${PreferenceManager.getAiProvider(context)}!")
             return "[AI Error: Key missing] $newsText"
         }
 
@@ -245,7 +244,7 @@ object AiProcessor {
                                     ?.optString("text")
                                     ?.trim()
                             } else {
-                                Log.w(TAG, "Gemini: no candidates found. Possible safety block.")
+                                Logx.w(TAG, "Gemini: no candidates found. Possible safety block.")
                                 null
                             }
                         } else {
@@ -262,11 +261,11 @@ object AiProcessor {
                         if (summarized != null) {
                             return@withContext if (summarized.isBlank()) safeText else summarized
                         } else {
-                            Log.e(TAG, "AI summarized text is null. Provider: $provider, Response: $responseBody")
+                            Logx.e(TAG, "AI summarized text is null. Provider: $provider, Response: $responseBody")
                             return@withContext "[AI Empty Response] $safeText"
                         }
                     } else if (response.code == 429) {
-                        Log.w(TAG, "Rate limit hit (429), attempt $attempt/3. Waiting...")
+                        Logx.w(TAG, "Rate limit hit (429), attempt $attempt/3. Waiting...")
                         lastAttemptResponse = "[AI Error 429: Rate Limit] $safeText"
                         if (attempt < 3) {
                             delay(2000L * attempt) // Экспоненциальная задержка
@@ -274,11 +273,11 @@ object AiProcessor {
                         }
                     } else {
                         val provider = PreferenceManager.getAiProvider(context)
-                        Log.e(TAG, "$provider error: ${response.code}")
+                        Logx.e(TAG, "$provider error: ${response.code}")
                         return@withContext "[AI Error ${response.code}] $safeText"
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Network error on attempt $attempt: ${e.message}")
+                    Logx.e(TAG, "Network error on attempt $attempt: ${e.message}")
                     lastAttemptResponse = "[AI Network Error] $safeText"
                     if (attempt < 3) {
                         delay(2000L * attempt)

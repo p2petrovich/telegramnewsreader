@@ -1,6 +1,5 @@
 package com.p2petrovich.telegramnewsreader.services
 
-import android.util.Log
 import com.p2petrovich.telegramnewsreader.models.Channel
 import com.p2petrovich.telegramnewsreader.telegram.TelegramClient
 import com.p2petrovich.telegramnewsreader.tts.TTSManager
@@ -11,6 +10,7 @@ import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.EdgeConfig
 import com.p2petrovich.telegramnewsreader.utils.DebugConfig
 import com.p2petrovich.telegramnewsreader.utils.HeaderUtils
+import com.p2petrovich.telegramnewsreader.utils.Logx
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -66,10 +66,10 @@ class NewsService(
      */
     private fun logStageShort(stage: String, messages: List<String>) {
         val news = messages.count { !isChannelHeader(it) }
-        Log.d(TAG, "═══════ STAGE: $stage (всего=${messages.size}, новостей=$news) ═══════")
+        Logx.d(TAG) { "═══════ STAGE: $stage (всего=${messages.size}, новостей=$news) ═══════" }
         messages.forEachIndexed { i, msg ->
             val tag = if (isChannelHeader(msg)) "[HEADER]" else "[NEWS]"
-            Log.d(TAG, "$stage[$i] $tag: ${msg.replace("\n", "\\n").take(300)}")
+            Logx.d(TAG) { "$stage[$i] $tag: ${msg.replace("\n", "\\n").take(300)}" }
         }
     }
 
@@ -80,11 +80,11 @@ class NewsService(
      */
     private fun logStageFull(stage: String, messages: List<String>) {
         val news = messages.count { !isChannelHeader(it) }
-        Log.d(TAG, "═══════ STAGE: $stage (всего=${messages.size}, новостей=$news) ═══════")
+        Logx.d(TAG) { "═══════ STAGE: $stage (всего=${messages.size}, новостей=$news) ═══════" }
         messages.forEachIndexed { i, msg ->
             val tag = if (isChannelHeader(msg)) "[HEADER]" else "[NEWS]"
             msg.chunked(800).forEachIndexed { part, chunk ->
-                Log.d(TAG, "$stage[$i].$part $tag: ${chunk.replace("\n", "\\n")}")
+                Logx.d(TAG) { "$stage[$i].$part $tag: ${chunk.replace("\n", "\\n")}" }
             }
         }
     }
@@ -120,7 +120,7 @@ class NewsService(
                             telegramClient.getChannelMessagesPaginated(channel.id, fromDate).size
                         }
                     } catch (e: Exception) {
-                        Log.w(TAG, "count failed for channel ${channel.id}: ${e.message}")
+                        Logx.w(TAG, "count failed for channel ${channel.id}: ${e.message}")
                         0
                     }
                 }
@@ -261,7 +261,7 @@ class NewsService(
                 progressCallback.onUpdateNewsPreview(newsPreview)
 
                 if (allMessages.isEmpty()) {
-                    Log.w(TAG, "Total messages from all channels is ZERO")
+                    Logx.w(TAG, "Total messages from all channels is ZERO")
                     progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.no_news_status), 100, 100)
                     return@withTimeout Prepared(emptyList(), 0, 0, 0)
                 }
@@ -275,7 +275,7 @@ class NewsService(
                     onFilterProgress = { _, _ -> },
                     onTruncated = { kept, dropped ->
                         progressCallback.onNewsTruncated(kept, dropped)
-                        Log.w(TAG, "truncated $dropped news (kept $kept)")
+                        Logx.w(TAG, "truncated $dropped news (kept $kept)")
                     }
                 )
                 val filteredNewsCount = filteredMessages.count { !isChannelHeader(it) }
@@ -292,10 +292,10 @@ class NewsService(
                     val crossThreshold = PreferenceManager.getDedupThreshold(context).toDouble()
                     val result = TextProcessor.deduplicateAcrossChannels(filteredMessages, crossThreshold)
                     val dedupNewsCount = result.count { !isChannelHeader(it) }
-                    Log.d(TAG, "After across-channel dedup: ${result.size} (news: $dedupNewsCount, threshold=$crossThreshold)")
+                    Logx.d(TAG) { "After across-channel dedup: ${result.size} (news: $dedupNewsCount, threshold=$crossThreshold)" }
                     result
                 } else {
-                    Log.d(TAG, "Across-channel dedup SKIPPED (disabled in settings)")
+                    Logx.d(TAG) { "Across-channel dedup SKIPPED (disabled in settings)" }
                     filteredMessages
                 }
 
@@ -321,7 +321,7 @@ class NewsService(
                             filtered.add(msg)
                         }
                     }
-                    Log.d(TAG, "After Deduplicator: ${filtered.size}")
+                    Logx.d(TAG) { "After Deduplicator: ${filtered.size}" }
                     filtered
                 } else {
                     preparedMessages
@@ -341,7 +341,7 @@ class NewsService(
                 val finalMessages = if (isAiEnabled) {
                     progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_summarization_status), 0, totalToSynthesizeBeforeAi)
 
-                    Log.d(TAG, "═══════ AI ОБРАБОТКА ВКЛЮЧЕНА (на вход: $totalToSynthesizeBeforeAi новостей) ═══════")
+                    Logx.d(TAG) { "═══════ AI ОБРАБОТКА ВКЛЮЧЕНА (на вход: $totalToSynthesizeBeforeAi новостей) ═══════" }
 
                     val provider = PreferenceManager.getAiProvider(context)
                     // Groq хорошо держит 10 параллельных запросов даже на free tier.
@@ -373,8 +373,8 @@ class NewsService(
                                         val summarized = cleanTimePrefix + AiProcessor.stripErrorPrefix(rawResult)
 
                                         if (DebugConfig.LOG_PIPELINE_STAGES) {
-                                            Log.d(TAG, "AI_IN : ${msgWithoutPrefix.replace("\n", "\\n").take(300)}")
-                                            Log.d(TAG, "AI_OUT: ${summarized.replace("\n", "\\n").take(300)}")
+                                            Logx.d(TAG) { "AI_IN : ${msgWithoutPrefix.replace("\n", "\\n").take(300)}" }
+                                            Logx.d(TAG) { "AI_OUT: ${summarized.replace("\n", "\\n").take(300)}" }
                                         }
 
                                         synchronized(this@NewsService) {
@@ -389,7 +389,7 @@ class NewsService(
                                         summarized
                                     }
                                 } ?: run {
-                                    Log.w(TAG, "AI timeout for message: ${msg.take(100)}...")
+                                    Logx.w(TAG, "AI timeout for message: ${msg.take(100)}...")
                                     synchronized(this@NewsService) {
                                         processedCount++
                                         // Даже если таймаут — двигаем прогресс-бар
@@ -412,7 +412,7 @@ class NewsService(
                     filteredResults
                 } else {
                     // DEBUG_LOGS: временно закомментировано — можно включить для отладки AI pipeline.
-                    // Log.d(TAG, "═══════ AI ОБРАБОТКА ОТКЛЮЧЕНА ═══════")
+                    // Logx.d(TAG) { "═══════ AI ОБРАБОТКА ОТКЛЮЧЕНА ═══════" }
                     afterDropTrivial
                 }
 
@@ -433,16 +433,16 @@ class NewsService(
                 Prepared(finalMessagesWithHeaders, totalCollected, finalToSynthesize, realNewsCount, isAiEnabled)
             }
         } catch (e: TimeoutCancellationException) {
-            Log.e(TAG, "collectAndPrepareMessages: TOTAL TIMEOUT", e)
+            Logx.e(TAG, "collectAndPrepareMessages: TOTAL TIMEOUT", e)
             val context = ttsManager.getContext()
             progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.timeout_exceeded_status), 0, 100)
             null
         } catch (e: CancellationException) {
-            Log.d(TAG, "collectAndPrepareMessages: Cancelled")
+            Logx.d(TAG) { "collectAndPrepareMessages: Cancelled" }
             throw e
         }
         catch (e: Exception) {
-            Log.e(TAG, "collectAndPrepareMessages: ERROR", e)
+            Logx.e(TAG, "collectAndPrepareMessages: ERROR", e)
             val context = ttsManager.getContext()
             progressCallback.onUpdateProgress(context.getString(com.p2petrovich.telegramnewsreader.R.string.error_prefix, e.message), 0, 100)
             null
@@ -453,12 +453,12 @@ class NewsService(
         return try {
             withTimeout(CHANNEL_TIMEOUT_MS) {
                 val messages = telegramClient.getChannelMessagesPaginated(channel.id, fromDate)
-                Log.d(TAG, "Channel ${channel.title} (${channel.id}): returned ${messages.size} messages")
+                Logx.d(TAG) { "Channel ${channel.title} (${channel.id}): returned ${messages.size} messages" }
                 channel.newMessagesCount = messages.size
                 Pair(channel, messages)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error processing channel ${channel.title} (${channel.id}): ${e.message}")
+            Logx.e(TAG, "Error processing channel ${channel.title} (${channel.id}): ${e.message}")
             channel.newMessagesCount = 0
             Pair(channel, emptyList())
         }

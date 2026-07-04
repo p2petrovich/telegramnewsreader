@@ -3,7 +3,6 @@ package com.p2petrovich.telegramnewsreader.utils
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Base64
-import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import java.io.File
@@ -37,14 +36,14 @@ object SecurityManager {
         val markerPrefs = context.getSharedPreferences(MARKER_PREFS, Context.MODE_PRIVATE)
         val keyWasCreatedBefore = markerPrefs.getBoolean(KEY_MARKER, false)
 
-        Log.d(TAG, "getDatabaseEncryptionKeyChecked: keyWasCreatedBefore=$keyWasCreatedBefore")
+        Logx.d(TAG) { "getDatabaseEncryptionKeyChecked: keyWasCreatedBefore=$keyWasCreatedBefore" }
 
         val prefs = try {
             buildEncryptedPrefs(context).also {
-                Log.d(TAG, "buildEncryptedPrefs: SUCCESS")
+                Logx.d(TAG) { "buildEncryptedPrefs: SUCCESS" }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "buildEncryptedPrefs: FAILED", e)
+            Logx.e(TAG, "buildEncryptedPrefs: FAILED", e)
             return if (keyWasCreatedBefore) {
                 recreateEncryptedPrefs(context)
                     ?.let { generateAndStore(it, markerPrefs) }
@@ -58,10 +57,10 @@ object SecurityManager {
 
         val savedKeyBase64 = try {
             prefs.getString(KEY_DB_ENCRYPTION, null).also {
-                Log.d(TAG, "savedKeyBase64: ${if (it != null) "FOUND (len=${it.length})" else "NULL"}")
+                Logx.d(TAG) { "savedKeyBase64: ${if (it != null) "FOUND (len=${it.length})" else "NULL"}" }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Не удалось прочитать ключ (повреждение)", e)
+            Logx.e(TAG, "Не удалось прочитать ключ (повреждение)", e)
             return if (keyWasCreatedBefore) {
                 KeyResult.LostNeedsWipe
             } else {
@@ -75,7 +74,7 @@ object SecurityManager {
             try {
                 KeyResult.Ok(Base64.decode(savedKeyBase64, Base64.DEFAULT))
             } catch (e: Exception) {
-                Log.e(TAG, "Ошибка декодирования ключа", e)
+                Logx.e(TAG, "Ошибка декодирования ключа", e)
                 if (keyWasCreatedBefore) KeyResult.LostNeedsWipe else KeyResult.Unavailable
             }
         } else if (keyWasCreatedBefore) {
@@ -99,7 +98,7 @@ object SecurityManager {
     fun resetKeyMarker(context: Context) {
         context.getSharedPreferences(MARKER_PREFS, Context.MODE_PRIVATE)
             .edit().remove(KEY_MARKER).commit()
-        Log.d(TAG, "KEY_MARKER сброшен")
+        Logx.d(TAG) { "KEY_MARKER сброшен" }
     }
 
     private fun generateAndStore(prefs: SharedPreferences, markerPrefs: SharedPreferences): KeyResult {
@@ -111,14 +110,14 @@ object SecurityManager {
 
             if (success) {
                 markerPrefs.edit().putBoolean(KEY_MARKER, true).commit()
-                Log.d(TAG, "Ключ успешно создан и сохранён")
+                Logx.d(TAG) { "Ключ успешно создан и сохранён" }
                 KeyResult.Ok(newKey)
             } else {
-                Log.e(TAG, "Не удалось сохранить ключ через commit()")
+                Logx.e(TAG, "Не удалось сохранить ключ через commit()")
                 KeyResult.Unavailable
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Ошибка при генерации/сохранении ключа", e)
+            Logx.e(TAG, "Ошибка при генерации/сохранении ключа", e)
             KeyResult.Unavailable
         }
     }
@@ -149,7 +148,7 @@ object SecurityManager {
             val prefsFile = File(context.filesDir.parentFile, "shared_prefs/${PREFS_NAME}.xml")
             if (prefsFile.exists()) {
                 val deleted = prefsFile.delete()
-                Log.d(TAG, "Удалён файл prefs ($deleted): ${prefsFile.absolutePath}")
+                Logx.d(TAG) { "Удалён файл prefs ($deleted): ${prefsFile.absolutePath}" }
             }
 
             // 2. Удаляем мастер-ключ из Android Keystore
@@ -159,19 +158,19 @@ object SecurityManager {
                 val alias = MasterKey.DEFAULT_MASTER_KEY_ALIAS
                 if (keyStore.containsAlias(alias)) {
                     keyStore.deleteEntry(alias)
-                    Log.d(TAG, "MasterKey удалён из Keystore (alias=$alias)")
+                    Logx.d(TAG) { "MasterKey удалён из Keystore (alias=$alias)" }
                 }
             } catch (e: Exception) {
                 // Не критично — buildEncryptedPrefs создаст новый ключ поверх
-                Log.w(TAG, "Не удалось очистить Keystore (продолжаем)", e)
+                Logx.w(TAG, "Не удалось очистить Keystore (продолжаем): ${e.message}")
             }
 
             // 3. Пересоздаём — теперь нет ни файла, ни старого ключа
             buildEncryptedPrefs(context).also {
-                Log.d(TAG, "EncryptedSharedPreferences успешно пересозданы")
+                Logx.d(TAG) { "EncryptedSharedPreferences успешно пересозданы" }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Пересоздание prefs не удалось", e)
+            Logx.e(TAG, "Пересоздание prefs не удалось", e)
             null
         }
     }

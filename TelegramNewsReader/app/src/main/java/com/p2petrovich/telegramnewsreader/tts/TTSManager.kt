@@ -5,7 +5,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
-import android.util.Log
 import com.p2petrovich.telegramnewsreader.models.VoiceEntry
 import com.p2petrovich.telegramnewsreader.models.VoiceMappings
 import com.p2petrovich.telegramnewsreader.services.NewsService
@@ -17,6 +16,7 @@ import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.TextProcessor
 import com.p2petrovich.telegramnewsreader.utils.HttpClients
 import com.p2petrovich.telegramnewsreader.utils.Yoficator
+import com.p2petrovich.telegramnewsreader.utils.Logx
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.Dispatchers
@@ -109,7 +109,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             applySavedVoice()
         } else {
             ttsInitialized.set(false)
-            Log.e(TAG, "TTS init failed, status=$status")
+            Logx.e(TAG, "TTS init failed, status=$status")
         }
 
         // Разбудить всех ожидающих
@@ -343,7 +343,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         if (!LOG_SYNTH_INPUT) return
         val isHeader = NewsService.isChannelHeader(job.partText)
         job.partText.chunked(800).forEachIndexed { p, chunk ->
-            Log.d(TAG, "SYNTH_IN[part=${job.partIndex}].$p header=$isHeader: ${chunk.replace("\n", "\\n")}")
+            Logx.d(TAG) { "SYNTH_IN[part=${job.partIndex}].$p header=$isHeader: ${chunk.replace("\n", "\\n")}" }
         }
     }
 
@@ -361,16 +361,16 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             val ok = try {
                 edge.synthesizeToWav(text, outFile)
             } catch (e: Exception) {
-                Log.w(TAG, "Edge attempt $attempt error for part $partIndex: ${e.message}")
+                Logx.w(TAG, "Edge attempt $attempt error for part $partIndex: ${e.message}")
                 false
             }
             if (ok && outFile.exists() && outFile.length() > 0) {
                 if (attempt > 1) {
-                    Log.d(TAG, "Edge succeeded on attempt $attempt for part $partIndex")
+                    Logx.d(TAG) { "Edge succeeded on attempt $attempt for part $partIndex" }
                 }
                 return true
             }
-            Log.w(TAG, "Edge attempt $attempt failed for part $partIndex")
+            Logx.w(TAG, "Edge attempt $attempt failed for part $partIndex")
             if (outFile.exists()) outFile.delete()
             if (attempt < EDGE_RETRY_ATTEMPTS) {
                 // [FIX] Экспоненциальная задержка вместо фиксированной: 500мс, 1000мс, 2000мс...
@@ -392,7 +392,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             }
             context.sendBroadcast(intent)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to send TTS error broadcast", e)
+            Logx.e(TAG, "Failed to send TTS error broadcast", e)
         }
     }
 
@@ -548,7 +548,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         val totalParts = jobs.size
         progressCallback?.onActualCounts(actualNewsCount, totalParts)
-        Log.d(TAG, "Playlist: news=$actualNewsCount, parts=$totalParts, chapters=${prepared.size}")
+        Logx.d(TAG) { "Playlist: news=$actualNewsCount, parts=$totalParts, chapters=${prepared.size}" }
 
         val baseUtteranceId = "tts_${System.currentTimeMillis()}"
         val cachedWavPaths = mutableSetOf<String>()
@@ -580,7 +580,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
 
         if (partResults.any { it == null }) {
-            Log.e(TAG, "Some parts failed to synthesize")
+            Logx.e(TAG, "Some parts failed to synthesize")
             cleanupChapterFiles(emptyList(), cachedWavPaths)
             progressCallback?.onCompleted()
             return null
@@ -653,7 +653,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
             }
 
             if (!ok || !chapterWav.exists() || chapterWav.length() == 0L) {
-                Log.e(TAG, "Failed to concat chapter $chapterIndex")
+                Logx.e(TAG, "Failed to concat chapter $chapterIndex")
                 try { chapterWav.delete() } catch (_: Exception) {}
                 cleanupChapterFiles(chapterFiles, cachedWavPaths)
                 progressCallback?.onCompleted()
@@ -665,7 +665,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         silenceFile?.delete()
 
-        Log.d(TAG, "Playlist ready: ${chapterFiles.size} files, news=$actualNewsCount")
+        Logx.d(TAG) { "Playlist ready: ${chapterFiles.size} files, news=$actualNewsCount" }
 
         val finalFileToMsgIndex = IntArray(chapterFiles.size)
         // Мы знаем, что chapterFiles строились в том же порядке, что и prepared, 
@@ -727,7 +727,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                                     normalized.delete()
                                     tempWavFile
                                 } catch (e: Exception) {
-                                    Log.w(TAG, "Failed to swap normalized file: ${e.message}")
+                                    Logx.w(TAG, "Failed to swap normalized file: ${e.message}")
                                     normalized
                                 }
                             } else tempWavFile
@@ -764,7 +764,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 }
             }
         } ?: run {
-            Log.e(TAG, "synthesizePartToWav timeout for part $partIndex")
+            Logx.e(TAG, "synthesizePartToWav timeout for part $partIndex")
             null
         }
     }
@@ -823,7 +823,7 @@ class TTSManager(private val context: Context) : TextToSpeech.OnInitListener {
                 WavMeta(sampleRate, channels, bits, durMs)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "readWavMeta failed for ${file.name}: ${e.message}")
+            Logx.e(TAG, "readWavMeta failed for ${file.name}: ${e.message}")
             null
         }
     }

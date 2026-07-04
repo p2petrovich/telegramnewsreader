@@ -2,7 +2,6 @@ package com.p2petrovich.telegramnewsreader.utils
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.google.gson.Gson
@@ -90,14 +89,14 @@ object PreferenceManager {
         return try {
             buildEncryptedPrefs(appContext).also { securePrefsInstance = it }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to init EncryptedSharedPreferences: ${e.message}")
+            Logx.e(TAG, "Failed to init EncryptedSharedPreferences: ${e.message}")
             // Битый файл — удаляем и пересоздаём с нуля
             try {
                 appContext.deleteSharedPreferences(ENCRYPTED_PREFS_NAME)
-                Log.w(TAG, "Deleted corrupted secure prefs, retrying")
+                Logx.w(TAG, "Deleted corrupted secure prefs, retrying")
                 buildEncryptedPrefs(appContext).also { securePrefsInstance = it }
             } catch (e2: Exception) {
-                Log.e(TAG, "Recovery also failed: ${e2.message}")
+                Logx.e(TAG, "Recovery also failed: ${e2.message}")
                 null
             }
         }

@@ -3,15 +3,13 @@ package com.p2petrovich.telegramnewsreader.tts
 import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaExtractor
-import android.util.Log
 import com.p2petrovich.telegramnewsreader.ApiConfig
 import com.p2petrovich.telegramnewsreader.utils.EdgeConfig
 import com.p2petrovich.telegramnewsreader.utils.HttpClients
 import com.p2petrovich.telegramnewsreader.utils.buildWavHeader
-import com.p2petrovich.telegramnewsreader.utils.findDataChunkOffset
+import com.p2petrovich.telegramnewsreader.utils.Logx
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
@@ -25,7 +23,6 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 
 /**
@@ -120,7 +117,7 @@ class EdgeTtsProvider(
                 synthesizeLong(text, outputFile)
             }
         } ?: run {
-            Log.e(TAG, "synthesizeToWav overall timeout (length: ${text.length})")
+            Logx.e(TAG, "synthesizeToWav overall timeout (length: ${text.length})")
             false
         }
     }
@@ -134,7 +131,7 @@ class EdgeTtsProvider(
                 val tmp = File(outputFile.parentFile, "${outputFile.nameWithoutExtension}_edge_part$i.wav")
                 val ok = synthesizePart(part, tmp)
                 if (!ok) {
-                    Log.e(TAG, "Part $i synthesis failed")
+                    Logx.e(TAG, "Part $i synthesis failed")
                     return false
                 }
                 tempFiles.add(tmp)
@@ -176,7 +173,7 @@ class EdgeTtsProvider(
                     "&Sec-MS-GEC-Version=1-$fullVer" +
                     "&ConnectionId=$connectionId"
 
-            Log.d(TAG, "synthesizePart start, voice=$voice, length=${text.length}")
+            Logx.d(TAG) { "synthesizePart start, voice=$voice, length=${text.length}" }
 
             val request = Request.Builder()
                 .url(wsUrl)
@@ -200,7 +197,7 @@ class EdgeTtsProvider(
                 if (resumed) return
                 resumed = true
                 turned = true
-                Log.d(TAG, "finish: success=$success, reason=$reason, audioSize=${audioBuf.size()}")
+                Logx.d(TAG) { "finish: success=$success, reason=$reason, audioSize=${audioBuf.size()}" }
                 try { ws?.close(1000, "done") } catch (_: Exception) {}
                 val bytes = synchronized(audioBuf) { audioBuf.toByteArray() }
                 
@@ -212,7 +209,7 @@ class EdgeTtsProvider(
             val ws = sharedClient.newWebSocket(request, object : WebSocketListener() {
 
                 override fun onOpen(webSocket: WebSocket, response: Response) {
-                    Log.d(TAG, "WS opened (http=${response.code})")
+                    Logx.d(TAG) { "WS opened (http=${response.code})" }
                     val cfg  = buildConfigMsg(timestamp)
                     val ssml = buildSsmlMsg(requestId, timestamp, text)
                     webSocket.send(cfg)
@@ -221,7 +218,7 @@ class EdgeTtsProvider(
 
                 override fun onMessage(webSocket: WebSocket, text: String) {
                     val path = extractPath(text)
-                    Log.d(TAG, "← text frame (path: $path)")
+                    Logx.d(TAG) { "← text frame (path: $path)" }
                     if (path == "turn.end") {
                         finish(webSocket, success = true, reason = "turn.end (text)")
                     }
@@ -241,14 +238,14 @@ class EdgeTtsProvider(
                     when (path) {
                         "audio" -> {
                             val isFirst = synchronized(audioBuf) { audioBuf.size() == 0 }
-                            if (isFirst) Log.d(TAG, "← first audio frame, frameSize=${data.size}, headerLen=$headerLen")
+                            if (isFirst) Logx.d(TAG) { "← first audio frame, frameSize=${data.size}, headerLen=$headerLen" }
                             val audioStart = 2 + headerLen
                             synchronized(audioBuf) {
                                 audioBuf.write(data, audioStart, data.size - audioStart)
                             }
                         }
                         "turn.end" -> {
-                            Log.d(TAG, "← turn.end (binary)")
+                            Logx.d(TAG) { "← turn.end (binary)" }
                             finish(webSocket, success = true, reason = "turn.end (binary)")
                         }
                     }
@@ -256,9 +253,9 @@ class EdgeTtsProvider(
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     val code = response?.code
-                    Log.e(TAG, "WS failure code=$code msg=${response?.message}", t)
+                    Logx.e(TAG, "WS failure code=$code msg=${response?.message}", t)
                     if (code == 403) {
-                        Log.w(TAG, "403 Forbidden received. Invalidating Chromium version.")
+                        Logx.w(TAG, "403 Forbidden received. Invalidating Chromium version.")
                         EdgeConfig.invalidate(context)
                     }
                     if (!resumed) {
@@ -268,7 +265,7 @@ class EdgeTtsProvider(
                 }
 
                 override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                    Log.d(TAG, "WS closing code=$code reason='$reason' turned=$turned audioSize=${audioBuf.size()}")
+                    Logx.d(TAG) { "WS closing code=$code reason='$reason' turned=$turned audioSize=${audioBuf.size()}" }
                     try { webSocket.close(1000, null) } catch (_: Exception) {}
                     if (!resumed) {
                         val hasAudio = audioBuf.size() > 0
@@ -277,7 +274,7 @@ class EdgeTtsProvider(
                 }
 
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                    Log.d(TAG, "WS closed code=$code reason='$reason' turned=$turned audioSize=${audioBuf.size()}")
+                    Logx.d(TAG) { "WS closed code=$code reason='$reason' turned=$turned audioSize=${audioBuf.size()}" }
                     if (!resumed) {
                         val hasAudio = audioBuf.size() > 0
                         finish(null, success = hasAudio, reason = "onClosed")
@@ -351,13 +348,13 @@ class EdgeTtsProvider(
 
     private fun writeMp3ToWav(mp3Bytes: ByteArray, outputFile: File): Boolean {
         if (mp3Bytes.isEmpty()) {
-            Log.e(TAG, "writeMp3ToWav: empty MP3 buffer for ${outputFile.name}")
+            Logx.e(TAG, "writeMp3ToWav: empty MP3 buffer for ${outputFile.name}")
             return false
         }
         return try {
             val pcm = decodeMp3ToPcm(mp3Bytes)
             if (pcm.isEmpty()) {
-                Log.e(TAG, "writeMp3ToWav: MediaCodec returned empty PCM")
+                Logx.e(TAG, "writeMp3ToWav: MediaCodec returned empty PCM")
                 return false
             }
             val header = buildWavHeader(
@@ -371,10 +368,10 @@ class EdgeTtsProvider(
                 os.write(pcm)
             }
             val ok = outputFile.exists() && outputFile.length() > 44
-            Log.d(TAG, "writeMp3ToWav: wrote ${pcm.size} PCM bytes, ok=$ok")
+            Logx.d(TAG) { "writeMp3ToWav: wrote ${pcm.size} PCM bytes, ok=$ok" }
             ok
         } catch (e: Exception) {
-            Log.e(TAG, "writeMp3ToWav failed: ${e.message}")
+            Logx.e(TAG, "writeMp3ToWav failed: ${e.message}")
             false
         }
     }
@@ -452,7 +449,7 @@ class EdgeTtsProvider(
                 try { codec.release() } catch (_: Exception) {}
             }
         } catch (e: Exception) {
-            Log.e(TAG, "decodeMp3ToPcm failed: ${e.message}")
+            Logx.e(TAG, "decodeMp3ToPcm failed: ${e.message}")
             return ByteArray(0)
         } finally {
             // [FIX D8] Гарантированное освобождение экстрактора
@@ -495,7 +492,7 @@ class EdgeTtsProvider(
             }
             output.exists() && output.length() > 44
         } catch (e: Exception) {
-            Log.e(TAG, "concatPcmWavFiles failed: ${e.message}")
+            Logx.e(TAG, "concatPcmWavFiles failed: ${e.message}")
             false
         }
     }

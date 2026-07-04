@@ -1,7 +1,6 @@
 package com.p2petrovich.telegramnewsreader.activities
 
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -26,6 +25,7 @@ import com.p2petrovich.telegramnewsreader.tts.EdgeTtsProvider
 import com.p2petrovich.telegramnewsreader.tts.TTSManagerSingleton
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.models.VoiceEntry
+import com.p2petrovich.telegramnewsreader.utils.Logx
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -276,7 +276,7 @@ class VoiceSelectionActivity : AppCompatActivity() {
                 }
             }
         } catch (e: Exception) {
-            Log.e("VoiceSelection", "Preview playback failed: ${e.message}")
+            Logx.e("VoiceSelection", "Preview playback failed: ${e.message}")
             previewPlayer?.release()
             previewPlayer = null
         }
@@ -291,7 +291,7 @@ class VoiceSelectionActivity : AppCompatActivity() {
             // Ждем инициализации Android TTS, иначе список voices будет неполным
             val isReady = ttsManager.waitInit()
             if (!isReady) {
-                Log.e("VoiceSelection", "TTS initialization timed out")
+                Logx.e("VoiceSelection", "TTS initialization timed out")
             }
 
             val allVoiceEntries = ttsManager.getAvailableVoiceEntries()

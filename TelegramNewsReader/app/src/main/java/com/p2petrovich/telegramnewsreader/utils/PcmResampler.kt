@@ -1,6 +1,5 @@
 package com.p2petrovich.telegramnewsreader.utils
 
-import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
 
@@ -41,7 +40,7 @@ object PcmResampler {
         return try {
             val bytes = input.readBytes()
             val wav = parseWav(bytes) ?: run {
-                Log.e(TAG, "normalizeToTarget: cannot parse ${input.name}")
+                Logx.e(TAG, "normalizeToTarget: cannot parse ${input.name}")
                 return null
             }
 
@@ -52,7 +51,7 @@ object PcmResampler {
                 return input
             }
 
-            Log.d(TAG, "Resampling ${input.name}: ${wav.sampleRate}Hz/${wav.channels}ch/${wav.bitsPerSample}bit -> $TARGET_SAMPLE_RATE/mono/16")
+            Logx.d(TAG) { "Resampling ${input.name}: ${wav.sampleRate}Hz/${wav.channels}ch/${wav.bitsPerSample}bit -> $TARGET_SAMPLE_RATE/mono/16" }
 
             val monoSamples = toMonoShorts(wav)
             val resampled = if (wav.sampleRate == TARGET_SAMPLE_RATE) monoSamples
@@ -78,7 +77,7 @@ object PcmResampler {
                 null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "normalizeToTarget failed for ${input.name}: ${e.message}")
+            Logx.e(TAG, "normalizeToTarget failed for ${input.name}: ${e.message}")
             null
         }
     }
@@ -116,7 +115,7 @@ object PcmResampler {
                 }
             }
             else -> {
-                Log.w(TAG, "Unsupported bitsPerSample=${wav.bitsPerSample}, treating as 16-bit")
+                Logx.w(TAG, "Unsupported bitsPerSample=${wav.bitsPerSample}, treating as 16-bit")
                 val frameCount = wav.pcm.size / (2 * ch)
                 ShortArray(frameCount) { frame ->
                     val idx = frame * ch * 2

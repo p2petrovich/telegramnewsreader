@@ -1,11 +1,9 @@
 package com.p2petrovich.telegramnewsreader.utils
 
 import android.content.Context
-import android.util.Log
 import com.p2petrovich.telegramnewsreader.ApiConfig
 import okhttp3.Request
 import org.json.JSONObject
-import java.util.concurrent.TimeUnit
 
 /**
  * Утилита для динамического управления версией Chromium для Edge TTS.
@@ -43,12 +41,12 @@ object EdgeConfig {
         }
 
         try {
-            Log.d("EdgeConfig", "Refreshing Chromium version from $VERSION_ENDPOINT")
+            Logx.d("EdgeConfig") { "Refreshing Chromium version from $VERSION_ENDPOINT" }
             val request = Request.Builder().url(VERSION_ENDPOINT).build()
             http.newCall(request).execute().use { resp ->
                 val body = resp.body?.string() ?: return
                 if (!resp.isSuccessful) {
-                    Log.w("EdgeConfig", "API response not successful: ${resp.code}")
+                    Logx.w("EdgeConfig", "API response not successful: ${resp.code}")
                     return
                 }
                 
@@ -61,13 +59,13 @@ object EdgeConfig {
                         .putString(KEY_FULL_VERSION, latest)
                         .putLong(KEY_UPDATED_AT, System.currentTimeMillis())
                         .apply()
-                    Log.i("EdgeConfig", "Chromium version updated to $latest")
+                    Logx.i("EdgeConfig") { "Chromium version updated to $latest" }
                 } else {
-                    Log.w("EdgeConfig", "Unexpected version format: $latest")
+                    Logx.w("EdgeConfig", "Unexpected version format: $latest")
                 }
             }
         } catch (e: Exception) {
-            Log.w("EdgeConfig", "Failed to refresh Chromium version: ${e.message}")
+            Logx.w("EdgeConfig", "Failed to refresh Chromium version: ${e.message}")
         }
     }
 }

@@ -11,14 +11,12 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.text.method.ScrollingMovementMethod
-import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -36,11 +34,9 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.google.android.material.chip.Chip
 import com.p2petrovich.telegramnewsreader.R
 import com.p2petrovich.telegramnewsreader.TelegramNewsApplication
 import com.p2petrovich.telegramnewsreader.adapters.ChannelAdapter
-import com.p2petrovich.telegramnewsreader.adapters.PresetAdapter
 import com.p2petrovich.telegramnewsreader.adapters.ProxyAdapter
 import com.p2petrovich.telegramnewsreader.databinding.ActivityMainBinding
 import com.p2petrovich.telegramnewsreader.models.Channel
@@ -53,7 +49,7 @@ import com.p2petrovich.telegramnewsreader.telegram.TelegramClient
 import com.p2petrovich.telegramnewsreader.telegram.TelegramClientManager
 import com.p2petrovich.telegramnewsreader.tts.TTSManager
 import com.p2petrovich.telegramnewsreader.tts.TTSManagerSingleton
-import com.p2petrovich.telegramnewsreader.utils.Deduplicator
+import com.p2petrovich.telegramnewsreader.utils.AudioUtils
 import com.p2petrovich.telegramnewsreader.utils.NewsCache
 import com.p2petrovich.telegramnewsreader.utils.AiProcessor
 import com.p2petrovich.telegramnewsreader.utils.UpdateChecker
@@ -61,9 +57,8 @@ import com.p2petrovich.telegramnewsreader.utils.DebugConfig
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.PresetManager
 import com.p2petrovich.telegramnewsreader.utils.SettingsBackup
-import kotlinx.coroutines.CancellationException
+import com.p2petrovich.telegramnewsreader.utils.Logx
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
@@ -138,7 +133,7 @@ class MainActivity : AppCompatActivity() {
                 val total = intent.getIntExtra(AudioPlayerService.EXTRA_TOTAL_ITEMS, 0)
                 val isPlaying = intent.getBooleanExtra(AudioPlayerService.EXTRA_IS_PLAYING, false)
                 if (DebugConfig.LOG_PLAYER_EVENTS) {
-                    Log.v("MainActivity", "Player progress: cur=$cur, total=$total, isPlaying=$isPlaying")
+                    Logx.v("MainActivity") { "Player progress: cur=$cur, total=$total, isPlaying=$isPlaying" }
                 }
 
                 val text = if (total > 0 && cur in 1..total) {
@@ -819,7 +814,7 @@ class MainActivity : AppCompatActivity() {
                 channels.forEach { it.newMessagesCount = newsCounts[it.id] ?: 0 }
                 runOnUiThread { channelAdapter.refreshVisibleItems() }
             } catch (e: Exception) {
-                Log.e("MainActivity", "Error loading initial news count", e)
+                Logx.e("MainActivity", "Error loading initial news count", e)
             }
         }
     }

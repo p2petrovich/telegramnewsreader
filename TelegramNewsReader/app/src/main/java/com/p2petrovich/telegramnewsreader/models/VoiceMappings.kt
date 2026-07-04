@@ -1,8 +1,6 @@
 package com.p2petrovich.telegramnewsreader.models
 
 import android.content.Context
-import android.speech.tts.Voice
-import android.util.Log
 
 object VoiceMappings {
 

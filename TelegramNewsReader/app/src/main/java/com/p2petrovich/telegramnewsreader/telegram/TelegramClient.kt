@@ -3,7 +3,6 @@ package com.p2petrovich.telegramnewsreader.telegram
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import org.drinkless.tdlib.Client
 import org.drinkless.tdlib.TdApi
 import com.p2petrovich.telegramnewsreader.ApiConfig
@@ -12,6 +11,7 @@ import com.p2petrovich.telegramnewsreader.models.Channel
 import com.p2petrovich.telegramnewsreader.utils.DebugConfig
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import com.p2petrovich.telegramnewsreader.utils.SecurityManager
+import com.p2petrovich.telegramnewsreader.utils.Logx
 import kotlinx.coroutines.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
@@ -66,7 +66,7 @@ class TelegramClient(private val context: Context) {
     }
 
     init {
-        Log.d(TAG, "Constructor; holder=${System.identityHashCode(this)}")
+        Logx.d(TAG) { "Constructor; holder=${System.identityHashCode(this)}" }
         initializeClient()
     }
 
@@ -101,17 +101,17 @@ class TelegramClient(private val context: Context) {
                             isAuthorized = false
                         }
                         is TdApi.AuthorizationStateWaitCode -> {
-                            Log.d(TAG, "Waiting for auth code")
+                            Logx.d(TAG) { "Waiting for auth code" }
                         }
                         is TdApi.AuthorizationStateWaitPassword -> {
-                            Log.d(TAG, "Waiting for 2FA password")
+                            Logx.d(TAG) { "Waiting for 2FA password" }
                             onPasswordRequired?.invoke()
                         }
                         is TdApi.AuthorizationStateWaitRegistration -> {
-                            Log.d(TAG, "Registration required")
+                            Logx.d(TAG) { "Registration required" }
                         }
                         is TdApi.AuthorizationStateClosing -> {
-                            Log.d(TAG, "Closing client")
+                            Logx.d(TAG) { "Closing client" }
                         }
                         is TdApi.AuthorizationStateClosed -> {
                             isInitialized = false
@@ -136,9 +136,9 @@ class TelegramClient(private val context: Context) {
                 else -> {}
             }
         }, { error ->
-            Log.e(TAG, "TDLib fatal error: ${error.message}")
+            Logx.e(TAG, "TDLib fatal error: ${error.message}")
         }, { logMessage ->
-            Log.v(TAG, "TDLib log: ${logMessage.message}")
+            Logx.v(TAG) { "TDLib log: ${logMessage.message}" }
         })
     }
 
@@ -149,7 +149,7 @@ class TelegramClient(private val context: Context) {
             is SecurityManager.KeyResult.Ok -> keyResult.key
             is SecurityManager.KeyResult.LostNeedsWipe -> {
                 // Ключ утерян: старая БД нечитаема. Сбрасываем каталоги и стартуем заново.
-                Log.w(TAG, "DB key lost — wiping TDLib dirs and re-initializing")
+                Logx.w(TAG, "DB key lost — wiping TDLib dirs and re-initializing")
                 ApiConfig.tdlibDatabaseDir(context).deleteRecursively()
                 ApiConfig.tdlibFilesDir(context).deleteRecursively()
                 // Сообщаем пользователю, что потребуется повторный вход.
@@ -161,14 +161,14 @@ class TelegramClient(private val context: Context) {
                 // чтобы новый ключ соответствовал новой (пустой) базе.
                 SecurityManager.resetKeyMarker(context)
 
-                Log.w(TAG, "Attempting retry after wipe...")
+                Logx.w(TAG, "Attempting retry after wipe...")
                 when (val retry = SecurityManager.getDatabaseEncryptionKeyChecked(context)) {
                     is SecurityManager.KeyResult.Ok -> {
-                        Log.w(TAG, "Retry succeeded, key length=${retry.key.size}")
+                        Logx.w(TAG, "Retry succeeded, key length=${retry.key.size}")
                         retry.key
                     }
                     else -> {
-                        Log.e(TAG, "Retry FAILED: $retry")
+                        Logx.e(TAG, "Retry FAILED: $retry")
                         onFatalError?.invoke(context.getString(R.string.security_error_keystore_unavailable))
                         return
                     }
@@ -197,9 +197,9 @@ class TelegramClient(private val context: Context) {
             android.os.Build.VERSION.RELEASE // systemVersion
         )) { result ->
             if (result is TdApi.Error) {
-                Log.e(TAG, "SetTdlibParameters error: ${result.message} (code: ${result.code})")
+                Logx.e(TAG, "SetTdlibParameters error: ${result.message} (code: ${result.code})")
             } else {
-                Log.d(TAG, "SetTdlibParameters success")
+                Logx.d(TAG) { "SetTdlibParameters success" }
             }
         }
     }
@@ -211,7 +211,7 @@ class TelegramClient(private val context: Context) {
     fun setPhoneNumber(phoneNumber: String, callback: (Boolean, String?) -> Unit) {
         client?.send(TdApi.SetAuthenticationPhoneNumber(phoneNumber, null)) { result ->
             if (result is TdApi.Error) {
-                Log.e(TAG, "SetPhoneNumber error: ${result.message} (code: ${result.code})")
+                Logx.e(TAG, "SetPhoneNumber error: ${result.message} (code: ${result.code})")
                 callback(false, result.message)
             } else {
                 callback(result is TdApi.Ok, null)
@@ -272,7 +272,7 @@ class TelegramClient(private val context: Context) {
 
                         // Watchdog timeout
                         handler.postDelayed({
-                            Log.w(TAG, "loadChannels watchdog fired: ${processed.get()}/$total processed, returning partial result")
+                            Logx.w(TAG, "loadChannels watchdog fired: ${processed.get()}/$total processed, returning partial result")
                             finishOnce()
                         }, 12_000L)
 
@@ -356,7 +356,7 @@ class TelegramClient(private val context: Context) {
     ): List<Pair<String, Int>> = suspendCancellableCoroutine { continuation ->
 
         if (!isInitialized || !isAuthorized || client == null) {
-            Log.w(TAG, "getChannelMessagesPaginated: Client not ready for channel $channelId")
+            Logx.w(TAG, "getChannelMessagesPaginated: Client not ready for channel $channelId")
             continuation.resume(emptyList()) { }
             return@suspendCancellableCoroutine
         }
@@ -377,7 +377,7 @@ class TelegramClient(private val context: Context) {
         }
 
         continuation.invokeOnCancellation {
-            Log.d(TAG, "History canceled for channel $channelId")
+            Logx.d(TAG) { "History canceled for channel $channelId" }
             isCancelled.set(true)
             closeChatOnce()
         }
@@ -386,7 +386,7 @@ class TelegramClient(private val context: Context) {
             if (isResumed.getAndSet(true)) return
             closeChatOnce()
             if (DebugConfig.LOG_TG_HISTORY) {
-                Log.d(TAG, "Channel $channelId: finished, found ${result.size} messages")
+                Logx.d(TAG) { "Channel $channelId: finished, found ${result.size} messages" }
             }
             if (continuation.isActive) continuation.resume(result) { }
         }
@@ -395,7 +395,7 @@ class TelegramClient(private val context: Context) {
             if (isCancelled.get() || isResumed.get()) return
 
             if (DebugConfig.LOG_TG_HISTORY) {
-                Log.v(TAG, "Channel $channelId: requesting page from $fromMessageId")
+                Logx.v(TAG) { "Channel $channelId: requesting page from $fromMessageId" }
             }
             client?.send(TdApi.GetChatHistory(channelId, fromMessageId, 0, 100, false)) { response ->
                 if (isCancelled.get() || isResumed.get()) return@send
@@ -404,7 +404,7 @@ class TelegramClient(private val context: Context) {
                     is TdApi.Messages -> {
                         val page = response.messages
                         if (DebugConfig.LOG_TG_HISTORY) {
-                            Log.v(TAG, "Channel $channelId: received ${page.size} items from TDLib")
+                            Logx.v(TAG) { "Channel $channelId: received ${page.size} items from TDLib" }
                         }
                         
                         if (page.isEmpty()) {
@@ -446,7 +446,7 @@ class TelegramClient(private val context: Context) {
                         // [CRITICAL FIX] Загрузка не должна останавливаться, если получено меньше 100 сообщений.
                         if (reachedDateLimit || loadedTotal >= maxMessages) {
                             if (DebugConfig.LOG_TG_HISTORY) {
-                                Log.d(TAG, "Channel $channelId: reached limits (date=$reachedDateLimit, total=$loadedTotal)")
+                                Logx.d(TAG) { "Channel $channelId: reached limits (date=$reachedDateLimit, total=$loadedTotal)" }
                             }
                             resumeOnce(messages)
                         } else {
@@ -454,7 +454,7 @@ class TelegramClient(private val context: Context) {
                         }
                     }
                     is TdApi.Error -> {
-                        Log.e(TAG, "GetChatHistory error for $channelId: ${response.message}")
+                        Logx.e(TAG, "GetChatHistory error for $channelId: ${response.message}")
                         resumeOnce(messages)
                     }
                     else -> resumeOnce(messages)
@@ -470,7 +470,7 @@ class TelegramClient(private val context: Context) {
                     
                     val lastMsgId = (chatResult as? TdApi.Chat)?.lastMessage?.id ?: 0L
                     if (DebugConfig.LOG_TG_HISTORY) {
-                        Log.d(TAG, "Channel $channelId: lastMsgId=$lastMsgId, starting loadPage (fromDate=$fromDate)")
+                        Logx.d(TAG) { "Channel $channelId: lastMsgId=$lastMsgId, starting loadPage (fromDate=$fromDate)" }
                     }
                     
                     loadPage(if (lastMsgId > 0) lastMsgId + 1 else 0)
@@ -500,12 +500,12 @@ class TelegramClient(private val context: Context) {
      * Очищает локальный кэш сообщений TDLib через оптимизацию хранилища.
      */
     fun clearTtsRelatedCache(callback: (Boolean) -> Unit) {
-        Log.d(TAG, "Full TDLib cache reset started...")
+        Logx.d(TAG) { "Full TDLib cache reset started..." }
         client?.send(TdApi.OptimizeStorage(
             0L, -1, -1, -1, null, null, null, true, 0
         )) { result ->
             val success = result is TdApi.StorageStatistics
-            Log.d(TAG, "TDLib storage optimization result: $success")
+            Logx.d(TAG) { "TDLib storage optimization result: $success" }
             callback(success)
         }
     }
@@ -528,11 +528,11 @@ class TelegramClient(private val context: Context) {
                             }
                         }
                         val proxyType = TdApi.ProxyTypeMtproto(secret)
-                        Log.d(TAG, "Applying MTProto proxy: $host:$port")
+                        Logx.d(TAG) { "Applying MTProto proxy: $host:$port" }
                         client?.send(TdApi.AddProxy(host, port, true, proxyType)) { res ->
                             if (res is TdApi.Proxy) {
                                 client?.send(TdApi.EnableProxy(res.id)) {
-                                    Log.d(TAG, "Proxy applied and enabled")
+                                    Logx.d(TAG) { "Proxy applied and enabled" }
                                 }
                             }
                         }
@@ -542,7 +542,7 @@ class TelegramClient(private val context: Context) {
             }
         }
         client?.send(TdApi.DisableProxy()) {
-            Log.d(TAG, "Proxy disabled")
+            Logx.d(TAG) { "Proxy disabled" }
         }
     }
 
@@ -580,7 +580,7 @@ class TelegramClient(private val context: Context) {
                     }
                     else -> {
                         val typeName = result?.javaClass?.simpleName ?: "null"
-                        Log.e(TAG, "TestProxy unknown result: $typeName")
+                        Logx.e(TAG, "TestProxy unknown result: $typeName")
                         callback(null, context.getString(R.string.proxy_unexpected_response, typeName))
                     }
                 }
@@ -608,10 +608,10 @@ class TelegramClient(private val context: Context) {
 
             false
         } catch (e: CancellationException) {
-            Log.e(TAG, "Waiting for ready was cancelled", e)
+            Logx.e(TAG, "Waiting for ready was cancelled", e)
             false
         } catch (e: Exception) {
-            Log.e(TAG, "Error waiting for ready", e)
+            Logx.e(TAG, "Error waiting for ready", e)
             false
         }
     }

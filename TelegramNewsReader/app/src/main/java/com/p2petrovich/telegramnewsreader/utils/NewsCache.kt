@@ -1,7 +1,6 @@
 package com.p2petrovich.telegramnewsreader.utils
 
 import android.content.Context
-import android.util.Log
 import java.io.File
 import java.security.MessageDigest
 
@@ -29,7 +28,7 @@ object NewsCache {
         val file = File(getCacheDir(context), "msg_$hash.wav")
         return if (file.exists() && file.length() > 0) {
             file.setLastModified(System.currentTimeMillis())
-            Log.d(TAG, "Cache HIT: $hash")
+            Logx.d(TAG) { "Cache HIT: $hash" }
             file
         } else null
     }
@@ -39,10 +38,10 @@ object NewsCache {
         return try {
             if (sourceWav.absolutePath == cacheFile.absolutePath) return cacheFile
             sourceWav.copyTo(cacheFile, overwrite = true)
-            Log.d(TAG, "Cached: $hash (${cacheFile.length() / 1024} KB)")
+            Logx.d(TAG) { "Cached: $hash (${cacheFile.length() / 1024} KB)" }
             cacheFile
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to cache", e)
+            Logx.e(TAG, "Failed to cache", e)
             null
         }
     }

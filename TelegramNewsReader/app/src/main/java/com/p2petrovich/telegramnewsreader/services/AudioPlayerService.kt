@@ -17,7 +17,6 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import android.support.v4.media.MediaMetadataCompat
@@ -26,6 +25,7 @@ import android.support.v4.media.session.PlaybackStateCompat
 import com.p2petrovich.telegramnewsreader.R
 import com.p2petrovich.telegramnewsreader.activities.MainActivity
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
+import com.p2petrovich.telegramnewsreader.utils.Logx
 import java.io.File
 import java.io.FileInputStream
 
@@ -74,23 +74,23 @@ class AudioPlayerService : Service() {
     private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS -> {
-                Log.d(TAG, "AudioFocus: LOSS")
+                Logx.d(TAG) { "AudioFocus: LOSS" }
                 pause()
                 playOnFocusGain = false
             }
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                Log.d(TAG, "AudioFocus: LOSS_TRANSIENT")
+                Logx.d(TAG) { "AudioFocus: LOSS_TRANSIENT" }
                 if (isActuallyPlaying()) {
                     pause()
                     playOnFocusGain = true
                 }
             }
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                Log.d(TAG, "AudioFocus: LOSS_TRANSIENT_CAN_DUCK")
+                Logx.d(TAG) { "AudioFocus: LOSS_TRANSIENT_CAN_DUCK" }
                 mediaPlayer?.setVolume(0.2f, 0.2f)
             }
             AudioManager.AUDIOFOCUS_GAIN -> {
-                Log.d(TAG, "AudioFocus: GAIN")
+                Logx.d(TAG) { "AudioFocus: GAIN" }
                 mediaPlayer?.setVolume(1.0f, 1.0f)
                 if (playOnFocusGain) {
                     play()
@@ -103,7 +103,7 @@ class AudioPlayerService : Service() {
     private val noisyReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
-                Log.d(TAG, "Audio becoming noisy (headphones disconnected)")
+                Logx.d(TAG) { "Audio becoming noisy (headphones disconnected)" }
                 pause()
             }
         }
@@ -186,7 +186,7 @@ class AudioPlayerService : Service() {
         if (paths.isNotEmpty()) {
             playlist = paths
             currentIndex = PreferenceManager.getPlayerIndex(this).coerceIn(0, (playlist.size - 1).coerceAtLeast(0))
-            Log.d(TAG, "restoreState: restored ${playlist.size} files, index $currentIndex")
+            Logx.d(TAG) { "restoreState: restored ${playlist.size} files, index $currentIndex" }
             prepareCurrentSilently()
         }
     }
@@ -231,7 +231,7 @@ class AudioPlayerService : Service() {
                 }
             }
             startForeground(NOTIFICATION_ID, buildNotification())
-        } catch (e: Exception) { Log.e(TAG, "onStartCommand exception", e) }
+        } catch (e: Exception) { Logx.e(TAG, "onStartCommand exception", e) }
         return START_STICKY
     }
 
@@ -267,7 +267,7 @@ class AudioPlayerService : Service() {
         newsFileIndices = newsIndices
         totalNewsCount = if (realNewsCount > 0) realNewsCount else newsIndices.size.coerceAtLeast(playlist.size)
 
-        Log.d(TAG, "setPlaylist: ${paths.size} files, news=$totalNewsCount, newsIndices=${newsIndices.size}")
+        Logx.d(TAG) { "setPlaylist: ${paths.size} files, news=$totalNewsCount, newsIndices=${newsIndices.size}" }
 
         val (cur, total) = computeProgress()
         sendProgress(cur, total, false)
@@ -313,21 +313,21 @@ class AudioPlayerService : Service() {
                 setOnPreparedListener { mp -> onPrepared(mp) }
                 setOnCompletionListener { handler.post { onTrackCompletion() } }
                 setOnErrorListener { _, what, extra ->
-                    Log.e(TAG, "MediaPlayer error: what=$what extra=$extra")
+                    Logx.e(TAG, "MediaPlayer error: what=$what extra=$extra")
                     handler.post { playNext() }
                     true
                 }
                 prepareAsync()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "createMediaPlayer failed", e)
+            Logx.e(TAG, "createMediaPlayer failed", e)
             handler.post { playNext() }
             null
         }
     }
 
     private fun safeStart(mp: MediaPlayer) {
-        try { if (!mp.isPlaying) mp.start() } catch (e: Exception) { Log.e(TAG, "safeStart failed", e) }
+        try { if (!mp.isPlaying) mp.start() } catch (e: Exception) { Logx.e(TAG, "safeStart failed", e) }
     }
 
     // ============ Play / Pause / Next ============
@@ -336,7 +336,7 @@ class AudioPlayerService : Service() {
         if (playlist.isEmpty()) return
         
         if (!requestAudioFocus()) {
-            Log.w(TAG, "Failed to request audio focus")
+            Logx.w(TAG, "Failed to request audio focus")
             return
         }
 
@@ -361,18 +361,18 @@ class AudioPlayerService : Service() {
         if (playlist.isEmpty()) return
         if (currentIndex < playlist.lastIndex) {
             currentIndex++
-            Log.d(TAG, "playNext: -> file $currentIndex/${playlist.size}")
+            Logx.d(TAG) { "playNext: -> file $currentIndex/${playlist.size}" }
             PreferenceManager.savePlayerIndex(this, currentIndex)
             prepareAndPlay()
         } else {
-            Log.d(TAG, "playNext: end of playlist")
+            Logx.d(TAG) { "playNext: end of playlist" }
             PreferenceManager.clearPlayerState(this)
             stopServiceSafely()
         }
     }
 
     private fun onTrackCompletion() {
-        Log.d(TAG, "onTrackCompletion: file $currentIndex done")
+        Logx.d(TAG) { "onTrackCompletion: file $currentIndex done" }
         playNext()
     }
 

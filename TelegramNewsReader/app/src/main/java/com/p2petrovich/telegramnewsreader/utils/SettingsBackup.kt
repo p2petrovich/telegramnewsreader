@@ -190,10 +190,10 @@ object SettingsBackup {
             contentValues.put(MediaStore.Downloads.IS_PENDING, 0)
             context.contentResolver.update(uri, contentValues, null, null)
 
-            android.util.Log.d(TAG, "Successfully saved to MediaStore: $fileName")
+            Logx.d(TAG) { "Successfully saved to MediaStore: $fileName" }
             true
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "MediaStore save failed: ${e.message}", e)
+            Logx.e(TAG, "MediaStore save failed: ${e.message}", e)
             false
         }
     }
@@ -203,14 +203,14 @@ object SettingsBackup {
             val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
             if (!downloadsDir.exists()) {
                 val created = downloadsDir.mkdirs()
-                android.util.Log.d(TAG, "Downloads dir created: $created")
+                Logx.d(TAG) { "Downloads dir created: $created" }
             }
             val backupFile = File(downloadsDir, fileName)
             backupFile.writeBytes(data)
-            android.util.Log.d(TAG, "Successfully saved to legacy storage: ${backupFile.absolutePath}")
+            Logx.d(TAG) { "Successfully saved to legacy storage: ${backupFile.absolutePath}" }
             true
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Legacy save failed: ${e.message}", e)
+            Logx.e(TAG, "Legacy save failed: ${e.message}", e)
             false
         }
     }
@@ -389,7 +389,7 @@ object SettingsBackup {
                 } catch (e: GeneralSecurityException) {
                     // Другое устройство / сброшенный Keystore / повреждение blob —
                     // несекретная часть уже восстановлена, просто логируем и продолжаем.
-                    android.util.Log.w(TAG, "Секреты бэкапа не расшифрованы: ${e.javaClass.simpleName}")
+                    Logx.w(TAG, "Секреты бэкапа не расшифрованы: ${e.javaClass.simpleName}")
                 }
             }
 
