@@ -10,7 +10,7 @@ The App operates primarily locally but interacts with external services to provi
 
 - **Telegram Data**: The App connects directly to Telegram servers using the official **TDLib** library. Your credentials (phone number, code) are transmitted only to Telegram servers. News content is downloaded directly into an encrypted local database on your device.
 
-- **AI Summarization**: When AI features are enabled, the news text (without author or channel metadata) is sent to your chosen provider (**OpenRouter** or **Groq**).
+- **AI Summarization**: When AI features are enabled, the news text (without author or channel metadata) is sent to your chosen provider (**Google Gemini**, **OpenRouter**, or **Groq**).
   - Data sent: Article text only (limited to 8000 characters), selected model, and style.
   - **Security**: Your API keys are stored in the secure Android Keystore.
 
@@ -31,6 +31,7 @@ The App operates primarily locally but interacts with external services to provi
 ## 3. Analytics and Advertising
 
 - The App contains **no** advertising modules, third-party trackers (Google Analytics, Firebase, etc.), or automated crash-reporting systems.
+- **Logging**: Any debug logs are **entirely local**, managed via `DebugConfig.kt`, and are never transmitted to external servers.
 - We do not collect information about your news preferences, channels, or listening history.
 
 ## 4. Permissions
