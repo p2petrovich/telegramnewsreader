@@ -21,7 +21,7 @@
 
 - **Smart Aggregation** — Choose channels and a collection window (from 10 minutes to 24 hours).
 - **Intelligent Filtering** — Automatically removes ads, links, promo blocks, and filler phrases (including channel-specific filters).
-- **AI Editor** — Three processing modes: from simple cleanup to ultra-short "flash" summaries. Supports **Groq** and **OpenRouter** models.
+- **AI Editor** — Three processing modes: from simple cleanup to ultra-short "flash" summaries. Supports **Google Gemini**, **Groq**, and **OpenRouter** models.
 - **Advanced Deduplication** — Uses anchor fingerprints (numbers, proper nouns, abbreviations) to eliminate duplicate stories across multiple channels.
 - **Audio Playlist** — Background player with notification controls, lock screen support, and Bluetooth media buttons.
 - **Flexible Playback Order** — 4 modes: by channel or chronologically, newest or oldest first.
@@ -53,7 +53,7 @@ A hybrid algorithm for detecting duplicate news:
 - **PcmResampler** — Custom audio normalization (24kHz / 16-bit / Mono) for seamless stitching of mixed TTS sources.
 
 ### 3. AI Processing (`AiProcessor.kt`)
-- **Parallelism** — Processes up to 3 articles simultaneously using a semaphore system.
+- **Parallelism** — Processes up to 10 articles simultaneously (for Groq) using a semaphore system, significantly speeding up the aggregation process.
 - **Adaptive Prompts** — Auto-detects language (RU/EN) and selects the matching prompt.
 - **Reliability** — Retry logic for rate limit errors (HTTP 429) with exponential backoff.
 
@@ -102,11 +102,12 @@ A hybrid algorithm for detecting duplicate news:
 
 ## 🛠️ Build & Development
 
-Create a `local.properties` file:
+1. Create a `local.properties` file:
 ```properties
 telegram.api.id=YOUR_ID
 telegram.api.hash=YOUR_HASH
 ```
+2. **Logging**: Use the centralized system in `DebugConfig.kt` for debugging. Details in [LOGGING_GUIDE.md](LOGGING_GUIDE.md).
 
 ---
 
