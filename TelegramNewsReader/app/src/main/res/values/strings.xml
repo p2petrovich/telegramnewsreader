@@ -93,6 +93,7 @@
     <string name="no_backups_found">No backups found</string>
     <string name="restore_error">Restore error</string>
     <string name="proxy_updated">Proxy settings updated</string>
+    <string name="proxy_deleted">Proxy server deleted</string>
     <string name="clipboard_no_proxy">No proxy link in clipboard</string>
 
     <string name="enter_cloud_password">Enter cloud password</string>

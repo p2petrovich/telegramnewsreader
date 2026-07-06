@@ -39,6 +39,9 @@ import com.p2petrovich.telegramnewsreader.TelegramNewsApplication
 import com.p2petrovich.telegramnewsreader.adapters.ChannelAdapter
 import com.p2petrovich.telegramnewsreader.adapters.ProxyAdapter
 import com.p2petrovich.telegramnewsreader.databinding.ActivityMainBinding
+import com.p2petrovich.telegramnewsreader.fragments.AiSettingsDialogFragment
+import com.p2petrovich.telegramnewsreader.fragments.ProxySettingsDialogFragment
+import com.p2petrovich.telegramnewsreader.fragments.ThemeSelectionDialogFragment
 import com.p2petrovich.telegramnewsreader.models.Channel
 import com.p2petrovich.telegramnewsreader.models.ChannelPreset
 import com.p2petrovich.telegramnewsreader.models.ProxyEntry
@@ -988,7 +991,9 @@ class MainActivity : AppCompatActivity() {
 
         dialogView.findViewById<View>(R.id.btn_ai_settings)?.setOnClickListener {
             dialog.dismiss()
-            showAiSettingsDialog()
+            val fragment = AiSettingsDialogFragment()
+            fragment.setOnDismissListener { showSettingsDialog() }
+            fragment.show(supportFragmentManager, "ai_settings")
         }
 
         dialogView.findViewById<View>(R.id.btn_news_order)?.setOnClickListener {
@@ -998,7 +1003,9 @@ class MainActivity : AppCompatActivity() {
 
         dialogView.findViewById<View>(R.id.btn_color_theme)?.setOnClickListener {
             dialog.dismiss()
-            showColorThemeDialog()
+            val fragment = ThemeSelectionDialogFragment()
+            fragment.setOnDismissListener { showSettingsDialog() }
+            fragment.show(supportFragmentManager, "theme_selection")
         }
 
         dialogView.findViewById<View>(R.id.btn_manage_presets_settings)?.setOnClickListener {
@@ -1011,7 +1018,10 @@ class MainActivity : AppCompatActivity() {
         }
         dialogView.findViewById<View>(R.id.btn_proxy_settings)?.setOnClickListener {
             dialog.dismiss()
-            showProxySettingsDialog()
+            val fragment = ProxySettingsDialogFragment()
+            fragment.setTelegramClient(telegramClient)
+            fragment.setOnDismissListener { showSettingsDialog() }
+            fragment.show(supportFragmentManager, "proxy_settings")
         }
         dialogView.findViewById<View>(R.id.btn_voice_settings)?.setOnClickListener {
             dialog.dismiss()
@@ -1140,409 +1150,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun showProxySettingsDialog() {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_proxy_settings, null)
-        val swEnabled = dialogView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switch_proxy_enabled)
-        val recycler = dialogView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recycler_proxies)
-        val tvEmpty = dialogView.findViewById<TextView>(R.id.tv_proxies_empty)
-        val btnAdd = dialogView.findViewById<Button>(R.id.btn_add_proxy)
-        val layoutAuto = dialogView.findViewById<LinearLayout>(R.id.layout_auto_switch_settings)
-        val swAuto = dialogView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switch_auto_proxy)
-        val spinnerInterval = dialogView.findViewById<Spinner>(R.id.spinner_proxy_interval)
-
-        val proxies = PreferenceManager.getProxyList(this).toMutableList()
-
-        val updateEmptyState = {
-            if (proxies.isEmpty()) {
-                tvEmpty.visibility = View.VISIBLE
-                recycler.visibility = View.GONE
-                layoutAuto.visibility = View.GONE
-            } else {
-                tvEmpty.visibility = View.GONE
-                recycler.visibility = View.VISIBLE
-                layoutAuto.visibility = if (proxies.size >= 2) View.VISIBLE else View.GONE
-            }
-        }
-
-        var adapter: ProxyAdapter? = null
-
-        val testAllProxies = {
-            proxies.forEach { proxy ->
-                telegramClient.testProxy(proxy.host, proxy.port, proxy.secret) { ping, error ->
-                    runOnUiThread {
-                        if (ping != null) {
-                            val pingMs = (ping * 1000).toInt()
-                            val status = getString(R.string.proxy_connected_ping, pingMs)
-                            val color = 0xFF4CAF50.toInt()
-                            adapter?.updatePing(proxy.id, status, color)
-                        } else {
-                            val status = if (error != null) getString(R.string.proxy_unavailable_reason, error) else getString(R.string.proxy_unavailable)
-                            val color = 0xFFFF5252.toInt()
-                            adapter?.updatePing(proxy.id, status, color)
-                        }
-                    }
-                }
-            }
-        }
-
-        swEnabled.isChecked = PreferenceManager.isProxyEnabled(this)
-        swAuto.isChecked = PreferenceManager.isProxyAutoSwitchEnabled(this)
-
-        val intervals = listOf(5, 10, 15, 30, 60)
-        val intervalAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, intervals.map { "$it ${getString(R.string.min_short)}" })
-        intervalAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinnerInterval.adapter = intervalAdapter
-        spinnerInterval.setSelection(intervals.indexOf(PreferenceManager.getProxySwitchInterval(this)).coerceAtLeast(0))
-
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.mtproto_title)
-            .setView(dialogView)
-            .setPositiveButton(R.string.save) { _, _ ->
-                PreferenceManager.setProxyEnabled(this, swEnabled.isChecked)
-                PreferenceManager.setProxyAutoSwitchEnabled(this, swAuto.isChecked)
-                PreferenceManager.setProxySwitchInterval(this, intervals[spinnerInterval.selectedItemPosition])
-
-                telegramClient.applyProxySettings()
-                Toast.makeText(this, getString(R.string.proxy_updated), Toast.LENGTH_SHORT).show()
-                showSettingsDialog()
-            }
-            .setNegativeButton(R.string.cancel) { _, _ -> showSettingsDialog() }
-            .setOnCancelListener { showSettingsDialog() }
-            .create()
-
-        adapter = ProxyAdapter(
-            proxies = proxies,
-            onProxySelected = { selected ->
-                proxies.forEach { it.isEnabled = it.id == selected.id }
-                PreferenceManager.saveProxyList(this, proxies)
-                adapter?.updateData(proxies)
-                telegramClient.applyProxySettings()
-            },
-            onProxyEdit = { proxy ->
-                dialog.dismiss()
-                showAddEditProxyDialog(proxy) { updated ->
-                    val idx = proxies.indexOfFirst { it.id == updated.id }
-                    if (idx >= 0) {
-                        proxies[idx] = updated
-                        PreferenceManager.saveProxyList(this, proxies)
-                        showProxySettingsDialog()
-                    }
-                }
-            },
-            onProxyTest = { _, _ -> }
-        )
-
-        recycler.layoutManager = LinearLayoutManager(this)
-        recycler.adapter = adapter
-        updateEmptyState()
-        testAllProxies()
-
-        btnAdd.setOnClickListener {
-            dialog.dismiss()
-            showAddEditProxyDialog(null) { newProxy ->
-                if (proxies.isEmpty()) newProxy.isEnabled = true
-                proxies.add(newProxy)
-                PreferenceManager.saveProxyList(this, proxies)
-                showProxySettingsDialog()
-            }
-        }
-
-        dialog.show()
-    }
-
-    private fun showAddEditProxyDialog(proxy: ProxyEntry?, onSaved: (ProxyEntry) -> Unit) {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_proxy_add, null)
-        val etHost = dialogView.findViewById<EditText>(R.id.et_proxy_host)
-        val etPort = dialogView.findViewById<EditText>(R.id.et_proxy_port)
-        val etSecret = dialogView.findViewById<EditText>(R.id.et_proxy_secret)
-        val btnPaste = dialogView.findViewById<Button>(R.id.btn_paste_inline)
-        val btnDelete = dialogView.findViewById<Button>(R.id.btn_delete_proxy_inline)
-
-        if (proxy != null) {
-            etHost.setText(proxy.host)
-            etPort.setText(proxy.port.toString())
-            etSecret.setText(proxy.secret)
-            btnDelete.visibility = View.VISIBLE
-        }
-
-        val alertDialog = AlertDialog.Builder(this)
-            .setTitle(R.string.proxy_server)
-            .setView(dialogView)
-            .setPositiveButton(R.string.done) { _, _ ->
-                val host = etHost.text.toString().trim()
-                val port = etPort.text.toString().toIntOrNull() ?: 0
-                val secret = etSecret.text.toString().trim()
-
-                if (host.isNotEmpty() && port > 0 && secret.isNotEmpty()) {
-                    val updated = proxy?.copy(host = host, port = port, secret = secret)
-                        ?: ProxyEntry(host = host, port = port, secret = secret)
-                    onSaved(updated)
-                } else {
-                    Toast.makeText(this, getString(R.string.save_proxy_error), Toast.LENGTH_SHORT).show()
-                    showProxySettingsDialog()
-                }
-            }
-            .setNegativeButton(R.string.cancel) { _, _ ->
-                showProxySettingsDialog()
-            }
-            .setOnCancelListener {
-                showProxySettingsDialog()
-            }
-            .create()
-
-        btnPaste.setOnClickListener {
-            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            val text = clipboard.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
-            if (text.startsWith("tg://proxy?") || text.startsWith("https://t.me/proxy?")) {
-                val uri = Uri.parse(text.replace("tg://proxy", "https://t.me/proxy"))
-                etHost.setText(uri.getQueryParameter("server") ?: "")
-                etPort.setText(uri.getQueryParameter("port") ?: "")
-                etSecret.setText(uri.getQueryParameter("secret") ?: "")
-            } else {
-                Toast.makeText(this, getString(R.string.clipboard_no_proxy), Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        btnDelete.setOnClickListener {
-            if (proxy != null) {
-                val proxies = PreferenceManager.getProxyList(this).toMutableList()
-                proxies.removeAll { it.id == proxy.id }
-                PreferenceManager.saveProxyList(this, proxies)
-                alertDialog.dismiss()
-                showProxySettingsDialog()
-            }
-        }
-
-        alertDialog.show()
-    }
-
-    private fun showAiSettingsDialog() {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_ai_settings, null)
-        val switchEnabled = dialogView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switch_ai_enabled)
-        val spinnerProvider = dialogView.findViewById<android.widget.Spinner>(R.id.spinner_ai_provider)
-        val spinnerModel = dialogView.findViewById<android.widget.Spinner>(R.id.spinner_ai_model)
-        val spinnerStyle = dialogView.findViewById<android.widget.Spinner>(R.id.spinner_ai_style)
-        val btnTestManual = dialogView.findViewById<android.widget.Button>(R.id.btn_test_ai_model)
-        val tvStatusManual = dialogView.findViewById<android.widget.TextView>(R.id.tv_ai_test_status)
-
-        //   
-        btnTestManual?.visibility = View.VISIBLE
-        tvStatusManual?.visibility = View.VISIBLE
-
-        switchEnabled.isChecked = PreferenceManager.isAiSummaryEnabled(this)
-
-        // API-:    
-        val tilOpenRouterKey = dialogView.findViewById<TextInputLayout>(R.id.til_openrouter_key)
-        val etOpenRouterKey  = dialogView.findViewById<TextInputEditText>(R.id.et_openrouter_key)
-        val tilGroqKey       = dialogView.findViewById<TextInputLayout>(R.id.til_groq_key)
-        val etGroqKey        = dialogView.findViewById<TextInputEditText>(R.id.et_groq_key)
-        val tilGeminiKey      = dialogView.findViewById<TextInputLayout>(R.id.til_gemini_key)
-        val etGeminiKey       = dialogView.findViewById<TextInputEditText>(R.id.et_gemini_key)
-
-        etOpenRouterKey?.setText(PreferenceManager.getOpenRouterApiKey(this))
-        etGroqKey?.setText(PreferenceManager.getGroqApiKey(this))
-        etGeminiKey?.setText(PreferenceManager.getGeminiApiKey(this))
-
-        fun updateKeyFieldVisibility(provider: String) {
-            tilOpenRouterKey?.visibility = if (provider == "openrouter") View.VISIBLE else View.GONE
-            tilGroqKey?.visibility       = if (provider == "groq")  View.VISIBLE else View.GONE
-            tilGeminiKey?.visibility     = if (provider == "gemini") View.VISIBLE else View.GONE
-        }
-
-        val providers = listOf(
-            "openrouter" to "OpenRouter",
-            "groq"       to "Groq",
-            "gemini"     to "Google Gemini"
-        )
-        val providerAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, providers.map { it.second })
-        providerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinnerProvider.adapter = providerAdapter
-
-        val currentProvider = PreferenceManager.getAiProvider(this)
-        spinnerProvider.setSelection(providers.indexOfFirst { it.first == currentProvider }.coerceAtLeast(0))
-        updateKeyFieldVisibility(currentProvider)
-
-        fun getModelsForProvider(provider: String): List<Pair<String, String>> = when (provider) {
-            "gemini" -> listOf(
-                "gemini-2.5-flash-lite" to "Gemini 2.5 Flash-Lite (AI Studio) — FREE"
-            )
-            "groq" -> listOf(
-                "llama-3.3-70b-versatile"                  to getString(R.string.ai_model_llama_fast),
-                "llama-3.1-8b-instant"                     to getString(R.string.ai_model_llama_instant),
-                "meta-llama/llama-4-scout-17b-16e-instruct" to getString(R.string.ai_model_llama_new)
-            )
-            else -> listOf(
-                "openai/gpt-oss-120b:free"              to getString(R.string.ai_model_gpt_oss_120b_free),
-                "google/gemma-4-26b-a4b-it:free"        to getString(R.string.ai_model_gemma_4_26b_free),
-                "nvidia/nemotron-3-super-120b-a12b:free" to getString(R.string.ai_model_nemotron_3_super_free)
-            )
-        }
-
-        val currentModels = getModelsForProvider(currentProvider).toMutableList()
-        val modelStatuses = mutableMapOf<String, String>()
-
-        val modelAdapter = object : android.widget.ArrayAdapter<Pair<String, String>>(
-            this, R.layout.item_model_status, currentModels
-        ) {
-            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-                return createViewFromResource(position, convertView, parent, R.layout.item_model_status)
-            }
-            override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View {
-                return createViewFromResource(position, convertView, parent, R.layout.item_model_status)
-            }
-            private fun createViewFromResource(position: Int, convertView: View?, parent: ViewGroup, resource: Int): View {
-                val view = convertView ?: layoutInflater.inflate(resource, parent, false)
-                val item = if (position < count) getItem(position) else null
-                val tvName = view.findViewById<TextView>(R.id.tv_model_name)
-                val tvStatus = view.findViewById<TextView>(R.id.tv_model_status)
-
-                tvName.text = item?.second ?: ""
-                val status = modelStatuses[item?.first] ?: ""
-                tvStatus.text = status
-
-                when (status) {
-                    "" -> tvStatus.setTextColor(Color.GREEN)
-                    "" -> tvStatus.setTextColor(Color.RED)
-                    else -> tvStatus.setTextColor(Color.GRAY)
-                }
-                return view
-            }
-        }
-        spinnerModel.adapter = modelAdapter
-
-        fun updateModelsAndCheck(provider: String) {
-            currentModels.clear()
-            currentModels.addAll(getModelsForProvider(provider))
-            modelAdapter.notifyDataSetChanged()
-
-            val savedModel = PreferenceManager.getAiModel(this)
-            val modelIdx = currentModels.indexOfFirst { it.first == savedModel }.coerceAtLeast(0)
-            spinnerModel.setSelection(modelIdx)
-
-            lifecycleScope.launch {
-                currentModels.forEach { modelPair ->
-                    modelStatuses[modelPair.first] = ""
-                }
-                modelAdapter.notifyDataSetChanged()
-
-                currentModels.map { modelPair ->
-                    async {
-                        val result = AiProcessor.testModelAvailability(modelPair.first, this@MainActivity)
-                        modelStatuses[modelPair.first] = if (result.first) "" else ""
-                        withContext(Dispatchers.Main) { modelAdapter.notifyDataSetChanged() }
-                    }
-                }.awaitAll()
-            }
-        }
-
-        spinnerProvider.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
-                val newProvider = providers[position].first
-                updateKeyFieldVisibility(newProvider)
-                if (newProvider != PreferenceManager.getAiProvider(this@MainActivity)) {
-                    PreferenceManager.setAiProvider(this@MainActivity, newProvider)
-                    PreferenceManager.setAiModel(this@MainActivity, PreferenceManager.getDefaultModelForProvider(newProvider))
-                    updateModelsAndCheck(newProvider)
-                } else {
-                    updateModelsAndCheck(currentProvider)
-                }
-            }
-            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
-        }
-
-        btnTestManual?.setOnClickListener {
-            val selectedModel = currentModels[spinnerModel.selectedItemPosition].first
-
-            //    ,  AiProcessor  
-            PreferenceManager.saveOpenRouterApiKey(this, etOpenRouterKey?.text?.toString()?.trim() ?: "")
-            PreferenceManager.saveGroqApiKey(this, etGroqKey?.text?.toString()?.trim() ?: "")
-
-            tvStatusManual?.visibility = View.VISIBLE
-            tvStatusManual?.text = getString(R.string.proxy_status_checking)
-            tvStatusManual?.setTextColor(Color.GRAY)
-
-            lifecycleScope.launch {
-                val result = AiProcessor.testModelAvailability(selectedModel, this@MainActivity)
-                runOnUiThread {
-                    tvStatusManual?.text = if (result.first) getString(R.string.ai_model_available) else result.second
-                    tvStatusManual?.setTextColor(if (result.first) Color.GREEN else Color.RED)
-
-                    //     
-                    modelStatuses[selectedModel] = if (result.first) "" else ""
-                    modelAdapter.notifyDataSetChanged()
-                }
-            }
-        }
-
-        val styles = listOf(
-            "minimal" to getString(R.string.ai_style_minimal),
-            "balanced" to getString(R.string.ai_style_balanced),
-            "extreme" to getString(R.string.ai_style_extreme)
-        )
-
-        val styleAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, styles.map { it.second })
-        styleAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinnerStyle.adapter = styleAdapter
-
-        val currentStyle = PreferenceManager.getAiStyle(this)
-
-        val styleIdx = styles.indexOfFirst { it.first == currentStyle }.coerceAtLeast(0)
-        spinnerStyle.setSelection(styleIdx)
-
-        AlertDialog.Builder(this)
-            .setView(dialogView)
-            .setPositiveButton(R.string.save) { _, _ ->
-                // Сохраняем API-ключи
-                PreferenceManager.saveOpenRouterApiKey(this, etOpenRouterKey?.text?.toString()?.trim() ?: "")
-                PreferenceManager.saveGroqApiKey(this, etGroqKey?.text?.toString()?.trim() ?: "")
-                PreferenceManager.saveGeminiApiKey(this, etGeminiKey?.text?.toString()?.trim() ?: "")
-                PreferenceManager.setAiSummaryEnabled(this, switchEnabled.isChecked)
-                val selectedModel = currentModels[spinnerModel.selectedItemPosition].first
-                val selectedStyle = styles[spinnerStyle.selectedItemPosition].first
-                PreferenceManager.setAiModel(this, selectedModel)
-                PreferenceManager.setAiStyle(this, selectedStyle)
-                Toast.makeText(this, getString(R.string.ai_settings_saved), Toast.LENGTH_SHORT).show()
-                showSettingsDialog()
-            }
-            .setNegativeButton(R.string.cancel) { _, _ -> showSettingsDialog() }
-            .setOnCancelListener { showSettingsDialog() }
-            .show()
-    }
-
-    private fun showColorThemeDialog() {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_color_theme, null)
-        val dialog = AlertDialog.Builder(this).setView(dialogView).create()
-
-        val rgColorTheme = dialogView.findViewById<android.widget.RadioGroup>(R.id.rg_color_theme)
-        val btnSave = dialogView.findViewById<Button>(R.id.btn_save_theme)
-        val btnCancel = dialogView.findViewById<Button>(R.id.btn_cancel_theme)
-
-        val currentTheme = PreferenceManager.getColorTheme(this)
-        when (currentTheme) {
-            "teal" -> rgColorTheme?.check(R.id.rb_theme_teal)
-            "light" -> rgColorTheme?.check(R.id.rb_theme_light)
-            else -> rgColorTheme?.check(R.id.rb_theme_purple)
-        }
-
-        btnCancel.setOnClickListener {
-            dialog.dismiss()
-        }
-
-        btnSave.setOnClickListener {
-            val selectedTheme = when (rgColorTheme?.checkedRadioButtonId) {
-                R.id.rb_theme_teal -> "teal"
-                R.id.rb_theme_light -> "light"
-                else -> "purple"
-            }
-            PreferenceManager.saveColorTheme(this, selectedTheme)
-            dialog.dismiss()
-            recreate()
-        }
-
-        dialog.setOnCancelListener { showSettingsDialog() }
-
-        dialog.show()
-    }
+    // [DELETE] showProxySettingsDialog extracted to ProxySettingsDialogFragment
+    // [DELETE] showAddEditProxyDialog extracted to ProxySettingsDialogFragment
+    // [DELETE] showAiSettingsDialog extracted to AiSettingsDialogFragment
+    // [DELETE] showColorThemeDialog extracted to ThemeSelectionDialogFragment
 
     private fun showNewsOrderDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_news_order, null)

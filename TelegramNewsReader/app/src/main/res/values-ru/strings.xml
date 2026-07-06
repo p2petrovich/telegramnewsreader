@@ -93,6 +93,7 @@
     <string name="no_backups_found">Резервных копий не найдено</string>
     <string name="restore_error">Ошибка при восстановлении</string>
     <string name="proxy_updated">Настройки прокси обновлены</string>
+    <string name="proxy_deleted">Прокси-сервер удален</string>
     <string name="clipboard_no_proxy">В буфере нет ссылки на прокси</string>
 
     <string name="enter_cloud_password">Введите облачный пароль</string>
