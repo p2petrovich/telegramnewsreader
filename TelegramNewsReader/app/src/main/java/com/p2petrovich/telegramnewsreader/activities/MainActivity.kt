@@ -1825,8 +1825,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        try { unregisterReceiver(progressReceiver) } catch (_: Exception) {}
-        try { unregisterReceiver(ttsErrorReceiver) } catch (_: Exception) {}
+        try { unregisterReceiver(progressReceiver) } catch (e: Exception) { Logx.v("MainActivity") { "progressReceiver not registered" } }
+        try { unregisterReceiver(ttsErrorReceiver) } catch (e: Exception) { Logx.v("MainActivity") { "ttsErrorReceiver not registered" } }
         stopTimer()
     }
 }

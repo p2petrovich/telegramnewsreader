@@ -390,8 +390,8 @@ class AudioPlayerService : Service() {
     }
 
     private fun releasePlayer() {
-        try { mediaPlayer?.stop() } catch (_: Exception) {}
-        try { mediaPlayer?.release() } catch (_: Exception) {}
+        try { mediaPlayer?.stop() } catch (e: Exception) { Logx.e(TAG, "Failed to stop player", e) }
+        try { mediaPlayer?.release() } catch (e: Exception) { Logx.e(TAG, "Failed to release player", e) }
         mediaPlayer = null
     }
 

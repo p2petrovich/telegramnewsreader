@@ -347,6 +347,7 @@ class MainViewModel : ViewModel() {
     fun getDeduplicator(context: Context): Deduplicator {
         if (deduplicator == null) {
             deduplicator = Deduplicator(
+                context = context.applicationContext,
                 isEnabled = PreferenceManager.isDedupEnabled(context),
                 matchThreshold = PreferenceManager.getDedupThreshold(context),
                 historySize = PreferenceManager.getDedupHistorySize(context),
