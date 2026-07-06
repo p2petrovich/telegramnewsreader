@@ -1,11 +1,11 @@
 package com.p2petrovich.telegramnewsreader.utils
 
 import android.content.Context
+import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONArray
-import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -17,12 +17,49 @@ object AiProcessor {
     private const val GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
     private const val GEMINI_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s"
 
-    private val client = HttpClients.shared
-
-    private val testClient = HttpClients.shared.newBuilder()
+    private val gson = Gson()
+    private val client = HttpClients.shared.newBuilder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(90, TimeUnit.SECONDS)
         .build()
+
+    // --- Data Models for JSON ---
+
+    private data class OpenAIRequest(
+        val model: String,
+        val messages: List<Message>,
+        @SerializedName("max_tokens") val maxTokens: Int,
+        val temperature: Float
+    ) {
+        data class Message(val role: String, val content: String)
+    }
+
+    private data class GeminiRequest(
+        val contents: List<Content>,
+        val generationConfig: GenerationConfig
+    ) {
+        data class Content(val parts: List<Part>)
+        data class Part(val text: String)
+        data class GenerationConfig(
+            val temperature: Float,
+            val maxOutputTokens: Int,
+            val thinkingConfig: ThinkingConfig? = null
+        )
+        data class ThinkingConfig(val includeThoughts: Boolean, val thinkingBudget: Int)
+    }
+
+    private data class OpenAIResponse(val choices: List<Choice>?) {
+        data class Choice(val message: Message?)
+        data class Message(val content: String?)
+    }
+
+    private data class GeminiResponse(val candidates: List<Candidate>?) {
+        data class Candidate(val content: Content?)
+        data class Content(val parts: List<Part>?)
+        data class Part(val text: String?)
+    }
+
+    // --- Implementation ---
 
     private fun providerConfig(context: Context): Triple<String, String, String> {
         val provider = PreferenceManager.getAiProvider(context)
@@ -38,48 +75,35 @@ object AiProcessor {
         }
     }
 
-    /**
-     * Проверяет доступность выбранной модели, отправляя пустой запрос.
-     * Возвращает Pair(успех, сообщение)
-     */
     suspend fun testModelAvailability(modelName: String, context: Context): Pair<Boolean, String> {
         val (apiUrl, apiKey, _) = providerConfig(context)
-        if (apiKey.isBlank()) return false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_api_key_missing)
-
         val provider = PreferenceManager.getAiProvider(context)
-        val json = if (provider == "gemini") {
-            JSONObject().apply {
-                put("contents", JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("parts", JSONArray().apply {
-                            put(JSONObject().put("text", "ping"))
-                        })
-                    })
-                })
-                put("generationConfig", JSONObject().apply {
-                    put("maxOutputTokens", 5)
-                })
-            }
+        
+        if (apiKey.isBlank()) {
+            Logx.w(TAG, "testModelAvailability: API key missing for $provider")
+            return false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_api_key_missing)
+        }
+
+        val requestBodyString = if (provider == "gemini") {
+            val req = GeminiRequest(
+                contents = listOf(GeminiRequest.Content(listOf(GeminiRequest.Part("ping")))),
+                generationConfig = GeminiRequest.GenerationConfig(0.1f, 5)
+            )
+            gson.toJson(req)
         } else {
-            JSONObject().apply {
-                put("model", modelName)
-                val messages = JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("role", "user")
-                        put("content", "ping")
-                    })
-                }
-                put("messages", messages)
-                put("max_tokens", 5)
-            }
+            val req = OpenAIRequest(
+                model = modelName,
+                messages = listOf(OpenAIRequest.Message("user", "ping")),
+                maxTokens = 5,
+                temperature = 0.1f
+            )
+            gson.toJson(req)
         }
 
         val mediaType = "application/json; charset=utf-8".toMediaType()
-        val body = json.toString().toRequestBody(mediaType)
-
         val requestBuilder = Request.Builder()
             .url(apiUrl)
-            .post(body)
+            .post(requestBodyString.toRequestBody(mediaType))
 
         if (provider != "gemini") {
             requestBuilder.addHeader("Authorization", "Bearer $apiKey")
@@ -91,44 +115,37 @@ object AiProcessor {
                 .addHeader("X-Title", "TelegramNewsReader")
         }
 
-        val request = requestBuilder.build()
-
         return try {
-            val response = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                testClient.newCall(request).execute()
+            val response = withContext(Dispatchers.IO) {
+                client.newCall(requestBuilder.build()).execute()
             }
             if (response.isSuccessful) {
                 true to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_model_available)
             } else if (response.code == 429) {
                 false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_error_429)
             } else {
-                val errorMsg = response.body?.string() ?: response.message
-                false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_error_format, response.code, errorMsg)
+                val errorBody = response.body?.string() ?: response.message
+                Logx.e(TAG, "testModelAvailability: provider=$provider code=${response.code} error=$errorBody")
+                false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_error_format, response.code, "Check Logcat")
             }
         } catch (e: Exception) {
+            Logx.e(TAG, "testModelAvailability: network error", e)
             false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_network_unavailable, e.message)
         }
     }
 
-    private fun isRussian(text: String): Boolean {
-        val cyrillicCount = text.count { it in '\u0400'..'\u04FF' }
-        val latinCount = text.count { it.isLetter() && it !in '\u0400'..'\u04FF' }
-        return cyrillicCount > latinCount
-    }
-
     suspend fun summarizeNews(newsText: String, context: Context): String {
         val (apiUrl, apiKey, modelName) = providerConfig(context)
+        val provider = PreferenceManager.getAiProvider(context)
 
         if (apiKey.isBlank()) {
-            Logx.e(TAG, "AI API Key is missing for ${PreferenceManager.getAiProvider(context)}!")
+            Logx.e(TAG, "summarizeNews: AI API Key is missing for $provider!")
             return "[AI Error: Key missing] $newsText"
         }
 
         if (newsText.isBlank()) return ""
 
-        // Ограничение длины входного текста для избежания ошибок 400 (Bad Request / Filtered)
         val safeText = if (newsText.length > 8000) newsText.take(8000) + "..." else newsText
-
         val style = PreferenceManager.getAiStyle(context)
         val isRu = isRussian(safeText)
 
@@ -149,16 +166,13 @@ object AiProcessor {
         }
 
         val prompt = context.getString(promptResId, safeText)
-
         val temperature = when (style) {
-            "minimal" -> 0.1   // чистка — нужна максимальная точность
-            "extreme" -> 0.15  // одно предложение — строго, минимум переформулировок и смещения акцента
-            "balanced" -> 0.1  // саммари — минимум "творчества", чтобы не досочинять
-            else      -> 0.2
+            "minimal" -> 0.1f
+            "extreme" -> 0.15f
+            "balanced" -> 0.1f
+            else      -> 0.2f
         }
 
-        // Жёсткий потолок длины ответа: не даём модели раздувать короткие новости.
-        // Грубая оценка: ~1 токен на 3-4 символа. Берём от длины входа.
         val maxOutputTokens = when (style) {
             "extreme"  -> 60
             "balanced" -> (safeText.length / 3).coerceIn(60, 800)
@@ -166,55 +180,35 @@ object AiProcessor {
             else       -> (safeText.length / 3).coerceIn(60, 800)
         }
 
-        val json = if (PreferenceManager.getAiProvider(context) == "gemini") {
-            // Формат Google Gemini
-            JSONObject().apply {
-                put("contents", JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("parts", JSONArray().apply {
-                            put(JSONObject().put("text", prompt))
-                        })
-                    })
-                })
-                put("generationConfig", JSONObject().apply {
-                    put("temperature", temperature)
-                    put("maxOutputTokens", maxOutputTokens)
-                    // Обязательно отключаем "thinking" и ставим бюджет 0 для AI Studio
-                    put("thinkingConfig", JSONObject().apply {
-                        put("includeThoughts", false)
-                        put("thinkingBudget", 0)
-                    })
-                })
-            }
+        val requestBodyString = if (provider == "gemini") {
+            val req = GeminiRequest(
+                contents = listOf(GeminiRequest.Content(listOf(GeminiRequest.Part(prompt)))),
+                generationConfig = GeminiRequest.GenerationConfig(
+                    temperature = temperature,
+                    maxOutputTokens = maxOutputTokens,
+                    thinkingConfig = GeminiRequest.ThinkingConfig(false, 0)
+                )
+            )
+            gson.toJson(req)
         } else {
-            // Формат OpenAI (Groq / OpenRouter)
-            JSONObject().apply {
-                put("model", modelName)
-                val messages = JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("role", "user")
-                        put("content", prompt)
-                    })
-                }
-                put("messages", messages)
-                put("temperature", temperature)
-                put("max_tokens", maxOutputTokens)
-            }
+            val req = OpenAIRequest(
+                model = modelName,
+                messages = listOf(OpenAIRequest.Message("user", prompt)),
+                maxTokens = maxOutputTokens,
+                temperature = temperature
+            )
+            gson.toJson(req)
         }
 
         val mediaType = "application/json; charset=utf-8".toMediaType()
         var lastAttemptResponse: String? = null
         
         return withContext(Dispatchers.IO) {
-            // Повторные попытки при 429 (Rate Limit) и сетевых сбоях
             for (attempt in 1..3) {
                 try {
-                    val body = json.toString().toRequestBody(mediaType)
-                    val provider = PreferenceManager.getAiProvider(context)
-                    
                     val requestBuilder = Request.Builder()
                         .url(apiUrl)
-                        .post(body)
+                        .post(requestBodyString.toRequestBody(mediaType))
 
                     if (provider != "gemini") {
                         requestBuilder.addHeader("Authorization", "Bearer $apiKey")
@@ -226,58 +220,37 @@ object AiProcessor {
                             .addHeader("X-Title", "TelegramNewsReader")
                     }
 
-                    val request = requestBuilder.build()
-                    val response = client.newCall(request).execute()
+                    val response = client.newCall(requestBuilder.build()).execute()
                     val responseBody = response.body?.string()
 
                     if (response.isSuccessful && responseBody != null) {
-                        val jsonResponse = JSONObject(responseBody)
-                        
                         val summarized = if (provider == "gemini") {
-                            // Разбор ответа Gemini: candidates[0].content.parts[0].text
-                            val candidates = jsonResponse.optJSONArray("candidates")
-                            if (candidates != null && candidates.length() > 0) {
-                                candidates.optJSONObject(0)
-                                    ?.optJSONObject("content")
-                                    ?.optJSONArray("parts")
-                                    ?.optJSONObject(0)
-                                    ?.optString("text")
-                                    ?.trim()
-                            } else {
-                                Logx.w(TAG, "Gemini: no candidates found. Possible safety block.")
-                                null
-                            }
+                            val geminiResp = gson.fromJson(responseBody, GeminiResponse::class.java)
+                            geminiResp.candidates?.getOrNull(0)?.content?.parts?.getOrNull(0)?.text?.trim()
                         } else {
-                            // Разбор ответа OpenAI
-                            val choices = jsonResponse.optJSONArray("choices")
-                            if (choices != null && choices.length() > 0) {
-                                choices.optJSONObject(0)
-                                    ?.optJSONObject("message")
-                                    ?.optString("content")
-                                    ?.trim()
-                            } else null
+                            val openAiResp = gson.fromJson(responseBody, OpenAIResponse::class.java)
+                            openAiResp.choices?.getOrNull(0)?.message?.content?.trim()
                         }
 
                         if (summarized != null) {
                             return@withContext if (summarized.isBlank()) safeText else summarized
                         } else {
-                            Logx.e(TAG, "AI summarized text is null. Provider: $provider, Response: $responseBody")
-                            return@withContext "[AI Empty Response] $safeText"
+                            Logx.e(TAG, "AI summarized text is null. Provider: $provider. Masked Key: ${Logx.mask(apiKey)}")
+                            return@withContext "[AI Error: Bad Response] $safeText"
                         }
                     } else if (response.code == 429) {
-                        Logx.w(TAG, "Rate limit hit (429), attempt $attempt/3. Waiting...")
-                        lastAttemptResponse = "[AI Error 429: Rate Limit] $safeText"
+                        Logx.w(TAG, "Rate limit (429) for $provider. Attempt $attempt/3. Masked Key: ${Logx.mask(apiKey)}")
+                        lastAttemptResponse = "[AI Error 429] $safeText"
                         if (attempt < 3) {
-                            delay(2000L * attempt) // Экспоненциальная задержка
+                            delay(2000L * attempt)
                             continue
                         }
                     } else {
-                        val provider = PreferenceManager.getAiProvider(context)
-                        Logx.e(TAG, "$provider error: ${response.code}")
+                        Logx.e(TAG, "summarizeNews: $provider Error ${response.code}. Masked Key: ${Logx.mask(apiKey)}")
                         return@withContext "[AI Error ${response.code}] $safeText"
                     }
                 } catch (e: Exception) {
-                    Logx.e(TAG, "Network error on attempt $attempt: ${e.message}")
+                    Logx.e(TAG, "summarizeNews: Network error for $provider. Attempt $attempt. Masked Key: ${Logx.mask(apiKey)}", e)
                     lastAttemptResponse = "[AI Network Error] $safeText"
                     if (attempt < 3) {
                         delay(2000L * attempt)
@@ -290,10 +263,6 @@ object AiProcessor {
         }
     }
 
-    /**
-     * Удаляет технические префиксы вида [AI Error ...] или [AI Empty Response],
-     * чтобы они не зачитывались вслух через TTS.
-     */
     fun stripErrorPrefix(text: String): String {
         if (text.startsWith("[AI ")) {
             val closingBracketIndex = text.indexOf(']')
@@ -302,5 +271,11 @@ object AiProcessor {
             }
         }
         return text
+    }
+
+    private fun isRussian(text: String): Boolean {
+        val cyrillicCount = text.count { it in '\u0400'..'\u04FF' }
+        val latinCount = text.count { it.isLetter() && it !in '\u0400'..'\u04FF' }
+        return cyrillicCount > latinCount
     }
 }

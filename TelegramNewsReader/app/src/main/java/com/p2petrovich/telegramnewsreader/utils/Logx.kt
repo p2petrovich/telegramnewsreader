@@ -51,4 +51,14 @@ object Logx {
             android.util.Log.e(tag, msg, t)
         }
     }
+
+    /**
+     * Маскирует чувствительные данные (API ключи, токены).
+     * Оставляет видимыми только первые 4 и последние 4 символа.
+     */
+    fun mask(secret: String?): String {
+        if (secret.isNullOrBlank()) return "empty"
+        if (secret.length <= 8) return "****"
+        return "${secret.take(4)}...${secret.takeLast(4)}"
+    }
 }
