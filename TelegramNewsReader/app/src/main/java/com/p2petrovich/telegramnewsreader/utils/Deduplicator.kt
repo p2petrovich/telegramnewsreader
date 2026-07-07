@@ -3,13 +3,19 @@ package com.p2petrovich.telegramnewsreader.utils
 import android.content.Context
 import com.p2petrovich.telegramnewsreader.db.AppDatabase
 import com.p2petrovich.telegramnewsreader.db.DedupEntity
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.LinkedList
 
+/**
+ * Детектор дубликатов с поддержкой постоянного хранения в БД.
+ * Использует комбинацию кэша в памяти (для скорости) и Room (для персистентности).
+ */
 class Deduplicator(
     private val context: Context,
     val isEnabled: Boolean = true,
@@ -28,7 +34,9 @@ class Deduplicator(
 
     private val history = LinkedList<HistoryEntry>()
     private var skippedCount = 0
-    private var isInitialized = false
+    
+    // Сигнализирует о завершении загрузки из БД
+    private val initDeferred = CompletableDeferred<Unit>()
 
     init {
         loadFromDb()
@@ -48,38 +56,53 @@ class Deduplicator(
                         )
                         history.addLast(HistoryEntry(fp, entity.timestamp))
                     }
-                    isInitialized = true
                 }
                 Logx.d(TAG) { "Loaded ${recent.size} entries from DB" }
             } catch (e: Exception) {
                 Logx.e(TAG, "Failed to load history from DB", e)
+            } finally {
+                initDeferred.complete(Unit)
             }
         }
     }
 
-    fun isDuplicate(text: String): Boolean = synchronized(this) {
+    /**
+     * Проверяет, является ли текст дубликатом.
+     * Если база данных еще не загружена — дожидается загрузки (с таймаутом).
+     */
+    fun isDuplicate(text: String): Boolean {
         if (!isEnabled) return false
-        cleanOldEntries()
-
-        val fingerprint = TextProcessor.extractFingerprint(text)
-
-        if (fingerprint.words.size < 3) {
-            if (DebugConfig.LOG_DEDUP_DETAILS) {
-                Logx.d(TAG) { "SKIP CHECK (too_few_words=${fingerprint.words.size})" }
+        
+        // Ждем инициализации, если она еще идет
+        if (!initDeferred.isCompleted) {
+            runBlocking {
+                withTimeoutOrNull(2000) { initDeferred.await() }
             }
-            return false
         }
 
-        val match = history.firstOrNull { TextProcessor.isSameEvent(it.fingerprint, fingerprint, matchThreshold.toDouble()) }
-        if (match != null) {
-            if (DebugConfig.LOG_DEDUP_DETAILS) {
-                Logx.d(TAG) { "MATCH (skipped=$skippedCount, history_size=${history.size})" }
-            }
-            skippedCount++
-            return true
-        }
+        return synchronized(this) {
+            cleanOldEntries()
 
-        return false
+            val fingerprint = TextProcessor.extractFingerprint(text)
+
+            if (fingerprint.words.size < 3) {
+                if (DebugConfig.LOG_DEDUP_DETAILS) {
+                    Logx.d(TAG) { "SKIP CHECK (too_few_words=${fingerprint.words.size})" }
+                }
+                return false
+            }
+
+            val match = history.firstOrNull { TextProcessor.isSameEvent(it.fingerprint, fingerprint, matchThreshold.toDouble()) }
+            if (match != null) {
+                if (DebugConfig.LOG_DEDUP_DETAILS) {
+                    Logx.d(TAG) { "MATCH (skipped=$skippedCount, history_size=${history.size})" }
+                }
+                skippedCount++
+                true
+            } else {
+                false
+            }
+        }
     }
 
     fun addToHistory(text: String) = synchronized(this) {
@@ -91,7 +114,7 @@ class Deduplicator(
             history.addLast(entry)
             if (history.size > historySize) history.removeFirst()
 
-            // Save to DB
+            // Сохранение в БД в фоновом режиме
             scope.launch {
                 try {
                     db.insert(DedupEntity(
@@ -101,8 +124,8 @@ class Deduplicator(
                         strongAnchors = fingerprint.strongAnchors.joinToString("|"),
                         timestamp = entry.timestamp
                     ))
-                    // Periodically clean old entries in DB
-                    if (Math.random() < 0.05) { // 5% chance to trigger cleanup on add
+                    // Редкая очистка БД (каждый 20-й вызов)
+                    if (Math.random() < 0.05) {
                         val cutoff = System.currentTimeMillis() - timeWindowMinutes * 60 * 1000L
                         db.deleteOldEntries(cutoff)
                     }

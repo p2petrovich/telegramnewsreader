@@ -111,7 +111,6 @@ class MainActivity : AppCompatActivity() {
     // [FIX] savedDurationInfo перенесён в MainViewModel, чтобы переживать recreate().
     private val pendingPhotos = mutableMapOf<Long, String>()
 
-    private var progressExecutor: ScheduledExecutorService? = null
     private var activePresetId: String? = null
 
     companion object {
@@ -199,15 +198,12 @@ class MainActivity : AppCompatActivity() {
         viewModel.lastSkippedDuplicates.observe(this) { updatePipelineStatus() }
 
         viewModel.isCollecting.observe(this) { isCollecting ->
+            updateNewsCollectionButton()
             if (isCollecting) {
                 showProgressPanels()
                 binding.progressBar.visibility = View.VISIBLE
-                binding.btnCollectNews.text = getString(R.string.btn_stop_collection)
-                startTimer()
             } else {
                 binding.progressBar.visibility = View.GONE
-                binding.btnCollectNews.text = getString(R.string.collect_news)
-                stopTimer()
             }
         }
 
@@ -272,8 +268,9 @@ class MainActivity : AppCompatActivity() {
             // Здесь наблюдатель оставлен как точка расширения при необходимости.
         }
 
-        viewModel.totalProgressSteps.observe(this) { updateETA() }
-        viewModel.currentProgressStep.observe(this) { updateETA() }
+        viewModel.formattedEta.observe(this) { eta ->
+            binding.tvEta.text = eta
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -321,20 +318,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnCollectNews.text = getString(R.string.collect_news)
     }
 
-    private fun startTimer() {
-        stopTimer()
-        progressExecutor = Executors.newSingleThreadScheduledExecutor()
-        progressExecutor?.scheduleWithFixedDelay({
-            runOnUiThread {
-                if (!isFinishing && !isDestroyed) updateETA()
-            }
-        }, 0, 1, TimeUnit.SECONDS)
-    }
-
-    private fun stopTimer() {
-        progressExecutor?.shutdownNow()
-        progressExecutor = null
-    }
+    // [DELETE] startTimer, stopTimer, updateETA moved to ViewModel
 
     private fun showProgressPanels() {
         binding.cardCollectionProgress.visibility = View.VISIBLE
@@ -449,61 +433,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateETA() {
-        val startTime = viewModel.startTime.value ?: 0L
-        if (startTime == 0L) {
-            // [FIX] Сбор завершён/не начат: не затираем итоговый статус,
-            // просто прекращаем обновление ETA. Итоговое время фиксирует
-            // updateDetailedProgress при статусе "done".
-            return
-        }
-        val elapsedMs = System.currentTimeMillis() - startTime
-        val elapsedSec = elapsedMs / 1000
-
-        val elapsedText = when {
-            elapsedSec < 60 -> getString(R.string.elapsed_seconds, elapsedSec.toInt())
-            else -> {
-                val min = (elapsedSec / 60).toInt()
-                val sec = (elapsedSec % 60).toInt()
-                getString(R.string.elapsed_minutes, min, sec)
-            }
-        }
-
-        val currentProgressStep = viewModel.currentProgressStep.value ?: 0
-        val totalProgressSteps = viewModel.totalProgressSteps.value ?: 0
-
-        if (elapsedSec < 3 || currentProgressStep <= 0 || totalProgressSteps <= 0) {
-            binding.tvEta.text = getString(R.string.collection_status_combined, elapsedText, getString(R.string.eta_calculating))
-            return
-        }
-
-        val remainingSteps = totalProgressSteps - currentProgressStep
-
-        if (remainingSteps <= 0) {
-            binding.tvEta.text = getString(R.string.collection_status_combined, elapsedText, getString(R.string.eta_finishing))
-            return
-        }
-
-        val msPerStep = elapsedMs.toDouble() / currentProgressStep
-        val remainingSec = (msPerStep * remainingSteps / 1000).toLong()
-
-        val etaText = when {
-            remainingSec <= 0 -> getString(R.string.eta_finishing)
-            remainingSec < 60 -> getString(R.string.eta_seconds, remainingSec.toInt())
-            remainingSec < 3600 -> {
-                val min = (remainingSec / 60).toInt()
-                val sec = (remainingSec % 60).toInt()
-                getString(R.string.eta_minutes, min, sec)
-            }
-            else -> {
-                val hours = (remainingSec / 3600).toInt()
-                val min = ((remainingSec % 3600) / 60).toInt()
-                getString(R.string.eta_hours, hours, min)
-            }
-        }
-
-        binding.tvEta.text = getString(R.string.collection_status_combined, elapsedText, etaText)
-    }
+    // [DELETE] updateETA moved to ViewModel
 
     // =====================  =====================
     private fun requestNotificationPermission() {
@@ -916,7 +846,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         viewModel.stopCollection()
-        stopTimer()
     }
 
     private fun updateDetailedProgress(status: String, progress: Int, total: Int) {
@@ -1361,18 +1290,12 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
 
-        // [FIX] Восстановление таймера сбора после сворачивания.
-        // onStop() убивает executor через stopTimer(), а сам сбор живёт в
-        // viewModelScope. При возврате LiveData isCollecting не эмитит повторно
-        // (значение не менялось), поэтому таймер нужно перезапустить вручную,
-        // иначе счётчик "Прошло/Осталось" замирает, хотя сбор продолжается.
-        if (viewModel.isCollecting.value == true && progressExecutor == null) {
+        // [FIX] Восстановление состояния после сворачивания.
+        if (viewModel.isCollecting.value == true) {
             showProgressPanels()
             binding.cardCollectionProgress.visibility = View.VISIBLE
             binding.progressBar.visibility = View.VISIBLE
             binding.btnCollectNews.text = getString(R.string.btn_stop_collection)
-            startTimer()
-            updateETA() // немедленно показать актуальное время, не дожидаясь первого тика
         }
 
         if (::ttsManager.isInitialized) {
@@ -1439,6 +1362,5 @@ class MainActivity : AppCompatActivity() {
         super.onStop()
         try { unregisterReceiver(progressReceiver) } catch (e: Exception) { Logx.v("MainActivity") { "progressReceiver not registered" } }
         try { unregisterReceiver(ttsErrorReceiver) } catch (e: Exception) { Logx.v("MainActivity") { "ttsErrorReceiver not registered" } }
-        stopTimer()
     }
 }

@@ -138,7 +138,7 @@ class AiSettingsDialogFragment : DialogFragment() {
             val modelIdx = currentModels.indexOfFirst { it.first == savedModel }.coerceAtLeast(0)
             spinnerModel.setSelection(modelIdx)
 
-            lifecycleScope.launch {
+            viewLifecycleOwner.lifecycleScope.launch {
                 currentModels.forEach { modelPair ->
                     modelStatuses[modelPair.first] = "..."
                 }
@@ -179,7 +179,7 @@ class AiSettingsDialogFragment : DialogFragment() {
             tvStatusManual?.text = getString(R.string.proxy_status_checking)
             tvStatusManual?.setTextColor(Color.GRAY)
 
-            lifecycleScope.launch {
+            viewLifecycleOwner.lifecycleScope.launch {
                 val result = AiProcessor.testModelAvailability(selectedModel, activity)
                 tvStatusManual?.text = if (result.first) getString(R.string.ai_model_available) else result.second
                 tvStatusManual?.setTextColor(if (result.first) Color.GREEN else Color.RED)
