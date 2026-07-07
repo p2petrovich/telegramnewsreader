@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import com.p2petrovich.telegramnewsreader.ApiConfig
 import com.p2petrovich.telegramnewsreader.utils.Logx
+import com.p2petrovich.telegramnewsreader.utils.SecurityManager
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean // [FIX reset] для watchdog-страховки
 
@@ -40,6 +41,7 @@ object TelegramClientManager {
             // Даем небольшую паузу, чтобы ОС успела освободить дескрипторы файлов
             handler.postDelayed({
                 deleteTdlibDirs(appCtx)
+                SecurityManager.resetKeyMarker(appCtx)
                 onDone?.invoke()
             }, 500)
         }

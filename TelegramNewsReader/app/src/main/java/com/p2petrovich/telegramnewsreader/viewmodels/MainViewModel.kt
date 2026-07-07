@@ -51,7 +51,7 @@ class MainViewModel : ViewModel() {
     val lastTotalCollected: LiveData<Int> get() = _lastTotalCollected
 
     private val _lastAfterDedup = MutableLiveData<Int>(0)
-    val lastAfterDedup: LiveData<Int> get() = _lastAfterFilter
+    val lastAfterDedup: LiveData<Int> get() = _lastAfterDedup
 
     private val _lastAfterFilter = MutableLiveData<Int>(0)
     val lastAfterFilter: LiveData<Int> get() = _lastAfterFilter

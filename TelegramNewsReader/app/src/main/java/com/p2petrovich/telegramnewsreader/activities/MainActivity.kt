@@ -227,7 +227,8 @@ class MainActivity : AppCompatActivity() {
             else if (status == "done") updateDetailedProgress(getString(R.string.status_collection_done), 100, 100)
             else updateDetailedProgress(status, cur, tot)
 
-            if (status.contains(getString(R.string.status_synthesis_starting)) || status.contains("")) {
+            if (status.contains(getString(R.string.status_synthesis_starting)) || 
+                status.contains(getString(R.string.speech_synthesis_status))) {
                 binding.cardCollectionProgress.visibility = View.VISIBLE
             }
         }

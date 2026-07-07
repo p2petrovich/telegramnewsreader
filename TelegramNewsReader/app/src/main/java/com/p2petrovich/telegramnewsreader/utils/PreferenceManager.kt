@@ -19,11 +19,11 @@ object PreferenceManager {
     private const val KEY_TTS_RATE = "tts_rate"
     private const val KEY_HIDDEN_USERNAMES = "hidden_usernames"
     private const val KEY_HIDDEN_IDS = "hidden_ids"
-    private const val KEY_HIDDEN_TITLES = "hidden_id_title_map"
+    private const val KEY_HIDDEN_TITLES_JSON = "hidden_id_title_map_v2"
     private const val KEY_COLOR_THEME = "color_theme"
 
     // Player state keys
-    private const val KEY_PLAYER_PATHS = "player_paths"
+    private const val KEY_PLAYER_PATHS_JSON = "player_paths_v2"
     private const val KEY_PLAYER_INDEX = "player_index"
     private const val KEY_PLAYER_IS_PLAYING = "player_is_playing"
 
@@ -59,7 +59,7 @@ object PreferenceManager {
     private const val KEY_LAST_REAL_NEWS_COUNT = "last_real_news_count"
     private const val KEY_LAST_NEWS_FILE_INDICES = "last_news_indices"
 
-    private const val PATHS_DELIMITER = "|||"
+    private val gson = Gson()
 
     @Volatile private var prefsInstance: SharedPreferences? = null
     @Volatile private var authPrefsInstance: SharedPreferences? = null
@@ -78,10 +78,9 @@ object PreferenceManager {
     }
 
     private fun getEncryptedPreferences(context: Context): SharedPreferences? {
-        if (securePrefsInstance != null) return securePrefsInstance
+        securePrefsInstance?.let { return it }
         return synchronized(this) {
-            if (securePrefsInstance != null) return@synchronized securePrefsInstance
-            tryCreateEncryptedPrefs(context.applicationContext)
+            securePrefsInstance ?: tryCreateEncryptedPrefs(context.applicationContext)
         }
     }
 
@@ -90,7 +89,6 @@ object PreferenceManager {
             buildEncryptedPrefs(appContext).also { securePrefsInstance = it }
         } catch (e: Exception) {
             Logx.e(TAG, "Failed to init EncryptedSharedPreferences: ${e.message}")
-            // Битый файл — удаляем и пересоздаём с нуля
             try {
                 appContext.deleteSharedPreferences(ENCRYPTED_PREFS_NAME)
                 Logx.w(TAG, "Deleted corrupted secure prefs, retrying")
@@ -115,6 +113,7 @@ object PreferenceManager {
         )
     }
 
+    @Synchronized
     fun invalidate() {
         prefsInstance = null
         authPrefsInstance = null
@@ -239,29 +238,24 @@ object PreferenceManager {
     fun getHiddenTitleForId(context: Context, id: Long): String? =
         getHiddenIdTitleMap(context)[id]
 
-    internal fun getHiddenIdTitleMap(context: Context): Map<Long, String> {
-        val raw = getPreferences(context).getString(KEY_HIDDEN_TITLES, null) ?: return emptyMap()
+    fun getHiddenIdTitleMap(context: Context): Map<Long, String> {
+        val json = getPreferences(context).getString(KEY_HIDDEN_TITLES_JSON, null) ?: return emptyMap()
         return try {
-            raw.split("|||").mapNotNull { pair ->
-                val idx = pair.indexOf(':')
-                if (idx <= 0) null else {
-                    val id = pair.substring(0, idx).toLongOrNull() ?: return@mapNotNull null
-                    val title = pair.substring(idx + 1)
-                    id to title
-                }
-            }.toMap()
+            val type = object : TypeToken<Map<Long, String>>() {}.type
+            gson.fromJson(json, type)
         } catch (_: Exception) { emptyMap() }
     }
 
-    internal fun saveHiddenIdTitleMap(context: Context, map: Map<Long, String>) {
-        val raw = map.entries.joinToString("|||") { "${it.key}:${it.value}" }
-        getPreferences(context).edit().putString(KEY_HIDDEN_TITLES, raw).apply()
+    fun saveHiddenIdTitleMap(context: Context, map: Map<Long, String>) {
+        val json = gson.toJson(map)
+        getPreferences(context).edit().putString(KEY_HIDDEN_TITLES_JSON, json).apply()
     }
 
     fun clearAll(context: Context) {
         getPreferences(context).edit().clear().apply()
         getAuthPreferences(context).edit().clear().apply()
         try { getEncryptedPreferences(context)?.edit()?.clear()?.apply() } catch (_: Exception) {}
+        SecurityManager.resetKeyMarker(context)
     }
 
     // Color theme
@@ -274,14 +268,16 @@ object PreferenceManager {
 
     // Player state
     fun savePlaylistPaths(context: Context, paths: List<String>) {
-        val pathsStr = paths.joinToString(PATHS_DELIMITER)
-        getPreferences(context).edit().putString(KEY_PLAYER_PATHS, pathsStr).apply()
+        val json = gson.toJson(paths)
+        getPreferences(context).edit().putString(KEY_PLAYER_PATHS_JSON, json).apply()
     }
 
     fun getPlaylistPaths(context: Context): List<String> {
-        val pathsStr = getPreferences(context).getString(KEY_PLAYER_PATHS, "") ?: return emptyList()
-        if (pathsStr.isEmpty()) return emptyList()
-        return pathsStr.split(PATHS_DELIMITER)
+        val json = getPreferences(context).getString(KEY_PLAYER_PATHS_JSON, null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<String>>() {}.type
+            gson.fromJson(json, type)
+        } catch (_: Exception) { emptyList() }
     }
 
     fun savePlayerIndex(context: Context, index: Int) {
@@ -319,7 +315,7 @@ object PreferenceManager {
 
     fun clearPlayerState(context: Context) {
         getPreferences(context).edit()
-            .remove(KEY_PLAYER_PATHS)
+            .remove(KEY_PLAYER_PATHS_JSON)
             .remove(KEY_PLAYER_INDEX)
             .remove(KEY_PLAYER_IS_PLAYING)
             .remove(KEY_LAST_REAL_NEWS_COUNT)
@@ -370,12 +366,12 @@ object PreferenceManager {
         val json = getPreferences(context).getString(KEY_PROXY_LIST, null) ?: return emptyList()
         return try {
             val type = object : TypeToken<List<ProxyEntry>>() {}.type
-            Gson().fromJson(json, type)
+            gson.fromJson(json, type)
         } catch (_: Exception) { emptyList() }
     }
 
     fun saveProxyList(context: Context, list: List<ProxyEntry>) {
-        val json = Gson().toJson(list)
+        val json = gson.toJson(list)
         getPreferences(context).edit().putString(KEY_PROXY_LIST, json).apply()
     }
 
