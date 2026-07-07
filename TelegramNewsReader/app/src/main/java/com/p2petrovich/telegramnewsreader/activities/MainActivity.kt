@@ -181,7 +181,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun observeViewModel() {
         viewModel.isClientReady.observe(this) { ready ->
-            if (ready) {
+            if (ready == true) {
                 updateUIForReadyClient()
                 //     -  
                 if (channelAdapter.getAllChannels().isEmpty()) {
@@ -199,7 +199,7 @@ class MainActivity : AppCompatActivity() {
 
         viewModel.isCollecting.observe(this) { isCollecting ->
             updateNewsCollectionButton()
-            if (isCollecting) {
+            if (isCollecting == true) {
                 showProgressPanels()
                 binding.progressBar.visibility = View.VISIBLE
             } else {

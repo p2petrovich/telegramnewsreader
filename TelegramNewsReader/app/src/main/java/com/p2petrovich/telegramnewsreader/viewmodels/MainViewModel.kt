@@ -28,11 +28,11 @@ class MainViewModel : ViewModel() {
         private const val TAG = "MainViewModel"
     }
 
-    private val _isClientReady = MutableLiveData<Boolean?>(null)
-    val isClientReady: LiveData<Boolean> get() = _isClientReady as LiveData<Boolean>
+    private val _isClientReady = MutableLiveData<Boolean>(false)
+    val isClientReady: LiveData<Boolean> get() = _isClientReady
 
-    private val _isAuthorized = MutableLiveData<Boolean?>(null)
-    val isAuthorized: LiveData<Boolean> get() = _isAuthorized as LiveData<Boolean>
+    private val _isAuthorized = MutableLiveData<Boolean>(false)
+    val isAuthorized: LiveData<Boolean> get() = _isAuthorized
 
     fun setClientReady(ready: Boolean) {
         if (_isClientReady.value != ready) {
@@ -47,26 +47,26 @@ class MainViewModel : ViewModel() {
     }
 
     // --- News Collection Counters ---
-    private val _lastTotalCollected = MutableLiveData<Int?>(null)
-    val lastTotalCollected: LiveData<Int> get() = _lastTotalCollected as LiveData<Int>
+    private val _lastTotalCollected = MutableLiveData<Int>(0)
+    val lastTotalCollected: LiveData<Int> get() = _lastTotalCollected
 
-    private val _lastAfterDedup = MutableLiveData<Int?>(null)
-    val lastAfterDedup: LiveData<Int> get() = _lastAfterDedup as LiveData<Int>
+    private val _lastAfterDedup = MutableLiveData<Int>(0)
+    val lastAfterDedup: LiveData<Int> get() = _lastAfterFilter
 
-    private val _lastAfterFilter = MutableLiveData<Int?>(null)
-    val lastAfterFilter: LiveData<Int> get() = _lastAfterFilter as LiveData<Int>
+    private val _lastAfterFilter = MutableLiveData<Int>(0)
+    val lastAfterFilter: LiveData<Int> get() = _lastAfterFilter
 
-    private val _lastToSynthesize = MutableLiveData<Int?>(null)
-    val lastToSynthesize: LiveData<Int> get() = _lastToSynthesize as LiveData<Int>
+    private val _lastToSynthesize = MutableLiveData<Int>(0)
+    val lastToSynthesize: LiveData<Int> get() = _lastToSynthesize
 
-    private val _lastSynthesized = MutableLiveData<Int?>(null)
-    val lastSynthesized: LiveData<Int> get() = _lastSynthesized as LiveData<Int>
+    private val _lastSynthesized = MutableLiveData<Int>(0)
+    val lastSynthesized: LiveData<Int> get() = _lastSynthesized
 
-    private val _lastSkippedDuplicates = MutableLiveData<Int?>(null)
-    val lastSkippedDuplicates: LiveData<Int> get() = _lastSkippedDuplicates as LiveData<Int>
+    private val _lastSkippedDuplicates = MutableLiveData<Int>(0)
+    val lastSkippedDuplicates: LiveData<Int> get() = _lastSkippedDuplicates
 
-    private val _lastAfterAi = MutableLiveData<Int?>(null)
-    val lastAfterAi: LiveData<Int> get() = _lastAfterAi as LiveData<Int>
+    private val _lastAfterAi = MutableLiveData<Int>(0)
+    val lastAfterAi: LiveData<Int> get() = _lastAfterAi
 
     fun updateCounters(
         total: Int? = null, 
@@ -94,8 +94,8 @@ class MainViewModel : ViewModel() {
     private val _currentPlaylist = MutableLiveData<List<File>>(emptyList())
     val currentPlaylist: LiveData<List<File>> get() = _currentPlaylist
 
-    private val _currentRealNewsCount = MutableLiveData<Int?>(null)
-    val currentRealNewsCount: LiveData<Int> get() = _currentRealNewsCount as LiveData<Int>
+    private val _currentRealNewsCount = MutableLiveData<Int>(0)
+    val currentRealNewsCount: LiveData<Int> get() = _currentRealNewsCount
 
     private val _currentNewsFileIndices = MutableLiveData<Set<Int>>(emptySet())
     val currentNewsFileIndices: LiveData<Set<Int>> get() = _currentNewsFileIndices
@@ -140,11 +140,11 @@ class MainViewModel : ViewModel() {
 
     private var timerJob: Job? = null
 
-    private val _currentProgressStep = MutableLiveData<Int?>(0)
-    val currentProgressStep: LiveData<Int> get() = _currentProgressStep as LiveData<Int>
+    private val _currentProgressStep = MutableLiveData<Int>(0)
+    val currentProgressStep: LiveData<Int> get() = _currentProgressStep
 
-    private val _totalProgressSteps = MutableLiveData<Int?>(0)
-    val totalProgressSteps: LiveData<Int> get() = _totalProgressSteps as LiveData<Int>
+    private val _totalProgressSteps = MutableLiveData<Int>(0)
+    val totalProgressSteps: LiveData<Int> get() = _totalProgressSteps
 
     fun setCurrentProgressStep(step: Int) { _currentProgressStep.postValue(step) }
     fun setTotalProgressSteps(steps: Int) { _totalProgressSteps.postValue(steps) }
@@ -228,8 +228,8 @@ class MainViewModel : ViewModel() {
     private val _detailedStatus = MutableLiveData<String>("")
     val detailedStatus: LiveData<String> get() = _detailedStatus
 
-    private val _isCollecting = MutableLiveData<Boolean?>(false)
-    val isCollecting: LiveData<Boolean> get() = _isCollecting as LiveData<Boolean>
+    private val _isCollecting = MutableLiveData<Boolean>(false)
+    val isCollecting: LiveData<Boolean> get() = _isCollecting
 
     private val _newsPreview = MutableLiveData<List<String>>(emptyList())
     val newsPreview: LiveData<List<String>> get() = _newsPreview
