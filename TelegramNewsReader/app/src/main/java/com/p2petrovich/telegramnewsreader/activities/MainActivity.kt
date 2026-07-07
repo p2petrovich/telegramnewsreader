@@ -1322,7 +1322,11 @@ class MainActivity : AppCompatActivity() {
 
                     val realCount = PreferenceManager.getLastRealNewsCount(this)
                     val indices = PreferenceManager.getLastNewsFileIndices(this)
-                    viewModel.setPlaylistData(files, realCount, indices)
+                    viewModel.setPlaylistData(
+                        files = files,
+                        count = realCount,
+                        indices = indices
+                    )
 
                     if (savedIsPlaying) {
                         updatePlayerButtons(true)

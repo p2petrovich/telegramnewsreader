@@ -103,7 +103,13 @@ class MainViewModel : ViewModel() {
     private var lastFileToMsgIndex: IntArray = intArrayOf()
     private var lastOriginalMessages: List<String> = emptyList()
 
-    fun setPlaylistData(files: List<File>, count: Int, indices: Set<Int>, mapping: IntArray, originals: List<String>) {
+    fun setPlaylistData(
+        files: List<File>,
+        count: Int,
+        indices: Set<Int>,
+        mapping: IntArray = intArrayOf(),
+        originals: List<String> = emptyList()
+    ) {
         _currentPlaylist.postValue(files)
         _currentRealNewsCount.postValue(count)
         _currentNewsFileIndices.postValue(indices)
