@@ -626,7 +626,7 @@ object TextProcessor {
             val STRESS_PEREKACHIVAT = Regex("(?i)\\b(перек)а(чива[а-яё]*)\\b")
             val STRESS_POLOTNO = Regex("(?i)\\bполотно\\b")
             
-            val TECH_ABBR = mapOf("AI" to "искусственный интеллект", "ИИ" to "искусственный интеллект", "VR" to "виртуальная reality", "AR" to "дополненная reality", "GPS" to "Джи-Пи-Эс", "USB" to "ЮСБ", "WIFI" to "Вай-Фай")
+            val TECH_ABBR = mapOf("AI" to "искусственный интеллект", "ИИ" to "искусственный интеллект", "VR" to "виртуальная реальность", "AR" to "дополненная реальность", "GPS" to "Джи-Пи-Эс", "USB" to "ЮСБ", "WIFI" to "Вай-Фай")
             val MOLNIYA = Regex("(?im)^(⚡+\\s*|\\d{2}:\\d{2}\\s*—?\\s*)(молния)(?=[\\s!.,]|$)")
         }
 
