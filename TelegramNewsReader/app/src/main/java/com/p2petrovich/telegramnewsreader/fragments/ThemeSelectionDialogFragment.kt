@@ -48,8 +48,11 @@ class ThemeSelectionDialogFragment : DialogFragment() {
             }
             PreferenceManager.saveColorTheme(activity, selectedTheme)
             
-            // Применяем тему динамически
+            // Применяем тему глобально
             TelegramNewsApplication.applyNightMode(activity)
+            
+            // ПРИНУДИТЕЛЬНО пересоздаем Activity, чтобы применился новый style resource (например, Purple -> Teal)
+            activity.recreate()
             
             dialog.dismiss()
         }
