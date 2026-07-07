@@ -897,7 +897,8 @@ class MainActivity : AppCompatActivity() {
             binding.btnPlay.isEnabled = true
             binding.btnNext.isEnabled = true
 
-            Toast.makeText(this, getString(R.string.found_messages, audio.realNewsCount), Toast.LENGTH_SHORT).show()
+            val toastMsg = resources.getQuantityString(R.plurals.found_messages_plural, audio.realNewsCount, audio.realNewsCount)
+            Toast.makeText(this, toastMsg, Toast.LENGTH_SHORT).show()
         } else {
             //    ,   -    
             val skipped = viewModel.lastSkippedDuplicates.value ?: 0

@@ -7,6 +7,7 @@ import android.widget.RadioGroup
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 import com.p2petrovich.telegramnewsreader.R
+import com.p2petrovich.telegramnewsreader.TelegramNewsApplication
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 
 class ThemeSelectionDialogFragment : DialogFragment() {
@@ -30,6 +31,7 @@ class ThemeSelectionDialogFragment : DialogFragment() {
         when (currentTheme) {
             "teal" -> rgColorTheme?.check(R.id.rb_theme_teal)
             "light" -> rgColorTheme?.check(R.id.rb_theme_light)
+            "auto" -> rgColorTheme?.check(R.id.rb_theme_auto)
             else -> rgColorTheme?.check(R.id.rb_theme_purple)
         }
 
@@ -41,11 +43,15 @@ class ThemeSelectionDialogFragment : DialogFragment() {
             val selectedTheme = when (rgColorTheme?.checkedRadioButtonId) {
                 R.id.rb_theme_teal -> "teal"
                 R.id.rb_theme_light -> "light"
+                R.id.rb_theme_auto -> "auto"
                 else -> "purple"
             }
             PreferenceManager.saveColorTheme(activity, selectedTheme)
+            
+            // Применяем тему динамически
+            TelegramNewsApplication.applyNightMode(activity)
+            
             dialog.dismiss()
-            activity.recreate()
         }
 
         dialog.setOnCancelListener { onDismissListener?.invoke() }

@@ -157,6 +157,7 @@
     <string name="theme_purple">Фиолетовая (темная)</string>
     <string name="theme_teal">Бирюзовая (темная)</string>
     <string name="theme_light">Светлая</string>
+    <string name="theme_auto">Как в системе</string>
     <string name="hidden_channels_title">Скрытые каналы</string>
     <string name="no_hidden_channels">Скрытых каналов нет</string>
     <string name="restore_selected">Вернуть выбранные</string>
@@ -343,6 +344,12 @@
     <string name="duration_info">Примерная длительность: ~%1$d минут</string>
     <string name="skipped_duplicates">Пропущено дублей: %1$d</string>
     <string name="found_messages">Найдено %1$d новых сообщений</string>
+    <plurals name="found_messages_plural">
+        <item quantity="one">Найдено %1$d новое сообщение</item>
+        <item quantity="few">Найдено %1$d новых сообщения</item>
+        <item quantity="many">Найдено %1$d новых сообщений</item>
+        <item quantity="other">Найдено %1$d новых сообщений</item>
+    </plurals>
     <string name="select_channels_msg">Выберите каналы\n%1$s</string>
     <string name="initializing_msg">Инициализация…\n%1$s</string>
     <string name="channels_summary_base">Каналов: %1$d</string>

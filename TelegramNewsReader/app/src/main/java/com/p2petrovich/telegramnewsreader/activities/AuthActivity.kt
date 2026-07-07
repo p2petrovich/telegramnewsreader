@@ -9,6 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 import android.view.autofill.AutofillManager
 import androidx.appcompat.app.AlertDialog
 import com.p2petrovich.telegramnewsreader.R
+import com.p2petrovich.telegramnewsreader.TelegramNewsApplication
 import com.p2petrovich.telegramnewsreader.databinding.ActivityAuthBinding
 import com.p2petrovich.telegramnewsreader.telegram.TelegramClient
 import com.p2petrovich.telegramnewsreader.telegram.TelegramClientManager
@@ -20,6 +21,7 @@ class AuthActivity : AppCompatActivity() {
     private lateinit var telegramClient: TelegramClient
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        setTheme(TelegramNewsApplication.getThemeResId(this))
         super.onCreate(savedInstanceState)
         binding = ActivityAuthBinding.inflate(layoutInflater)
         setContentView(binding.root)

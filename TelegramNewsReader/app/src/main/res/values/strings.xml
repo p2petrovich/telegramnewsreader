@@ -157,6 +157,7 @@
     <string name="theme_purple">Purple (dark)</string>
     <string name="theme_teal">Teal (dark)</string>
     <string name="theme_light">Light</string>
+    <string name="theme_auto">System Default</string>
     <string name="hidden_channels_title">Hidden channels</string>
     <string name="no_hidden_channels">No hidden channels</string>
     <string name="restore_selected">Restore selected</string>
@@ -345,6 +346,10 @@
     <string name="duration_info">Estimated duration: ~%1$d minutes</string>
     <string name="skipped_duplicates">Duplicates skipped: %1$d</string>
     <string name="found_messages">Found %1$d new messages</string>
+    <plurals name="found_messages_plural">
+        <item quantity="one">Found %1$d new message</item>
+        <item quantity="other">Found %1$d new messages</item>
+    </plurals>
     <string name="select_channels_msg">Select channels\n%1$s</string>
     <string name="initializing_msg">Initializing…\n%1$s</string>
     <string name="channels_summary_base">Channels: %1$d</string>

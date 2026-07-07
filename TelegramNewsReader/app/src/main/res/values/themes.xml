@@ -27,8 +27,14 @@
         <item name="actionBarStyle">@style/CustomActionBarStyle</item>
     </style>
 
-    <!-- Main theme reference -->
-    <style name="Theme.TelegramNewsReader" parent="Theme.TelegramNewsReader.Purple" />
+    <!-- Main theme reference - Now DayNight based -->
+    <style name="Theme.TelegramNewsReader" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/purple_500</item>
+        <item name="colorPrimaryVariant">@color/purple_700</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
+        <item name="actionBarStyle">@style/CustomActionBarStyle</item>
+    </style>
 
     <!-- Стиль для ActionBar -->
     <style name="CustomActionBarStyle" parent="Widget.Material3.ActionBar.Solid">
