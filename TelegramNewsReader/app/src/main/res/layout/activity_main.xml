@@ -101,7 +101,7 @@
                             app:iconPadding="2dp"
                             app:iconSize="16dp"
                             app:iconTint="?android:textColorSecondary"
-                            app:rippleColor="@color/purple_200" />
+                            app:rippleColor="?attr/colorControlHighlight" />
 
                     </LinearLayout>
 
@@ -173,7 +173,6 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:text="@string/period_minutes"
-                android:textColor="@color/purple_200"
                 android:textSize="15sp" />
 
             <Button
@@ -405,13 +404,13 @@
             android:contentDescription="@string/play"
             android:minWidth="0dp"
             android:text=""
-            app:backgroundTint="@color/purple_500"
+            app:backgroundTint="?attr/colorPrimary"
             app:cornerRadius="24dp"
             app:icon="@drawable/ic_play"
             app:iconGravity="textStart"
             app:iconPadding="0dp"
             app:iconSize="24dp"
-            app:iconTint="@color/white" />
+            app:iconTint="?attr/colorOnPrimary" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_pause"
@@ -422,13 +421,13 @@
             android:contentDescription="@string/pause"
             android:minWidth="0dp"
             android:text=""
-            app:backgroundTint="@color/purple_500"
+            app:backgroundTint="?attr/colorPrimary"
             app:cornerRadius="24dp"
             app:icon="@drawable/ic_pause"
             app:iconGravity="textStart"
             app:iconPadding="0dp"
             app:iconSize="24dp"
-            app:iconTint="@color/white" />
+            app:iconTint="?attr/colorOnPrimary" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_stop"
@@ -439,13 +438,13 @@
             android:contentDescription="@string/stop"
             android:minWidth="0dp"
             android:text=""
-            app:backgroundTint="@color/purple_500"
+            app:backgroundTint="?attr/colorPrimary"
             app:cornerRadius="24dp"
             app:icon="@drawable/ic_stop"
             app:iconGravity="textStart"
             app:iconPadding="0dp"
             app:iconSize="24dp"
-            app:iconTint="@color/white" />
+            app:iconTint="?attr/colorOnPrimary" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_next"
@@ -456,13 +455,13 @@
             android:contentDescription="@string/next"
             android:minWidth="0dp"
             android:text=""
-            app:backgroundTint="@color/purple_500"
+            app:backgroundTint="?attr/colorPrimary"
             app:cornerRadius="24dp"
             app:icon="@drawable/ic_next"
             app:iconGravity="textStart"
             app:iconPadding="0dp"
             app:iconSize="24dp"
-            app:iconTint="@color/white" />
+            app:iconTint="?attr/colorOnPrimary" />
 
     </LinearLayout>
 
