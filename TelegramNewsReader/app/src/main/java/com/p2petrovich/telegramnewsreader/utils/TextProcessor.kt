@@ -311,7 +311,7 @@ object TextProcessor {
 
         // 2. Затем обычные суммы с центами: $10.50 -> 10 долларов 50 центов
         Patterns.TtsNormalizing.CURRENCIES.forEach { (symbol, mainName, subType) ->
-            t = t.replace(Regex("$symbol\\s?(\\d+)(?:[,.](\\d{1,2}))?\\b")) { m ->
+            t = t.replace(Regex("$symbol\\s?(\\d+)(?:[,.](\\d{1,2}))?\\b(?!\\s*(?:тыс|млн|млрд|трлн))", RegexOption.IGNORE_CASE)) { m ->
                 val main = m.groupValues[1]
                 val subRaw = m.groupValues[2]
                 if (subRaw.isEmpty()) "$main $mainName" else {
@@ -392,7 +392,8 @@ object TextProcessor {
         t = Patterns.TtsNormalizing.STRESS_ZVEZDY.replace(t) { m -> m.value.dropLast(1) + "ы" + Patterns.General.STRESS_SYMBOL }
         t = Patterns.TtsNormalizing.STRESS_PEREKACHIVAT.replace(t) { m -> "${m.groupValues[1]}а${Patterns.General.STRESS_SYMBOL}${m.groupValues[2]}" }
         t = Patterns.TtsNormalizing.STRESS_POLOTNO.replace(t) { m -> "${m.value}${Patterns.General.STRESS_SYMBOL}" }
-        // Исправлено: ударение в "лишения"
+        // Исправлено: ударение в "к году" (на "о") и "лишения" (на "е")
+        t = Patterns.TtsNormalizing.STRESS_GODU.replace(t) { m -> "${m.groupValues[1]} го${Patterns.General.STRESS_SYMBOL}ду" }
         t = t.replace(Regex("(?i)\\bлишени(я|ю|ям|ями|ях)\\b")) { m -> "лиш${Patterns.General.STRESS_SYMBOL}ени${m.groupValues[1]}" }
         return t
     }
@@ -625,6 +626,7 @@ object TextProcessor {
             val STRESS_ZVEZDY = Regex("(?i)\\bвспышк[а-яё]*(?:\\s+[а-яё]+){0,3}?\\s+звезды\\b")
             val STRESS_PEREKACHIVAT = Regex("(?i)\\b(перек)а(чива[а-яё]*)\\b")
             val STRESS_POLOTNO = Regex("(?i)\\bполотно\\b")
+            val STRESS_GODU = Regex("(?i)\\b(к|по)\\s+году\\b")
             
             val TECH_ABBR = mapOf("AI" to "искусственный интеллект", "ИИ" to "искусственный интеллект", "VR" to "виртуальная реальность", "AR" to "дополненная реальность", "GPS" to "Джи-Пи-Эс", "USB" to "ЮСБ", "WIFI" to "Вай-Фай")
             val MOLNIYA = Regex("(?im)^(⚡+\\s*|\\d{2}:\\d{2}\\s*—?\\s*)(молния)(?=[\\s!.,]|$)")
