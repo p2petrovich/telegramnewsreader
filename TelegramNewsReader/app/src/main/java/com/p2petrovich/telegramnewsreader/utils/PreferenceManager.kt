@@ -59,6 +59,10 @@ object PreferenceManager {
     private const val KEY_LAST_REAL_NEWS_COUNT = "last_real_news_count"
     private const val KEY_LAST_NEWS_FILE_INDICES = "last_news_indices"
 
+    // Keys for migration from old manual formats
+    private const val KEY_HIDDEN_TITLES_OLD = "hidden_id_title_map"
+    private const val KEY_PLAYER_PATHS_OLD = "player_paths"
+
     private val gson = Gson()
 
     @Volatile private var prefsInstance: SharedPreferences? = null
@@ -239,11 +243,37 @@ object PreferenceManager {
         getHiddenIdTitleMap(context)[id]
 
     fun getHiddenIdTitleMap(context: Context): Map<Long, String> {
-        val json = getPreferences(context).getString(KEY_HIDDEN_TITLES_JSON, null) ?: return emptyMap()
-        return try {
-            val type = object : TypeToken<Map<Long, String>>() {}.type
-            gson.fromJson(json, type)
-        } catch (_: Exception) { emptyMap() }
+        val prefs = getPreferences(context)
+        val json = prefs.getString(KEY_HIDDEN_TITLES_JSON, null)
+        if (json != null) {
+            return try {
+                val type = object : TypeToken<Map<Long, String>>() {}.type
+                gson.fromJson(json, type)
+            } catch (_: Exception) { emptyMap() }
+        }
+        
+        // --- Migration from old format ---
+        val oldRaw = prefs.getString(KEY_HIDDEN_TITLES_OLD, null)
+        if (oldRaw != null) {
+            val migrated = try {
+                oldRaw.split("|||").mapNotNull { pair ->
+                    val idx = pair.indexOf(':')
+                    if (idx <= 0) null else {
+                        val id = pair.substring(0, idx).toLongOrNull() ?: return@mapNotNull null
+                        val title = pair.substring(idx + 1)
+                        id to title
+                    }
+                }.toMap()
+            } catch (_: Exception) { emptyMap() }
+            
+            if (migrated.isNotEmpty()) {
+                saveHiddenIdTitleMap(context, migrated)
+                prefs.edit().remove(KEY_HIDDEN_TITLES_OLD).apply()
+                return migrated
+            }
+        }
+        
+        return emptyMap()
     }
 
     fun saveHiddenIdTitleMap(context: Context, map: Map<Long, String>) {
@@ -273,11 +303,27 @@ object PreferenceManager {
     }
 
     fun getPlaylistPaths(context: Context): List<String> {
-        val json = getPreferences(context).getString(KEY_PLAYER_PATHS_JSON, null) ?: return emptyList()
-        return try {
-            val type = object : TypeToken<List<String>>() {}.type
-            gson.fromJson(json, type)
-        } catch (_: Exception) { emptyList() }
+        val prefs = getPreferences(context)
+        val json = prefs.getString(KEY_PLAYER_PATHS_JSON, null)
+        if (json != null) {
+            return try {
+                val type = object : TypeToken<List<String>>() {}.type
+                gson.fromJson(json, type)
+            } catch (_: Exception) { emptyList() }
+        }
+
+        // --- Migration from old format ---
+        val oldRaw = prefs.getString(KEY_PLAYER_PATHS_OLD, null)
+        if (oldRaw != null && oldRaw.isNotEmpty()) {
+            val migrated = oldRaw.split("|||").filter { it.isNotEmpty() }
+            if (migrated.isNotEmpty()) {
+                savePlaylistPaths(context, migrated)
+                prefs.edit().remove(KEY_PLAYER_PATHS_OLD).apply()
+                return migrated
+            }
+        }
+        
+        return emptyList()
     }
 
     fun savePlayerIndex(context: Context, index: Int) {
