@@ -76,12 +76,24 @@ object AiProcessor {
     }
 
     suspend fun testModelAvailability(modelName: String, context: Context): Pair<Boolean, String> {
-        val (apiUrl, apiKey, _) = providerConfig(context)
         val provider = PreferenceManager.getAiProvider(context)
+        val apiKey = when (provider) {
+            "groq" -> PreferenceManager.getGroqApiKey(context)
+            "gemini" -> PreferenceManager.getGeminiApiKey(context)
+            else -> PreferenceManager.getOpenRouterApiKey(context)
+        }
         
         if (apiKey.isBlank()) {
             Logx.w(TAG, "testModelAvailability: API key missing for $provider")
             return false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_api_key_missing)
+        }
+
+        val apiUrl = if (provider == "gemini") {
+            String.format(GEMINI_URL_TEMPLATE, modelName, apiKey)
+        } else if (provider == "groq") {
+            GROQ_URL
+        } else {
+            OPENROUTER_URL
         }
 
         val requestBodyString = if (provider == "gemini") {
