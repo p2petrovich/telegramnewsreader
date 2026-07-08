@@ -425,7 +425,7 @@ object PreferenceManager {
     fun getDefaultModelForProvider(provider: String): String = when (provider) {
         "groq"       -> "llama-3.3-70b-versatile"
         "openrouter" -> "nvidia/nemotron-3-super-120b-a12b:free"
-        "gemini"     -> "gemini-1.5-flash"
+        "gemini"     -> "gemini-2.0-flash-exp"
         else         -> "nvidia/nemotron-3-super-120b-a12b:free"
     }
 

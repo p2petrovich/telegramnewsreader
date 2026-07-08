@@ -84,8 +84,7 @@ class AiSettingsDialogFragment : DialogFragment() {
 
         fun getModelsForProvider(provider: String): List<Pair<String, String>> = when (provider) {
             "gemini" -> listOf(
-                "gemini-1.5-flash"     to "Gemini 1.5 Flash — FREE",
-                "gemini-2.0-flash-exp" to "Gemini 2.0 Flash (Exp) — FREE"
+                "gemini-2.0-flash-exp" to "Gemini 2.0 Flash (AI Studio) — FREE"
             )
             "groq" -> listOf(
                 "llama-3.3-70b-versatile"                  to getString(R.string.ai_model_llama_fast),
@@ -93,8 +92,8 @@ class AiSettingsDialogFragment : DialogFragment() {
                 "meta-llama/llama-4-scout-17b-16e-instruct" to getString(R.string.ai_model_llama_new)
             )
             else -> listOf(
-                "google/gemma-2-9b-it:free"             to getString(R.string.ai_model_gemma_2_9b_free),
                 "openai/gpt-3.5-turbo:free"             to getString(R.string.ai_model_gpt_oss_120b_free),
+                "google/gemma-2-9b-it:free"             to getString(R.string.ai_model_gemma_4_26b_free),
                 "nvidia/nemotron-3-super-120b-a12b:free" to getString(R.string.ai_model_nemotron_3_super_free)
             )
         }
