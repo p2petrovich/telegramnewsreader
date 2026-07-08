@@ -19,6 +19,7 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.p2petrovich.telegramnewsreader.R
 import com.p2petrovich.telegramnewsreader.utils.AiProcessor
+import com.p2petrovich.telegramnewsreader.utils.Logx
 import com.p2petrovich.telegramnewsreader.utils.PreferenceManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -83,7 +84,8 @@ class AiSettingsDialogFragment : DialogFragment() {
 
         fun getModelsForProvider(provider: String): List<Pair<String, String>> = when (provider) {
             "gemini" -> listOf(
-                "gemini-2.5-flash-lite" to "Gemini 2.5 Flash-Lite (AI Studio) — FREE"
+                "gemini-1.5-flash"     to "Gemini 1.5 Flash — FREE",
+                "gemini-2.0-flash-exp" to "Gemini 2.0 Flash (Exp) — FREE"
             )
             "groq" -> listOf(
                 "llama-3.3-70b-versatile"                  to getString(R.string.ai_model_llama_fast),
@@ -91,8 +93,8 @@ class AiSettingsDialogFragment : DialogFragment() {
                 "meta-llama/llama-4-scout-17b-16e-instruct" to getString(R.string.ai_model_llama_new)
             )
             else -> listOf(
-                "openai/gpt-oss-120b:free"              to getString(R.string.ai_model_gpt_oss_120b_free),
-                "google/gemma-4-26b-a4b-it:free"        to getString(R.string.ai_model_gemma_4_26b_free),
+                "google/gemma-2-9b-it:free"             to getString(R.string.ai_model_gemma_2_9b_free),
+                "openai/gpt-3.5-turbo:free"             to getString(R.string.ai_model_gpt_oss_120b_free),
                 "nvidia/nemotron-3-super-120b-a12b:free" to getString(R.string.ai_model_nemotron_3_super_free)
             )
         }
@@ -138,7 +140,9 @@ class AiSettingsDialogFragment : DialogFragment() {
             val modelIdx = currentModels.indexOfFirst { it.first == savedModel }.coerceAtLeast(0)
             spinnerModel.setSelection(modelIdx)
 
-            viewLifecycleOwner.lifecycleScope.launch {
+            // [FIX] Используем lifecycleScope фрагмента вместо viewLifecycleOwner
+            // так как в onCreateDialog вью еще не прикреплена к фрагменту
+            lifecycleScope.launch {
                 currentModels.forEach { modelPair ->
                     modelStatuses[modelPair.first] = "..."
                 }
@@ -146,9 +150,13 @@ class AiSettingsDialogFragment : DialogFragment() {
 
                 currentModels.map { modelPair ->
                     async {
-                        val result = AiProcessor.testModelAvailability(modelPair.first, activity)
-                        modelStatuses[modelPair.first] = if (result.first) "✓" else "✗"
-                        withContext(Dispatchers.Main) { modelAdapter.notifyDataSetChanged() }
+                        try {
+                            val result = AiProcessor.testModelAvailability(modelPair.first, activity)
+                            modelStatuses[modelPair.first] = if (result.first) "✓" else "✗"
+                            withContext(Dispatchers.Main) { modelAdapter.notifyDataSetChanged() }
+                        } catch (e: Exception) {
+                            Logx.e("AiDialog", "Check failed", e)
+                        }
                     }
                 }.awaitAll()
             }
@@ -170,7 +178,7 @@ class AiSettingsDialogFragment : DialogFragment() {
         }
 
         btnTestManual?.setOnClickListener {
-            val selectedModel = currentModels[spinnerModel.selectedItemPosition].first
+            val selectedModel = currentModels.getOrNull(spinnerModel.selectedItemPosition)?.first ?: return@setOnClickListener
 
             PreferenceManager.saveOpenRouterApiKey(activity, etOpenRouterKey?.text?.toString()?.trim() ?: "")
             PreferenceManager.saveGroqApiKey(activity, etGroqKey?.text?.toString()?.trim() ?: "")
@@ -179,7 +187,7 @@ class AiSettingsDialogFragment : DialogFragment() {
             tvStatusManual?.text = getString(R.string.proxy_status_checking)
             tvStatusManual?.setTextColor(Color.GRAY)
 
-            viewLifecycleOwner.lifecycleScope.launch {
+            lifecycleScope.launch {
                 val result = AiProcessor.testModelAvailability(selectedModel, activity)
                 tvStatusManual?.text = if (result.first) getString(R.string.ai_model_available) else result.second
                 tvStatusManual?.setTextColor(if (result.first) Color.GREEN else Color.RED)
@@ -210,10 +218,17 @@ class AiSettingsDialogFragment : DialogFragment() {
                 PreferenceManager.saveGroqApiKey(activity, etGroqKey?.text?.toString()?.trim() ?: "")
                 PreferenceManager.saveGeminiApiKey(activity, etGeminiKey?.text?.toString()?.trim() ?: "")
                 PreferenceManager.setAiSummaryEnabled(activity, switchEnabled.isChecked)
-                val selectedModel = currentModels[spinnerModel.selectedItemPosition].first
-                val selectedStyle = styles[spinnerStyle.selectedItemPosition].first
-                PreferenceManager.setAiModel(activity, selectedModel)
-                PreferenceManager.setAiStyle(activity, selectedStyle)
+                
+                val modelPos = spinnerModel.selectedItemPosition
+                if (modelPos >= 0 && modelPos < currentModels.size) {
+                    PreferenceManager.setAiModel(activity, currentModels[modelPos].first)
+                }
+                
+                val stylePos = spinnerStyle.selectedItemPosition
+                if (stylePos >= 0 && stylePos < styles.size) {
+                    PreferenceManager.setAiStyle(activity, styles[stylePos].first)
+                }
+
                 Toast.makeText(activity, getString(R.string.ai_settings_saved), Toast.LENGTH_SHORT).show()
                 onDismissListener?.invoke()
             }
