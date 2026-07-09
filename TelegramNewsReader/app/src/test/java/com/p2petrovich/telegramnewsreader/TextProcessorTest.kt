@@ -194,13 +194,13 @@ class TextProcessorTest {
     }
 
     @Test
-    fun `applyStressMarks - godu i lisheniya`() {
-        // к гóду лишéния
-        val text = "к году лишения"
-        val stressed = TextProcessor.prepareForSpeech(text)
-        assertTrue(stressed.contains("го\u0301ду"))
-        assertTrue(stressed.contains("лиш\u0301ения"))
-    }
+	fun `applyStressMarks - godu i lisheniya`() {
+		// к гóду лишéния
+		val text = "к году лишения"
+		val stressed = TextProcessor.prepareForSpeech(text)
+		assertTrue(stressed.contains("го\u0301ду"))
+		assertTrue(stressed.contains("лише\u0301ния"))   // было: "лиш\u0301ения"
+	}
     @Test
     fun `DIAG печать фактических строк`() {
         fun p(label: String, s: String) = println("$label=[$s]")

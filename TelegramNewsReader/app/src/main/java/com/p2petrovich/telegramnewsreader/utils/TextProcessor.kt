@@ -377,7 +377,8 @@ object TextProcessor {
         t = Patterns.TtsNormalizing.STRESS_PEREKACHIVAT.replace(t) { m -> "${m.groupValues[1]}а${Patterns.General.STRESS_SYMBOL}${m.groupValues[2]}" }
         t = Patterns.TtsNormalizing.STRESS_POLOTNO.replace(t) { m -> "${m.value}${Patterns.General.STRESS_SYMBOL}" }
         t = Patterns.TtsNormalizing.STRESS_GODU.replace(t) { m -> "${m.groupValues[1]} го${Patterns.General.STRESS_SYMBOL}ду" }
-        t = t.replace(Regex("(?<![$LETTER])лишени(я|ю|ям|ями|ях)(?![$LETTER])", RegexOption.IGNORE_CASE)) { m -> "лиш${Patterns.General.STRESS_SYMBOL}ени${m.groupValues[1]}" }
+        // Ударение в "лишения/лишению/…" ставится на гласную "е" -> лише́ния
+        t = t.replace(Regex("(?i)\\bлишени(я|ю|ям|ями|ях)\\b")) { m -> "лише${Patterns.General.STRESS_SYMBOL}ни${m.groupValues[1]}" }
         return t
     }
 
@@ -666,9 +667,7 @@ object TextProcessor {
 
         object Deduplication {
             val NUMBERS = Regex("\\d+(?:[.,]\\d+)?")
-            // Аббревиатуры: 2–6 подряд заглавных лат/кир. Границы через lookaround (кросс-платформенно).
             val ABBREVIATIONS = Regex("(?<![$LETTER])[A-ZА-ЯЁ]{2,6}(?![$LETTER])")
-            // Имена собственные: Заглавная + строчные (лат/кир).
             val PROPER_NAMES = Regex("(?<![$LETTER])[A-ZА-ЯЁ][a-zа-яё]{2,}(?![$LETTER])", RegexOption.MULTILINE)
         }
 
