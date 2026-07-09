@@ -201,4 +201,30 @@ class TextProcessorTest {
         assertTrue(stressed.contains("го\u0301ду"))
         assertTrue(stressed.contains("лиш\u0301ения"))
     }
+    @Test
+    fun `DIAG печать фактических строк`() {
+        fun p(label: String, s: String) = println("$label=[$s]")
+
+        p("NUM $50 млн ", TextProcessor.normalizeNumbers("цена \$50 млн"))
+        p("NUM €20 млрд", TextProcessor.normalizeNumbers("бюджет €20 млрд"))
+        p("NUM 35млнруб", TextProcessor.normalizeNumbers("до 35 млн рублей"))
+        p("NUM 35млн   ", TextProcessor.normalizeNumbers("выросло на 35 млн"))
+        p("NUM -5C     ", TextProcessor.normalizeNumbers("похолодает до -5°C"))
+        p("NUM ₽100тыс ", TextProcessor.normalizeNumbers("₽100 тыс"))
+        p("NUM 5млрдруб", TextProcessor.normalizeNumbers("5 млрд руб"))
+
+        p("ABBR 2024 г", TextProcessor.expandAbbreviations("2024 г."))
+        p("ABBR г.Моск", TextProcessor.expandAbbreviations("г. Москва"))
+        p("ABBR д. 5  ", TextProcessor.expandAbbreviations("д. 5"))
+        p("ABBR АЗС   ", TextProcessor.expandAbbreviations("АЗС горит"))
+        p("ABBR РФ    ", TextProcessor.expandAbbreviations("в РФ приняли"))
+
+        val f1 = TextProcessor.extractFingerprint("08:30 — Банк ВТБ повысил ставку до 21")
+        println("FP1 strong=${f1.strongAnchors} numbers=${f1.numbers}")
+        val f2 = TextProcessor.extractFingerprint("Над регионом Крым сбили 310 дронов России")
+        println("FP2 strong=${f2.strongAnchors} numbers=${f2.numbers}")
+        val f3 = TextProcessor.extractFingerprint("Today Putin met Biden in Geneva")
+        println("FP3 strong=${f3.strongAnchors} numbers=${f3.numbers}")
+    }
+
 }
