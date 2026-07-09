@@ -7,11 +7,12 @@ package com.p2petrovich.telegramnewsreader.utils
  * 2. Подготовку текста к синтезу (нормализация чисел, сокращений, ударений).
  * 3. Извлечение "отпечатков" для дедупликации.
  *
- * ВНИМАНИЕ: паттерны намеренно НЕ используют inline-флаг (?U)/(?iU).
- * На Android (ART) inline (?U) бросает PatternSyntaxException, а на desktop JVM он
- * нужен для Unicode-границ \b. Чтобы код работал ОДИНАКОВО в обеих средах,
- * вместо \b вокруг кириллицы используется lookaround с явным классом
- * [A-Za-zА-Яа-яЁё], а флаг i передаётся через RegexOption.IGNORE_CASE.
+ * ВНИМАНИЕ: паттерны намеренно НЕ используют inline-флаг (?U)/(?iU) и НЕ используют
+ * \b рядом с кириллицей. На Android (ART) inline (?U) бросает PatternSyntaxException,
+ * а на desktop JVM \b рядом с кириллицей без Unicode-режима работает нестабильно.
+ * Поэтому вместо \b вокруг кириллицы используется lookaround с явным классом
+ * [A-Za-zА-Яа-яЁё] ($LETTER), а флаг i передаётся через RegexOption.IGNORE_CASE.
+ * Латинский \b (URL, англ. слова, числа \d) оставлен — он корректен на обеих платформах.
  */
 object TextProcessor {
 
@@ -294,7 +295,7 @@ object TextProcessor {
 
         // 2. Обычные суммы с центами: $10.50 -> 10 долларов 50 центов
         Patterns.TtsNormalizing.CURRENCIES.forEach { (symbol, mainName, subType) ->
-            t = t.replace(Regex("$symbol\\s?(\\d+)(?:[,.](\\d{1,2}))?\\b(?!\\s*(?:тыс|млн|млрд|трлн))", RegexOption.IGNORE_CASE)) { m ->
+            t = t.replace(Regex("$symbol\\s?(\\d+)(?:[,.](\\d{1,2}))?(?![\\d$LETTER])(?!\\s*(?:тыс|млн|млрд|трлн))", RegexOption.IGNORE_CASE)) { m ->
                 val main = m.groupValues[1]
                 val subRaw = m.groupValues[2]
                 if (subRaw.isEmpty()) "$main $mainName" else {
@@ -310,7 +311,7 @@ object TextProcessor {
             val scale = scaleWord(m.groupValues[2].lowercase().trim('.'))
             "$num $scale рублей"
         }
-        // 3b. Маркер СПРАВА: "5 млрд руб", "100 тыс ₽". (?![A-Za-z...]) не даёт съесть "рубли/рублей".
+        // 3b. Маркер СПРАВА: "5 млрд руб", "100 тыс ₽". (?![$LETTER]) не даёт съесть "рубли/рублей".
         t = t.replace(Regex("(\\d+[\\d,.]*)\\s*(тыс\\.?|млн\\.?|млрд\\.?|трлн\\.?)\\s?(?:₽|руб(?![$LETTER])\\.?|р\\.)", RegexOption.IGNORE_CASE)) { m ->
             val num = m.groupValues[1].replace(",", ".")
             val scale = scaleWord(m.groupValues[2].lowercase().trim('.'))
@@ -377,8 +378,8 @@ object TextProcessor {
         t = Patterns.TtsNormalizing.STRESS_PEREKACHIVAT.replace(t) { m -> "${m.groupValues[1]}а${Patterns.General.STRESS_SYMBOL}${m.groupValues[2]}" }
         t = Patterns.TtsNormalizing.STRESS_POLOTNO.replace(t) { m -> "${m.value}${Patterns.General.STRESS_SYMBOL}" }
         t = Patterns.TtsNormalizing.STRESS_GODU.replace(t) { m -> "${m.groupValues[1]} го${Patterns.General.STRESS_SYMBOL}ду" }
-        // Ударение в "лишения/лишению/…" ставится на гласную "е" -> лише́ния
-        t = t.replace(Regex("(?i)\\bлишени(я|ю|ям|ями|ях)\\b")) { m -> "лише${Patterns.General.STRESS_SYMBOL}ни${m.groupValues[1]}" }
+        // Ударение в "лишения/лишению/…" ставится на гласную "е" -> лише́ния. Без \b (кросс-платформенно).
+        t = t.replace(Regex("лишени(я|ю|ям|ями|ях)", RegexOption.IGNORE_CASE)) { m -> "лише${Patterns.General.STRESS_SYMBOL}ни${m.groupValues[1]}" }
         return t
     }
 
@@ -531,10 +532,10 @@ object TextProcessor {
             val EMOJI_ONLY = Regex("^[\\p{So}\\p{Sk}\\s]+$")
             val BRACKET_TIME = Regex("^\\d{2}:\\d{2}\\s*—\\s*\\[.*]$")
             val TIME_PREFIX = Regex("^\\d{2}:\\d{2}\\s*—?\\s*")
-            val TIMECODE_ANNOUNCE = Regex("(?m)^\\s*\\d{1,2}:\\d{2}\\s*[–—-]\\s*\\d{1,2}:\\d{2}\\b")
-            val TRIVIAL = Regex("^(фото|видео|аудио|ссылка|репост)\\b.*$", RegexOption.IGNORE_CASE)
-            val SUBSCRIBE_CHECK = Regex("(?i)^\\s*(?:\\d{2}:\\d{2}\\s*—\\s*)?(подписывай(ся|тесь)?|подпишись|подписка на канал)\\b[\\s\\S]{0,80}$")
-            val SPAM_CHECK = Regex("(?i)^\\s*(?:\\d{2}:\\d{2}\\s*—\\s*)?(лайк|репост|поделись|нажми|кликни|переходи по ссылке)\\b[\\s\\S]{0,60}$")
+            val TIMECODE_ANNOUNCE = Regex("(?m)^\\s*\\d{1,2}:\\d{2}\\s*[–—-]\\s*\\d{1,2}:\\d{2}(?!\\d)")
+            val TRIVIAL = Regex("^(фото|видео|аудио|ссылка|репост)(?![$LETTER]).*$", RegexOption.IGNORE_CASE)
+            val SUBSCRIBE_CHECK = Regex("(?i)^\\s*(?:\\d{2}:\\d{2}\\s*—\\s*)?(подписывай(ся|тесь)?|подпишись|подписка на канал)(?![$LETTER])[\\s\\S]{0,80}$")
+            val SPAM_CHECK = Regex("(?i)^\\s*(?:\\d{2}:\\d{2}\\s*—\\s*)?(лайк|репост|поделись|нажми|кликни|переходи по ссылке)(?![$LETTER])[\\s\\S]{0,60}$")
             const val STRESS_SYMBOL = "\u0301"
         }
 
@@ -548,7 +549,7 @@ object TextProcessor {
                 Regex("^перейти в канал.*", RegexOption.IGNORE_CASE),
                 Regex("^наш tg.*", RegexOption.IGNORE_CASE),
                 Regex("^читать[ь]? больше.*", RegexOption.IGNORE_CASE),
-                Regex("^все\\s+наши\\s+каналы\\b.*", RegexOption.IGNORE_CASE),
+                Regex("^все\\s+наши\\s+каналы(?![$LETTER]).*", RegexOption.IGNORE_CASE),
             )
         }
 
@@ -563,12 +564,12 @@ object TextProcessor {
             val GEOMETRIC_SHAPES = Regex("[\\u25A0-\\u25FF\\u2B00-\\u2BFF▪▫◻◼◽◾◦‣⁃•·∙▸▹►▻🔹🔸🔶🔷🔺🔻🟠🟡🟢🟣🟤🟥🟦🟧🟨🟩🟪🟫⬛⬜]")
             val VARIATION_SELECTOR = Regex("[\\uFE00-\\uFE0F\\u200D]")
             val SUBSCRIBE_TAILS = listOf(
-                Regex("(?i)[\\s\\p{So}\\p{Sk}]*[\\\\/|•·—–-]\\s*подпис(аться|ывай(ся|тесь)?|ка)\\b.*$"),
-                Regex("(?i)[\\s\\p{So}\\p{Sk}]*[\\\\/|•·—–-]\\s*все\\s+наши\\s+каналы\\b.*$"),
-                Regex("(?i)[\\s\\p{So}\\p{Sk}]*[\\\\/|•·—–-]\\s*зеркал[оа]\\b.*$"),
-                Regex("(?im)^.*\\bподпис(аться|ывай(ся|тесь)?|ка)\\b.*(\\||/|•|—|–).*$"),
-                Regex("(?im)^\\s*[\\p{So}\\p{Sk}]*\\s*зеркал[оа]\\s*(канала|нашего)?\\b.*$"),
-                Regex("(?im)^\\s*[\\p{So}\\p{Sk}]*\\s*все\\s+наши\\s+каналы\\b.*$"),
+                Regex("(?i)[\\s\\p{So}\\p{Sk}]*[\\\\/|•·—–-]\\s*подпис(аться|ывай(ся|тесь)?|ка)(?![$LETTER]).*$"),
+                Regex("(?i)[\\s\\p{So}\\p{Sk}]*[\\\\/|•·—–-]\\s*все\\s+наши\\s+каналы(?![$LETTER]).*$"),
+                Regex("(?i)[\\s\\p{So}\\p{Sk}]*[\\\\/|•·—–-]\\s*зеркал[оа](?![$LETTER]).*$"),
+                Regex("(?im)^.*(?<![$LETTER])подпис(аться|ывай(ся|тесь)?|ка)(?![$LETTER]).*(\\||/|•|—|–).*$"),
+                Regex("(?im)^\\s*[\\p{So}\\p{Sk}]*\\s*зеркал[оа]\\s*(канала|нашего)?(?![$LETTER]).*$"),
+                Regex("(?im)^\\s*[\\p{So}\\p{Sk}]*\\s*все\\s+наши\\s+каналы(?![$LETTER]).*$"),
             )
         }
 
@@ -577,15 +578,15 @@ object TextProcessor {
             val HASHTAG = Regex("(^|\\s)[#@][\\p{L}0-9_]+")
             val FORWARD = Regex("(?im)^переслано из:?\\s.*$")
             val EDIT = Regex("(?im)^ред\\.?\\s*:?\\s*\\d{1,2}:\\d{2}.*$")
-            val SUBSCRIBE = Regex("(?im)^\\s*(?:[\\p{So}\\p{Sk}❗️!❤️💚💙💛💜🖤🤍🤎]\\s*)*подписывай(ся|тесь)?\\b.*$")
-            val SUBSCRIPTION = Regex("(?im)^\\s*подписка\\b.*$")
-            val AD = Regex("(?im)^.*\\b(реклама|промокод)\\b.*$")
-            val PROMO = Regex("(?im)^.*\\b(распродажа|купи)\\b.*$")
+            val SUBSCRIBE = Regex("(?im)^\\s*(?:[\\p{So}\\p{Sk}❗️!❤️💚💙💛💜🖤🤍🤎]\\s*)*подписывай(ся|тесь)?(?![$LETTER]).*$")
+            val SUBSCRIPTION = Regex("(?im)^\\s*подписка(?![$LETTER]).*$")
+            val AD = Regex("(?im)^.*(?<![$LETTER])(реклама|промокод)(?![$LETTER]).*$")
+            val PROMO = Regex("(?im)^.*(?<![$LETTER])(распродажа|купи)(?![$LETTER]).*$")
             val PHOTO_LINE = Regex("^Фото:.*$", RegexOption.MULTILINE)
             val RBK = Regex("^[\\p{So}\\p{Sk}]?\\s*(Читать РБК в Telegram|Следить за новостями РБК в Telegram|(Другие видео|Картина дня).*в телеграм-канале РБК).*$", setOf(RegexOption.MULTILINE, RegexOption.IGNORE_CASE))
             val RBK_MAX = Regex("(?im)^\\s*[\\p{So}\\p{Sk}]?\\s*канал\\s+рбк\\s+в\\s+[\"«\"']?макс[а-я]*[\"»\"']?\\s*$")
             val RBK_APP = Regex("(?im)^\\s*[\\p{So}\\p{Sk}]?\\s*приложение\\s+рбк\\s+для\\s+(ios|android)(\\s*(и|/|\\|)\\s*(ios|android))?\\s*$")
-            val MAX_CHANNEL_TAIL = Regex("(?im)^.*\\bв\\s+(?:нашем\\s+)?канале?\\s+в\\s+[\"«]?макс[а-я]*[\"»]?\\.?\\s*$")
+            val MAX_CHANNEL_TAIL = Regex("(?im)^.*(?<![$LETTER])в\\s+(?:нашем\\s+)?канале?\\s+в\\s+[\"«]?макс[а-я]*[\"»]?\\.?\\s*$")
             val BAZA_FOOTER = Regex("(?i)Если у вас плохо прогружаются файлы.*BAZA.*канале в MAX")
             val SUBSCRIBE_INLINE = Regex("(?i)подписывай(ся|тесь)?\\s+на\\s+[^\\n.]+")
             val AI_ERROR = Regex("(?i)\\[AI Error.*?\\]")
@@ -604,8 +605,8 @@ object TextProcessor {
 
         object TtsNormalizing {
             val CURRENCIES = listOf(Triple("\\$", "долларов", "cent"), Triple("€", "евро", "cent"), Triple("£", "фунтов", "pence"))
-            val RUBLE_KOP = Regex("(?i)(₽)\\s?(\\d+)(?:[,.](\\d{1,2}))?|(\\d+)(?:[,.](\\d{1,2}))?\\s?(?:₽|руб\\.?|р\\.)\\b")
-            val RANGE = Regex("(?<!\\d)\\b(\\d{1,3})\\s*[–—-]\\s*(\\d{1,3})\\b(?!\\d)")
+            val RUBLE_KOP = Regex("(?i)(₽)\\s?(\\d+)(?:[,.](\\d{1,2}))?|(\\d+)(?:[,.](\\d{1,2}))?\\s?(?:₽|руб\\.?|р\\.)(?![$LETTER])")
+            val RANGE = Regex("(?<!\\d)(\\d{1,3})\\s*[–—-]\\s*(\\d{1,3})(?!\\d)")
             val COORDS_S = Regex("([+-]?\\d+[,.]?\\d*)\\s?°\\s?с\\.?\\s?ш\\.?", RegexOption.IGNORE_CASE)
             val COORDS_N = Regex("([+-]?\\d+[,.]?\\d*)\\s?°\\s?ю\\.?\\s?ш\\.?", RegexOption.IGNORE_CASE)
             val COORDS_E = Regex("([+-]?\\d+[,.]?\\d*)\\s?°\\s?в\\.?\\s?д\\.?", RegexOption.IGNORE_CASE)
@@ -656,10 +657,10 @@ object TextProcessor {
             )
             val CENTURIES = linkedMapOf("XXII" to "двадцать второго", "XXI" to "двадцать первого", "XX" to "двадцатого", "XIX" to "девятнадцатого", "XVIII" to "восемнадцатого", "XVII" to "семнадцатого", "XVI" to "шестнадцатого", "XV" to "пятнадцатого", "XIV" to "четырнадцатого", "XIII" to "тринадцатого", "XII" to "двенадцатого", "XI" to "одиннадцатого", "X" to "десятого", "IX" to "девятого", "VIII" to "восьмого", "VII" to "седьмого", "VI" to "шестого", "V" to "пятого", "IV" to "четвёртого", "III" to "третьего", "II" to "второго", "I" to "первого", "ХХІ" to "двадцать первого", "ХХ" to "двадцатого", "ХІХ" to "девятнадцатого", "ХVIII" to "восемнадцатого", "ХVII" to "семнадцатого", "ХVI" to "шестнадцатого", "ХV" to "пятнадцатого", "ХIV" to "четырнадцатого", "ХIII" to "тринадцатого", "ХII" to "двенадцатого", "ХI" to "одиннадцатого", "Х" to "десятого")
 
-            val STRESS_ZVEZDY = Regex("(?i)\\bвспышк[а-яё]*(?:\\s+[а-яё]+){0,3}?\\s+звезды\\b")
-            val STRESS_PEREKACHIVAT = Regex("(?i)\\b(перек)а(чива[а-яё]*)\\b")
-            val STRESS_POLOTNO = Regex("(?i)\\bполотно\\b")
-            val STRESS_GODU = Regex("(?i)\\b(к|по)\\s+году\\b")
+            val STRESS_ZVEZDY = Regex("(?<![$LETTER])вспышк[а-яё]*(?:\\s+[а-яё]+){0,3}?\\s+звезды(?![$LETTER])", RegexOption.IGNORE_CASE)
+            val STRESS_PEREKACHIVAT = Regex("(?<![$LETTER])(перек)а(чива[а-яё]*)(?![$LETTER])", RegexOption.IGNORE_CASE)
+            val STRESS_POLOTNO = Regex("(?<![$LETTER])полотно(?![$LETTER])", RegexOption.IGNORE_CASE)
+            val STRESS_GODU = Regex("(?<![$LETTER])(к|по)\\s+году(?![$LETTER])", RegexOption.IGNORE_CASE)
 
             val TECH_ABBR = mapOf("AI" to "искусственный интеллект", "ИИ" to "искусственный интеллект", "VR" to "виртуальная реальность", "AR" to "дополненная реальность", "GPS" to "Джи-Пи-Эс", "USB" to "ЮСБ", "WIFI" to "Вай-Фай")
             val MOLNIYA = Regex("(?im)^(⚡+\\s*|\\d{2}:\\d{2}\\s*—?\\s*)(молния)(?=[\\s!.,]|$)")
