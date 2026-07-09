@@ -6,6 +6,12 @@ package com.p2petrovich.telegramnewsreader.utils
  * 1. Фильтрацию мусора (реклама, ссылки, короткие сообщения).
  * 2. Подготовку текста к синтезу (нормализация чисел, сокращений, ударений).
  * 3. Извлечение "отпечатков" для дедупликации.
+ *
+ * ВНИМАНИЕ: паттерны намеренно НЕ используют inline-флаг (?U)/(?iU).
+ * На Android (ART) inline (?U) бросает PatternSyntaxException, а на desktop JVM он
+ * нужен для Unicode-границ \b. Чтобы код работал ОДИНАКОВО в обеих средах,
+ * вместо \b вокруг кириллицы используется lookaround с явным классом
+ * [A-Za-zА-Яа-яЁё], а флаг i передаётся через RegexOption.IGNORE_CASE.
  */
 object TextProcessor {
 
@@ -16,6 +22,9 @@ object TextProcessor {
     private const val WORD_JACCARD_MIN = 0.4
     private const val MIN_ANCHORS = 3
     const val MAX_NEWS_DEFAULT = 500
+
+    // Класс "буква" (лат+кир) для кросс-платформенных границ слова.
+    private const val LETTER = "A-Za-zА-Яа-яЁё"
 
     // =============================================================================================
     // ПУБЛИЧНЫЕ ТОЧКИ ВХОДА (PIPELINES)
@@ -274,19 +283,18 @@ object TextProcessor {
         var t = text.replace(Regex("(?<=\\d)[\\s\u00A0](?=\\d{3}(?:\\b|\\D))"), "")
         t = t.replace(Regex("(?<!\\w)№\\s*(\\d+)"), "номер $1")
 
-        // 1. Валюты $/€/£ С МАСШТАБОМ. (?U) — чтобы \b после "млн" работал перед кириллицей/концом.
+        // 1. Валюты $/€/£ С МАСШТАБОМ.
         Patterns.TtsNormalizing.CURRENCIES.forEach { (symbol, mainName, _) ->
-            t = t.replace(Regex("(?iU)$symbol\\s?(\\d[\\d,.]*)\\s*(тыс\\.?|млн|млрд|трлн)\\b")) { m ->
+            t = t.replace(Regex("$symbol\\s?(\\d[\\d,.]*)\\s*(тыс\\.?|млн|млрд|трлн)(?![$LETTER])", RegexOption.IGNORE_CASE)) { m ->
                 val num = m.groupValues[1].replace(",", ".")
-                val scaleRaw = m.groupValues[2].lowercase().trim('.')
-                val scale = scaleWord(scaleRaw)
+                val scale = scaleWord(m.groupValues[2].lowercase().trim('.'))
                 "$num $scale $mainName"
             }
         }
 
         // 2. Обычные суммы с центами: $10.50 -> 10 долларов 50 центов
         Patterns.TtsNormalizing.CURRENCIES.forEach { (symbol, mainName, subType) ->
-            t = t.replace(Regex("(?iU)$symbol\\s?(\\d+)(?:[,.](\\d{1,2}))?\\b(?!\\s*(?:тыс|млн|млрд|трлн))")) { m ->
+            t = t.replace(Regex("$symbol\\s?(\\d+)(?:[,.](\\d{1,2}))?\\b(?!\\s*(?:тыс|млн|млрд|трлн))", RegexOption.IGNORE_CASE)) { m ->
                 val main = m.groupValues[1]
                 val subRaw = m.groupValues[2]
                 if (subRaw.isEmpty()) "$main $mainName" else {
@@ -296,16 +304,14 @@ object TextProcessor {
             }
         }
 
-        // 3. Рубли со шкалой. Два явных прохода: маркер ОБЯЗАТЕЛЕН, чужой пробел не съедается,
-        //    "рублей" не режется (маркер справа отделён границей не-буквы).
         // 3a. Маркер СЛЕВА: "₽100 тыс", "руб 5 млрд"
-        t = t.replace(Regex("(?iU)(?:₽|руб\\.?|р\\.)\\s?(\\d+[\\d,.]*)\\s*(тыс\\.?|млн\\.?|млрд\\.?|трлн\\.?)")) { m ->
+        t = t.replace(Regex("(?:₽|руб\\.?|р\\.)\\s?(\\d+[\\d,.]*)\\s*(тыс\\.?|млн\\.?|млрд\\.?|трлн\\.?)", RegexOption.IGNORE_CASE)) { m ->
             val num = m.groupValues[1].replace(",", ".")
             val scale = scaleWord(m.groupValues[2].lowercase().trim('.'))
             "$num $scale рублей"
         }
-        // 3b. Маркер СПРАВА: "5 млрд руб", "100 тыс ₽". (?!\p{L}) не даёт съесть "рубли/рублей".
-        t = t.replace(Regex("(?iU)(\\d+[\\d,.]*)\\s*(тыс\\.?|млн\\.?|млрд\\.?|трлн\\.?)\\s?(?:₽|руб(?!\\p{L})\\.?|р\\.)")) { m ->
+        // 3b. Маркер СПРАВА: "5 млрд руб", "100 тыс ₽". (?![A-Za-z...]) не даёт съесть "рубли/рублей".
+        t = t.replace(Regex("(\\d+[\\d,.]*)\\s*(тыс\\.?|млн\\.?|млрд\\.?|трлн\\.?)\\s?(?:₽|руб(?![$LETTER])\\.?|р\\.)", RegexOption.IGNORE_CASE)) { m ->
             val num = m.groupValues[1].replace(",", ".")
             val scale = scaleWord(m.groupValues[2].lowercase().trim('.'))
             "$num $scale рублей"
@@ -350,7 +356,7 @@ object TextProcessor {
         Patterns.TtsNormalizing.UNITS.forEach { (regex, repl) -> t = t.replace(regex, repl) }
         Patterns.TtsNormalizing.PHRASES.forEach { (regex, repl) -> t = t.replace(regex, repl) }
 
-        t = t.replace(Regex("(?iU)(\\d+)\\s*зв\\.?\\s*вел\\.?")) { m ->
+        t = t.replace(Regex("(\\d+)\\s*зв\\.?\\s*вел\\.?", RegexOption.IGNORE_CASE)) { m ->
             val n = m.groupValues[1].toIntOrNull()
             if (n != null) "${numberToOrdinalFeminineGenitive(n)} звёздной величины" else m.value
         }
@@ -358,7 +364,7 @@ object TextProcessor {
         Patterns.TtsNormalizing.MAPS.forEach { (regex, repl) -> t = t.replace(regex, repl) }
         Patterns.TtsNormalizing.NEWS_ABBR.forEach { (regex, repl) -> t = t.replace(regex, repl) }
         Patterns.TtsNormalizing.CENTURIES.forEach { (roman, ordinal) ->
-            t = t.replace(Regex("(?U)\\b${Regex.escape(roman)}\\s+(век[аеу]?)\\b")) { m -> "$ordinal ${m.groupValues[1]}" }
+            t = t.replace(Regex("(?<![$LETTER])${Regex.escape(roman)}\\s+(век[аеу]?)(?![$LETTER])")) { m -> "$ordinal ${m.groupValues[1]}" }
         }
 
         return t
@@ -371,7 +377,7 @@ object TextProcessor {
         t = Patterns.TtsNormalizing.STRESS_PEREKACHIVAT.replace(t) { m -> "${m.groupValues[1]}а${Patterns.General.STRESS_SYMBOL}${m.groupValues[2]}" }
         t = Patterns.TtsNormalizing.STRESS_POLOTNO.replace(t) { m -> "${m.value}${Patterns.General.STRESS_SYMBOL}" }
         t = Patterns.TtsNormalizing.STRESS_GODU.replace(t) { m -> "${m.groupValues[1]} го${Patterns.General.STRESS_SYMBOL}ду" }
-        t = t.replace(Regex("(?iU)\\bлишени(я|ю|ям|ями|ях)\\b")) { m -> "лиш${Patterns.General.STRESS_SYMBOL}ени${m.groupValues[1]}" }
+        t = t.replace(Regex("(?<![$LETTER])лишени(я|ю|ям|ями|ях)(?![$LETTER])", RegexOption.IGNORE_CASE)) { m -> "лиш${Patterns.General.STRESS_SYMBOL}ени${m.groupValues[1]}" }
         return t
     }
 
@@ -380,7 +386,7 @@ object TextProcessor {
         var t = text.replace(Regex("(?<![.\\w])IT(?![/\\w])")) { "Ай-Ти" }
 
         Patterns.TtsNormalizing.TECH_ABBR.forEach { (abbr, full) ->
-            t = t.replace(Regex("(?iU)\\b$abbr\\b")) { full }
+            t = t.replace(Regex("(?<![$LETTER])$abbr(?![$LETTER])", RegexOption.IGNORE_CASE)) { full }
         }
 
         t = t.replace(Regex("\\bMAX\\b"), "Макс")
@@ -388,7 +394,7 @@ object TextProcessor {
 
         val important = listOf("важно", "внимание", "срочно", "эксклюзив")
         important.forEach { word ->
-            t = t.replace(Regex("(?iU)\\b($word)\\b")) { "ВАЖНО. ${it.groupValues[1].lowercase()}... " }
+            t = t.replace(Regex("(?<![$LETTER])($word)(?![$LETTER])", RegexOption.IGNORE_CASE)) { "ВАЖНО. ${it.groupValues[1].lowercase()}... " }
         }
         t = t.replace(Patterns.TtsNormalizing.MOLNIYA, "$1ВАЖНО. молния... ")
         return t.trim()
@@ -433,15 +439,15 @@ object TextProcessor {
         if (HeaderUtils.isChannelHeader(text)) return text
         var t = text.replace(" в нем", " в нём").replace(Regex("\\s*‼‼‼\\s*"), "Главное... ")
 
-        val dateFull = Regex("(?U)\\b(\\d{1,2})\\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\\s+(\\d{4})(?:\\s*(?:года|г\\.))?\\b")
+        val dateFull = Regex("(?<![$LETTER])(\\d{1,2})\\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\\s+(\\d{4})(?:\\s*(?:года|г\\.))?(?![$LETTER])")
         t = dateFull.replace(t) { m -> "${numberToOrdinalRu(m.groupValues[1].toInt())} ${m.groupValues[2]} ${m.groupValues[3]} года" }
 
-        val dateShort = Regex("(?U)\\b(\\d{1,2})\\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\\b")
+        val dateShort = Regex("(?<![$LETTER])(\\d{1,2})\\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)(?![$LETTER])")
         t = dateShort.replace(t) { m -> "${numberToOrdinalRu(m.groupValues[1].toInt())} ${m.groupValues[2]}" }
 
         t = t.replace(Regex("(\\d{4})[/-](\\d{4})")) { "${it.groupValues[1]} – ${it.groupValues[2]}" }
-        t = t.replace(Regex("(?iU)\\bкм/ч\\b"), "километров в час")
-        t = t.replace(Regex("(?iU)\\bкм\\b"), "километров")
+        t = t.replace(Regex("(?<![$LETTER])км/ч(?![$LETTER])", RegexOption.IGNORE_CASE), "километров в час")
+        t = t.replace(Regex("(?<![$LETTER])км(?![$LETTER])", RegexOption.IGNORE_CASE), "километров")
         t = t.replace(Regex("\\b(\\d+)\\s?\\+\\s?(\\d+)\\b")) { "${it.groupValues[1]} плюс ${it.groupValues[2]}" }
         t = t.replace(Regex("\\b(\\d+)\\s?\\*\\s?(\\d+)\\b")) { "${it.groupValues[1]} умножить на ${it.groupValues[2]}" }
 
@@ -516,6 +522,9 @@ object TextProcessor {
     // =============================================================================================
 
     private object Patterns {
+
+        private const val LETTER = "A-Za-zА-Яа-яЁё"
+
         object General {
             val URL_ONLY = Regex("^https?://.*$")
             val EMOJI_ONLY = Regex("^[\\p{So}\\p{Sk}\\s]+$")
@@ -602,54 +611,54 @@ object TextProcessor {
             val COORDS_W = Regex("([+-]?\\d+[,.]?\\d*)\\s?°\\s?з\\.?\\s?д\\.?", RegexOption.IGNORE_CASE)
 
             val UNITS = mapOf(
-                Regex("(?iU)\\bмм\\s*рт\\.?\\s*ст\\.?") to "миллиметров ртутного столба",
-                Regex("(?iU)\\bкв\\.?\\s*м\\b") to "квадратных метров",
-                Regex("(?iU)\\bм/с\\b") to "метров в секунду"
+                Regex("(?<![$LETTER])мм\\s*рт\\.?\\s*ст\\.?", RegexOption.IGNORE_CASE) to "миллиметров ртутного столба",
+                Regex("(?<![$LETTER])кв\\.?\\s*м(?![$LETTER])", RegexOption.IGNORE_CASE) to "квадратных метров",
+                Regex("(?<![$LETTER])м/с(?![$LETTER])", RegexOption.IGNORE_CASE) to "метров в секунду"
             )
             val PHRASES = mapOf(
-                Regex("(?U)\\bСК\\s+России\\b") to "Следственный комитет России",
-                Regex("(?U)\\bВС\\s+России\\b") to "Вооружённые силы России",
-                Regex("(?iU)\\bAstro\\s+Channel\\b") to "Астро Ченнел",
-                Regex("(?iU)\\bTime\\s*Lapse\\b") to "тайм лапс"
+                Regex("(?<![$LETTER])СК\\s+России(?![$LETTER])") to "Следственный комитет России",
+                Regex("(?<![$LETTER])ВС\\s+России(?![$LETTER])") to "Вооружённые силы России",
+                Regex("(?<![$LETTER])Astro\\s+Channel(?![$LETTER])", RegexOption.IGNORE_CASE) to "Астро Ченнел",
+                Regex("(?<![$LETTER])Time\\s*Lapse(?![$LETTER])", RegexOption.IGNORE_CASE) to "тайм лапс"
             )
             val MAPS = mapOf(
-				Regex("(?U)(?<=\\d)\\s*г\\.(?!\\p{L})") to " года",
-				Regex("(?U)\\bг\\.(?!\\p{L})") to "город",
-				Regex("(?U)\\bобл\\.(?!\\p{L})") to "область",
-				Regex("(?U)\\bул\\.(?!\\p{L})") to "улица",
-				Regex("(?U)\\bд\\.(?=\\s?\\d)") to "дом",
-				Regex("(?U)\\bт\\.д\\.(?!\\p{L})") to "так далее",
-				Regex("(?U)\\bт\\.п\\.(?!\\p{L})") to "тому подобное",
-				Regex("(?U)\\bсм\\.(?!\\p{L})") to "смотрите",
-				Regex("(?U)\\bстр\\.(?!\\p{L})") to "страница",
-				Regex("(?iU)\\bтыс\\.?(?!я)") to "тысяч",
-				Regex("(?U)\\bчел\\.(?!\\p{L})") to "человек",
-				Regex("(?iU)\\bАЗС\\b") to "А ЗЭ ЭС"
-			)
+                Regex("(?<=\\d)\\s*г\\.(?![$LETTER])") to " года",
+                Regex("(?<![$LETTER])г\\.(?![$LETTER])") to "город",
+                Regex("(?<![$LETTER])обл\\.(?![$LETTER])") to "область",
+                Regex("(?<![$LETTER])ул\\.(?![$LETTER])") to "улица",
+                Regex("(?<![$LETTER])д\\.(?=\\s?\\d)") to "дом",
+                Regex("(?<![$LETTER])т\\.д\\.(?![$LETTER])") to "так далее",
+                Regex("(?<![$LETTER])т\\.п\\.(?![$LETTER])") to "тому подобное",
+                Regex("(?<![$LETTER])см\\.(?![$LETTER])") to "смотрите",
+                Regex("(?<![$LETTER])стр\\.(?![$LETTER])") to "страница",
+                Regex("(?<![$LETTER])тыс\\.?(?![яА-Яа-яЁё])", RegexOption.IGNORE_CASE) to "тысяч",
+                Regex("(?<![$LETTER])чел\\.(?![$LETTER])") to "человек",
+                Regex("(?<![$LETTER])АЗС(?![$LETTER])", RegexOption.IGNORE_CASE) to "А ЗЭ ЭС"
+            )
             val NEWS_ABBR = listOf(
-                Regex("(?U)\\bРФ\\b") to "Россия",
-                Regex("(?U)\\bЕС\\b(?![а-яёА-ЯЁ])") to "Евросоюз",
-                Regex("(?U)\\bООН\\b") to "Организация Объединённых Наций",
-                Regex("(?U)\\bЦБ\\b") to "Центробанк",
-                Regex("(?U)\\bМВД\\b") to "министерство внутренних дел",
-                Regex("(?U)\\bМИД\\b") to "министерство иностранных дел",
-                Regex("(?U)\\bФСБ\\b") to "ФСБ",
-                Regex("(?U)\\bМЧС\\b") to "МЧС",
-                Regex("(?U)\\bВСУ\\b") to "вэсэу",
-                Regex("(?U)\\bБПЛА\\b") to "бэ-пэ-эл-а",
-                Regex("(?U)\\bНАТО\\b") to "НАТО",
-                Regex("(?U)\\bпр-т\\b") to "проспект",
-                Regex("(?U)\\bгр\\.\\b") to "гражданин",
-                Regex("(?iU)\\bтрлн\\.?\\b") to "триллионов",
-                Regex("(?iU)\\bмлрд\\.?\\b") to "миллиардов",
-                Regex("(?iU)\\bмлн\\.?\\b") to "миллионов"
+                Regex("(?<![$LETTER])РФ(?![$LETTER])") to "Россия",
+                Regex("(?<![$LETTER])ЕС(?![$LETTER])") to "Евросоюз",
+                Regex("(?<![$LETTER])ООН(?![$LETTER])") to "Организация Объединённых Наций",
+                Regex("(?<![$LETTER])ЦБ(?![$LETTER])") to "Центробанк",
+                Regex("(?<![$LETTER])МВД(?![$LETTER])") to "министерство внутренних дел",
+                Regex("(?<![$LETTER])МИД(?![$LETTER])") to "министерство иностранных дел",
+                Regex("(?<![$LETTER])ФСБ(?![$LETTER])") to "ФСБ",
+                Regex("(?<![$LETTER])МЧС(?![$LETTER])") to "МЧС",
+                Regex("(?<![$LETTER])ВСУ(?![$LETTER])") to "вэсэу",
+                Regex("(?<![$LETTER])БПЛА(?![$LETTER])") to "бэ-пэ-эл-а",
+                Regex("(?<![$LETTER])НАТО(?![$LETTER])") to "НАТО",
+                Regex("(?<![$LETTER])пр-т(?![$LETTER])") to "проспект",
+                Regex("(?<![$LETTER])гр\\.(?![$LETTER])") to "гражданин",
+                Regex("(?<![$LETTER])трлн\\.?(?![$LETTER])", RegexOption.IGNORE_CASE) to "триллионов",
+                Regex("(?<![$LETTER])млрд\\.?(?![$LETTER])", RegexOption.IGNORE_CASE) to "миллиардов",
+                Regex("(?<![$LETTER])млн\\.?(?![$LETTER])", RegexOption.IGNORE_CASE) to "миллионов"
             )
             val CENTURIES = linkedMapOf("XXII" to "двадцать второго", "XXI" to "двадцать первого", "XX" to "двадцатого", "XIX" to "девятнадцатого", "XVIII" to "восемнадцатого", "XVII" to "семнадцатого", "XVI" to "шестнадцатого", "XV" to "пятнадцатого", "XIV" to "четырнадцатого", "XIII" to "тринадцатого", "XII" to "двенадцатого", "XI" to "одиннадцатого", "X" to "десятого", "IX" to "девятого", "VIII" to "восьмого", "VII" to "седьмого", "VI" to "шестого", "V" to "пятого", "IV" to "четвёртого", "III" to "третьего", "II" to "второго", "I" to "первого", "ХХІ" to "двадцать первого", "ХХ" to "двадцатого", "ХІХ" to "девятнадцатого", "ХVIII" to "восемнадцатого", "ХVII" to "семнадцатого", "ХVI" to "шестнадцатого", "ХV" to "пятнадцатого", "ХIV" to "четырнадцатого", "ХIII" to "тринадцатого", "ХII" to "двенадцатого", "ХI" to "одиннадцатого", "Х" to "десятого")
 
-            val STRESS_ZVEZDY = Regex("(?iU)\\bвспышк[а-яё]*(?:\\s+[а-яё]+){0,3}?\\s+звезды\\b")
-            val STRESS_PEREKACHIVAT = Regex("(?iU)\\b(перек)а(чива[а-яё]*)\\b")
-            val STRESS_POLOTNO = Regex("(?iU)\\bполотно\\b")
-            val STRESS_GODU = Regex("(?iU)\\b(к|по)\\s+году\\b")
+            val STRESS_ZVEZDY = Regex("(?i)\\bвспышк[а-яё]*(?:\\s+[а-яё]+){0,3}?\\s+звезды\\b")
+            val STRESS_PEREKACHIVAT = Regex("(?i)\\b(перек)а(чива[а-яё]*)\\b")
+            val STRESS_POLOTNO = Regex("(?i)\\bполотно\\b")
+            val STRESS_GODU = Regex("(?i)\\b(к|по)\\s+году\\b")
 
             val TECH_ABBR = mapOf("AI" to "искусственный интеллект", "ИИ" to "искусственный интеллект", "VR" to "виртуальная реальность", "AR" to "дополненная реальность", "GPS" to "Джи-Пи-Эс", "USB" to "ЮСБ", "WIFI" to "Вай-Фай")
             val MOLNIYA = Regex("(?im)^(⚡+\\s*|\\d{2}:\\d{2}\\s*—?\\s*)(молния)(?=[\\s!.,]|$)")
@@ -657,8 +666,10 @@ object TextProcessor {
 
         object Deduplication {
             val NUMBERS = Regex("\\d+(?:[.,]\\d+)?")
-            val ABBREVIATIONS = Regex("(?U)\\b\\p{Lu}{2,6}\\b")
-            val PROPER_NAMES = Regex("(?U)\\b\\p{Lu}\\p{Ll}{2,}\\b", RegexOption.MULTILINE)
+            // Аббревиатуры: 2–6 подряд заглавных лат/кир. Границы через lookaround (кросс-платформенно).
+            val ABBREVIATIONS = Regex("(?<![$LETTER])[A-ZА-ЯЁ]{2,6}(?![$LETTER])")
+            // Имена собственные: Заглавная + строчные (лат/кир).
+            val PROPER_NAMES = Regex("(?<![$LETTER])[A-ZА-ЯЁ][a-zа-яё]{2,}(?![$LETTER])", RegexOption.MULTILINE)
         }
 
         object Lang {
