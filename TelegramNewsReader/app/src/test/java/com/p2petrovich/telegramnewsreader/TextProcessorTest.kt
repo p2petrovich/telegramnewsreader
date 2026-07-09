@@ -125,6 +125,11 @@ class TextProcessorTest {
         assertEquals("рост на 5 процентов", TextProcessor.normalizeNumbers("рост на 5%"))
     }
 
+    @Test
+    fun `normalize — drobnye procenty`() {
+        assertEquals("9 и 5 десятых процента", TextProcessor.normalizeNumbers("9.5%"))
+    }
+
     @Test  // [CHARACTERIZATION]
     fun `normalize — валюта с масштабом (тыс)`() {
         assertEquals("100 тысяч рублей", TextProcessor.normalizeNumbers("₽100 тыс"))
@@ -141,7 +146,7 @@ class TextProcessorTest {
     }
 
     @Test  // [STABLE]
-    fun `normalize — евро с масштабом`() {
+    fun `normalize — evro s masshtabom`() {
         assertEquals("бюджет 20 миллиардов евро", TextProcessor.normalizeNumbers("бюджет €20 млрд"))
     }
 
@@ -186,5 +191,14 @@ class TextProcessorTest {
     @Test
     fun `expandAbbreviations - d vnutri slova`() {
         assertEquals("вода", TextProcessor.expandAbbreviations("вода"))
+    }
+
+    @Test
+    fun `applyStressMarks - godu i lisheniya`() {
+        // к гóду лишéния
+        val text = "к году лишения"
+        val stressed = TextProcessor.prepareForSpeech(text)
+        assertTrue(stressed.contains("го\u0301ду"))
+        assertTrue(stressed.contains("лиш\u0301ения"))
     }
 }

@@ -17,7 +17,7 @@ import java.util.LinkedList
  * Использует комбинацию кэша в памяти (для скорости) и Room (для персистентности).
  */
 class Deduplicator(
-    private val context: Context,
+    private val context: Context? = null,
     val isEnabled: Boolean = true,
     private val matchThreshold: Float = 0.6f,
     private val historySize: Int = 500,
@@ -25,7 +25,9 @@ class Deduplicator(
 ) {
     private val TAG = "Deduplicator"
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private val db by lazy { AppDatabase.getInstance(context).dedupDao() }
+    private val db by lazy { 
+        context?.let { AppDatabase.getInstance(it).dedupDao() }
+    }
 
     private data class HistoryEntry(
         val fingerprint: TextProcessor.Fingerprint,
@@ -43,9 +45,13 @@ class Deduplicator(
     }
 
     private fun loadFromDb() {
+        val dao = db ?: run {
+            initDeferred.complete(Unit)
+            return
+        }
         scope.launch {
             try {
-                val recent = db.getRecent(historySize)
+                val recent = dao.getRecent(historySize)
                 synchronized(this@Deduplicator) {
                     recent.reversed().forEach { entity ->
                         val fp = TextProcessor.Fingerprint(
@@ -74,7 +80,7 @@ class Deduplicator(
         if (!isEnabled) return false
         
         // Ждем инициализации, если она еще идет
-        if (!initDeferred.isCompleted) {
+        if (!initDeferred.isCompleted && context != null) {
             runBlocking {
                 withTimeoutOrNull(2000) { initDeferred.await() }
             }
@@ -115,22 +121,25 @@ class Deduplicator(
             if (history.size > historySize) history.removeFirst()
 
             // Сохранение в БД в фоновом режиме
-            scope.launch {
-                try {
-                    db.insert(DedupEntity(
-                        words = fingerprint.words.joinToString("|"),
-                        anchors = fingerprint.anchors.joinToString("|"),
-                        numbers = fingerprint.numbers.joinToString("|"),
-                        strongAnchors = fingerprint.strongAnchors.joinToString("|"),
-                        timestamp = entry.timestamp
-                    ))
-                    // Редкая очистка БД (каждый 20-й вызов)
-                    if (Math.random() < 0.05) {
-                        val cutoff = System.currentTimeMillis() - timeWindowMinutes * 60 * 1000L
-                        db.deleteOldEntries(cutoff)
+            val dao = db
+            if (dao != null) {
+                scope.launch {
+                    try {
+                        dao.insert(DedupEntity(
+                            words = fingerprint.words.joinToString("|"),
+                            anchors = fingerprint.anchors.joinToString("|"),
+                            numbers = fingerprint.numbers.joinToString("|"),
+                            strongAnchors = fingerprint.strongAnchors.joinToString("|"),
+                            timestamp = entry.timestamp
+                        ))
+                        // Редкая очистка БД (каждый 20-й вызов)
+                        if (Math.random() < 0.05) {
+                            val cutoff = System.currentTimeMillis() - timeWindowMinutes * 60 * 1000L
+                            dao.deleteOldEntries(cutoff)
+                        }
+                    } catch (e: Exception) {
+                        Logx.e(TAG, "Failed to save entry to DB", e)
                     }
-                } catch (e: Exception) {
-                    Logx.e(TAG, "Failed to save entry to DB", e)
                 }
             }
         }
@@ -146,11 +155,14 @@ class Deduplicator(
         Logx.d(TAG) { "History reset requested. Current size: ${history.size}" }
         history.clear()
         skippedCount = 0
-        scope.launch {
-            try {
-                db.deleteAll()
-            } catch (e: Exception) {
-                Logx.e(TAG, "Failed to clear DB history", e)
+        val dao = db
+        if (dao != null) {
+            scope.launch {
+                try {
+                    dao.deleteAll()
+                } catch (e: Exception) {
+                    Logx.e(TAG, "Failed to clear DB history", e)
+                }
             }
         }
     }
