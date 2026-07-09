@@ -12,12 +12,11 @@ import org.junit.Test
  *   - isSameEvent         (детекция дублей)
  *   - normalizeNumbers    (нормализация чисел/валют/процентов для TTS)
  *
- * ВАЖНО: тесты предполагают исправленный extractFingerprint с флагом (?U)
- * в регэкспах abbreviations/properNames. Без (?U) кириллические якоря НЕ
- * извлекаются (баг с не-Unicode границей слова \b), и тесты с ВТБ/Крым упадут.
- *
- * Также: extractFingerprint НЕ кладёт ПЕРВОЕ слово текста в strongAnchors
- * (регэксп properNames содержит (?<!^)), поэтому искомые имена стоят НЕ в начале.
+ * ПРИМЕЧАНИЕ по кросс-платформенности:
+ * В коде НЕ используется inline-флаг (?U)/(?iU) — на Android (ART) он бросает
+ * PatternSyntaxException. Вместо \b вокруг кириллицы применяется lookaround
+ * с явным классом [A-Za-zА-Яа-яЁё]. Кириллические якоря (ВТБ/Крым/Газпром)
+ * извлекаются корректно и на desktop JVM, и на Android.
  *
  * Группы:
  *   [STABLE]           — поведенческие проверки наличия/отсутствия признака.
@@ -40,7 +39,7 @@ class TextProcessorTest {
 
     @Test  // [STABLE]
     fun `fingerprint исключает шумовые якоря (NOISE_ANCHORS)`() {
-        // 'россии' и 'дронов' — в NOISE_ANCHORS; 'крым' (не в начале) — сильный якорь.
+        // 'россии' и 'дронов' — в NOISE_ANCHORS; 'крым' — сильный якорь.
         val fp = TextProcessor.extractFingerprint("Над регионом Крым сбили 310 дронов России")
         assertTrue("310" in fp.numbers)
         assertTrue("'крым' — сильный якорь", "крым" in fp.strongAnchors)
@@ -68,16 +67,15 @@ class TextProcessorTest {
         assertTrue("geneva" in fp.strongAnchors)
     }
 
-    @Test  // [STABLE] регрессионный тест на баг (?U): кириллический якорь извлекается
+    @Test  // [STABLE] регрессия: кириллический якорь извлекается без (?U)
     fun `fingerprint извлекает кириллический якорь (регрессия на баг U)`() {
         val fp = TextProcessor.extractFingerprint("Сегодня Газпром подписал контракт на 15 лет")
         assertTrue("кириллическое имя 'газпром' должно быть в strongAnchors",
             "газпром" in fp.strongAnchors)
     }
 
-    @Test // [STABLE] тест на распознавание имени собственного в самом начале строки
+    @Test // [STABLE] имя собственное в самом начале строки
     fun `fingerprint должен извлекать имя собственное в начале строки`() {
-        // Сейчас это падает, так как в регулярке стоит (?<!^)
         val fp = TextProcessor.extractFingerprint("ВТБ повысил ставки")
         assertTrue("имя 'втб' в начале строки должно попасть в strongAnchors",
             "втб" in fp.strongAnchors)
@@ -170,7 +168,7 @@ class TextProcessorTest {
     }
 
     // ============================================================
-    //  expandAbbreviations (новые тесты)
+    //  expandAbbreviations
     // ============================================================
 
     @Test
@@ -193,14 +191,23 @@ class TextProcessorTest {
         assertEquals("вода", TextProcessor.expandAbbreviations("вода"))
     }
 
+    // ============================================================
+    //  applyStressMarks
+    // ============================================================
+
     @Test
-	fun `applyStressMarks - godu i lisheniya`() {
-		// к гóду лишéния
-		val text = "к году лишения"
-		val stressed = TextProcessor.prepareForSpeech(text)
-		assertTrue(stressed.contains("го\u0301ду"))
-		assertTrue(stressed.contains("лише\u0301ния"))   // было: "лиш\u0301ения"
-	}
+    fun `applyStressMarks - godu i lisheniya`() {
+        // к гóду лишéния
+        val text = "к году лишения"
+        val stressed = TextProcessor.prepareForSpeech(text)
+        assertTrue(stressed.contains("го\u0301ду"))
+        assertTrue(stressed.contains("лише\u0301ния"))
+    }
+
+    // ============================================================
+    //  DIAG (диагностическая печать, не ассертит — всегда зелёный)
+    // ============================================================
+
     @Test
     fun `DIAG печать фактических строк`() {
         fun p(label: String, s: String) = println("$label=[$s]")
@@ -219,6 +226,17 @@ class TextProcessorTest {
         p("ABBR АЗС   ", TextProcessor.expandAbbreviations("АЗС горит"))
         p("ABBR РФ    ", TextProcessor.expandAbbreviations("в РФ приняли"))
 
+        // --- Диагностика ударения "лишения": разделяем шаг и весь пайплайн ---
+        val stressOnly = TextProcessor.applyStressMarks("к году лишения")
+        val pipeFull = TextProcessor.prepareForSpeech("к году лишения")
+        p("STRESS only", stressOnly)
+        p("PIPE  full ", pipeFull)
+        // Печатаем коды символов, чтобы видеть скрытый \u0301 (комбинируемый знак ударения)
+        println("STRESS only CODES=" + stressOnly.map { it.code }.joinToString(","))
+        println("PIPE  full  CODES=" + pipeFull.map { it.code }.joinToString(","))
+        println("contains лише\\u0301ния (only)=" + stressOnly.contains("лише\u0301ния"))
+        println("contains лише\\u0301ния (pipe)=" + pipeFull.contains("лише\u0301ния"))
+
         val f1 = TextProcessor.extractFingerprint("08:30 — Банк ВТБ повысил ставку до 21")
         println("FP1 strong=${f1.strongAnchors} numbers=${f1.numbers}")
         val f2 = TextProcessor.extractFingerprint("Над регионом Крым сбили 310 дронов России")
@@ -226,5 +244,4 @@ class TextProcessorTest {
         val f3 = TextProcessor.extractFingerprint("Today Putin met Biden in Geneva")
         println("FP3 strong=${f3.strongAnchors} numbers=${f3.numbers}")
     }
-
 }
