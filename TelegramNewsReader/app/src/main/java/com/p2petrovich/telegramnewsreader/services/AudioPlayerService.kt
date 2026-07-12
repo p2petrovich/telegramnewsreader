@@ -132,7 +132,7 @@ class AudioPlayerService : Service() {
                 override fun onSkipToNext() { playNext() }
                 override fun onStop() { stopServiceSafely() }
             })
-            isActive = true
+            isActive = false
         }
         
         // Регистрация ресивера для отключения наушников.
@@ -205,34 +205,42 @@ class AudioPlayerService : Service() {
                     // Сохраняем состояние для восстановления
                     PreferenceManager.savePlaylistPaths(this, paths)
                     PreferenceManager.savePlayerIndex(this, start)
+                    startForeground(NOTIFICATION_ID, buildNotification())
                 }
                 ACTION_PLAY -> { 
-                    if (throttle()) return START_STICKY
+                    if (throttle()) return START_NOT_STICKY
                     play() 
                     PreferenceManager.savePlayerIsPlaying(this, true)
+                    startForeground(NOTIFICATION_ID, buildNotification())
                 }
                 ACTION_PAUSE -> { 
-                    if (throttle()) return START_STICKY
+                    if (throttle()) return START_NOT_STICKY
                     pause() 
                     PreferenceManager.savePlayerIsPlaying(this, false)
                 }
                 ACTION_STOP -> { 
                     stopServiceSafely()
                     PreferenceManager.clearPlayerState(this)
-                    return START_STICKY 
+                    return START_NOT_STICKY 
                 }
                 ACTION_NEXT -> { 
-                    if (throttle()) return START_STICKY
+                    if (throttle()) return START_NOT_STICKY
                     playNext() 
+                    startForeground(NOTIFICATION_ID, buildNotification())
                 }
                 ACTION_REQUEST_STATUS -> {
                     val (cur, total) = computeProgress()
                     sendProgress(cur, total, isActuallyPlaying())
                 }
             }
-            startForeground(NOTIFICATION_ID, buildNotification())
         } catch (e: Exception) { Logx.e(TAG, "onStartCommand exception", e) }
-        return START_STICKY
+        return START_NOT_STICKY
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        Logx.d(TAG) { "onTaskRemoved: stopping service" }
+        stopServiceSafely()
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -289,6 +297,7 @@ class AudioPlayerService : Service() {
     private fun prepareAndPlay() {
         if (playlist.isEmpty() || currentIndex !in playlist.indices) return
         releasePlayer()
+        mediaSession.isActive = true
         mediaPlayer = createMediaPlayer(playlist[currentIndex]) { mp ->
             safeStart(mp)
             updateNotification()
@@ -340,6 +349,7 @@ class AudioPlayerService : Service() {
             return
         }
 
+        mediaSession.isActive = true
         val mp = mediaPlayer
         if (mp == null) { prepareAndPlay(); return }
         safeStart(mp)
@@ -352,6 +362,7 @@ class AudioPlayerService : Service() {
         try { if (mp.isPlaying) mp.pause() } catch (_: Exception) {}
         stopProgressUpdates()
         abandonAudioFocus()
+        mediaSession.isActive = false
         val (cur, total) = computeProgress()
         sendProgress(cur, total, false)
         updateNotification()
@@ -381,6 +392,8 @@ class AudioPlayerService : Service() {
     private fun stopServiceSafely() {
         stopProgressUpdates()
         releasePlayer()
+        mediaSession.isActive = false
+        updateMediaSessionState(PlaybackStateCompat.STATE_STOPPED)
         try {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } catch (_: Exception) {}
@@ -473,10 +486,12 @@ class AudioPlayerService : Service() {
         try { (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIFICATION_ID, buildNotification()) } catch (_: Exception) {}
     }
 
-    private fun updateMediaSessionState() {
+    private fun updateMediaSessionState(overrideState: Int? = null) {
         val isPlaying = isActuallyPlaying()
         val (cur, total) = computeProgress()
         
+        val state = overrideState ?: if (isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED
+
         val stateBuilder = PlaybackStateCompat.Builder()
             .setActions(
                 PlaybackStateCompat.ACTION_PLAY or
@@ -485,7 +500,7 @@ class AudioPlayerService : Service() {
                 PlaybackStateCompat.ACTION_STOP
             )
             .setState(
-                if (isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED,
+                state,
                 mediaPlayer?.currentPosition?.toLong() ?: 0L,
                 1.0f
             )
