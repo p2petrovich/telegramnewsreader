@@ -39,14 +39,12 @@ object AiProcessor {
         val contents: List<Content>,
         val generationConfig: GenerationConfig
     ) {
-        data class Content(val parts: List<Part>)
+        data class Content(val parts: List<Part>, val role: String = "user")
         data class Part(val text: String)
         data class GenerationConfig(
             val temperature: Float,
-            val maxOutputTokens: Int,
-            val thinkingConfig: ThinkingConfig? = null
+            val maxOutputTokens: Int
         )
-        data class ThinkingConfig(val includeThoughts: Boolean, val thinkingBudget: Int)
     }
 
     private data class OpenAIResponse(val choices: List<Choice>?) {
@@ -69,7 +67,7 @@ object AiProcessor {
             "groq" -> Triple(GROQ_URL, PreferenceManager.getGroqApiKey(context), model)
             "gemini" -> {
                 val apiKey = PreferenceManager.getGeminiApiKey(context)
-                val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent"
+                val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
                 Triple(url, apiKey, model)
             }
             else   -> Triple(OPENROUTER_URL, PreferenceManager.getOpenRouterApiKey(context), model)
@@ -93,7 +91,7 @@ object AiProcessor {
         }
 
         val apiUrl = if (provider == "gemini") {
-            "https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent"
+            "https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey"
         } else if (provider == "groq") {
             GROQ_URL
         } else {
@@ -121,9 +119,7 @@ object AiProcessor {
             .url(apiUrl)
             .post(requestBodyString.toRequestBody(mediaType))
 
-        if (provider == "gemini") {
-            requestBuilder.addHeader("x-goog-api-key", apiKey)
-        } else {
+        if (provider != "gemini") {
             requestBuilder.addHeader("Authorization", "Bearer $apiKey")
         }
 
@@ -230,9 +226,7 @@ object AiProcessor {
                         .url(apiUrl)
                         .post(requestBodyString.toRequestBody(mediaType))
 
-                    if (provider == "gemini") {
-                        requestBuilder.addHeader("x-goog-api-key", apiKey)
-                    } else {
+                    if (provider != "gemini") {
                         requestBuilder.addHeader("Authorization", "Bearer $apiKey")
                     }
 

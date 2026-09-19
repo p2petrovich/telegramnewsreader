@@ -76,11 +76,19 @@ class AiModelRepository(context: Context) {
         val fingerprint = apiKey?.let { sha256(it) }.orEmpty()
 
         val entry = readCache(cacheKey, fingerprint)
-        val cachedModels = entry?.models.orEmpty().filter { item ->
+        val baseCached = entry?.models.orEmpty().filter { item ->
             UNSUPPORTED_MODEL_TOKENS.none { token ->
                 item.id.contains(token, ignoreCase = true) || item.label.contains(token, ignoreCase = true)
             }
         }
+        val filteredCached = when (cacheKey) {
+            "openrouter_models" -> baseCached.filter { item -> PREFERRED_OPENROUTER_MODELS.any { pref -> item.id.contains(pref, ignoreCase = true) } }
+            "groq_models"       -> baseCached.filter { item -> PREFERRED_GROQ_MODELS.any { pref -> item.id.contains(pref, ignoreCase = true) } }
+            "gemini_models"     -> baseCached.filter { item -> PREFERRED_GEMINI_MODELS.any { pref -> item.id.contains(pref, ignoreCase = true) } }
+            else                -> baseCached
+        }
+        val cachedModels = if (filteredCached.isNotEmpty()) filteredCached else baseCached.take(5)
+
         val age = entry?.let { System.currentTimeMillis() - it.timestamp }
         val fresh = cachedModels.isNotEmpty() && age != null && age in 0 until CACHE_TTL_MS
 
@@ -106,7 +114,7 @@ class AiModelRepository(context: Context) {
             .url("https://openrouter.ai/api/v1/models")
             .build()
         val parsed = execute(request, OpenRouterListResponse::class.java)
-        return parsed.data.orEmpty()
+        val apiModels = parsed.data.orEmpty()
             .filter { item ->
                 (item.id.endsWith(":free") ||
                     (item.pricing?.prompt == "0" && item.pricing?.completion == "0")) &&
@@ -115,7 +123,11 @@ class AiModelRepository(context: Context) {
                     }
             }
             .map { CachedModel(it.id, it.name ?: it.id) }
-            .sortedBy { it.label }
+
+        val preferred = apiModels.filter { item ->
+            PREFERRED_OPENROUTER_MODELS.any { pref -> item.id.contains(pref, ignoreCase = true) }
+        }
+        return (preferred.ifEmpty { apiModels }).take(5).sortedBy { it.label }
     }
 
     private suspend fun fetchGroq(apiKey: String): List<CachedModel> {
@@ -124,7 +136,7 @@ class AiModelRepository(context: Context) {
             .addHeader("Authorization", "Bearer $apiKey")
             .build()
         val parsed = execute(request, GroqListResponse::class.java)
-        return parsed.data.orEmpty()
+        val apiModels = parsed.data.orEmpty()
             .filter { item ->
                 item.active != false &&
                     UNSUPPORTED_MODEL_TOKENS.none { token ->
@@ -132,7 +144,11 @@ class AiModelRepository(context: Context) {
                     }
             }
             .map { CachedModel(it.id, it.id) }
-            .sortedBy { it.label }
+
+        val preferred = apiModels.filter { item ->
+            PREFERRED_GROQ_MODELS.any { pref -> item.id.contains(pref, ignoreCase = true) }
+        }
+        return (preferred.ifEmpty { apiModels }).take(5).sortedBy { it.label }
     }
 
     private suspend fun fetchGemini(apiKey: String): List<CachedModel> {
@@ -143,11 +159,11 @@ class AiModelRepository(context: Context) {
             val url = "https://generativelanguage.googleapis.com/v1beta/models".toHttpUrl()
                 .newBuilder()
                 .addQueryParameter("pageSize", "1000")
+                .addQueryParameter("key", apiKey)
                 .apply { pageToken?.let { addQueryParameter("pageToken", it) } }
                 .build()
             val request = Request.Builder()
                 .url(url)
-                .addHeader("x-goog-api-key", apiKey)
                 .build()
 
             val page = execute(request, GeminiListResponse::class.java)
@@ -164,7 +180,11 @@ class AiModelRepository(context: Context) {
                 }
             pageToken = page.nextPageToken
         } while (!pageToken.isNullOrEmpty() && ++pages < MAX_GEMINI_PAGES)
-        return result.sortedBy { it.label }
+
+        val preferred = result.filter { item ->
+            PREFERRED_GEMINI_MODELS.any { pref -> item.id.contains(pref, ignoreCase = true) }
+        }
+        return if (preferred.isNotEmpty()) preferred.sortedBy { it.label } else result.take(5).sortedBy { it.label }
     }
 
     private suspend fun <T> execute(request: Request, type: Class<T>): T =
@@ -247,6 +267,29 @@ class AiModelRepository(context: Context) {
         val UNSUPPORTED_MODEL_TOKENS = listOf(
             "whisper", "orpheus", "tts", "guard", "safeguard",
             "embed", "image", "flux", "diffusion", "moderation", "banana", "nano"
+        )
+
+        val PREFERRED_OPENROUTER_MODELS = listOf(
+            "google/gemma-2-9b-it:free",
+            "meta-llama/llama-3.1-8b-instruct:free",
+            "qwen/qwen-2.5-7b-instruct:free",
+            "mistralai/mistral-7b-instruct:free",
+            "nvidia/nemotron-3-super-120b-a12b:free"
+        )
+
+        val PREFERRED_GROQ_MODELS = listOf(
+            "llama-3.3-70b",
+            "llama-3.1-8b",
+            "gemma2-9b",
+            "mixtral-8x7b"
+        )
+
+        val PREFERRED_GEMINI_MODELS = listOf(
+            "gemini-2.0-flash",
+            "gemini-1.5-pro",
+            "gemini-1.5-flash",
+            "gemini-1.0-pro",
+            "gemini-2.0-flash-exp"
         )
     }
 }
