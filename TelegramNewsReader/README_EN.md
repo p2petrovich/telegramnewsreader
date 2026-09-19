@@ -21,7 +21,7 @@
 
 - **Smart Aggregation** — Choose channels and a collection window (from 10 minutes to 24 hours).
 - **Intelligent Filtering** — Automatically removes ads, links, promo blocks, and filler phrases (including channel-specific filters).
-- **AI Editor** — Three processing modes: from simple cleanup to ultra-short "flash" summaries. Supports **Google Gemini**, **Groq**, and **OpenRouter** models.
+- **AI Editor** — Three processing modes: from simple cleanup to ultra-short "flash" summaries. Supports dynamic retrieval of up-to-date models for **Google Gemini**, **Groq**, and **OpenRouter** with custom model ID support (Custom ID).
 - **Advanced Deduplication** — Uses anchor fingerprints (numbers, proper nouns, abbreviations) to eliminate duplicate stories across multiple channels.
 - **Audio Playlist** — Background player with notification controls, lock screen support, and Bluetooth media buttons.
 - **Flexible Playback Order** — 4 modes: by channel or chronologically, newest or oldest first.
@@ -52,8 +52,9 @@ A hybrid algorithm for detecting duplicate news:
 - **Native WAV Processing** — FFmpeg removed in favor of pure Kotlin and MediaCodec, reducing APK size by 73 MB and speeding up audio operations.
 - **PcmResampler** — Custom audio normalization (24kHz / 16-bit / Mono) for seamless stitching of mixed TTS sources.
 
-### 3. AI Processing (`AiProcessor.kt`)
+### 3. AI Processing (`AiProcessor.kt`, `AiModelRepository.kt`)
 - **Parallelism** — Processes up to 10 articles simultaneously (for Groq) using a semaphore system, significantly speeding up the aggregation process.
+- **Dynamic Model Lists** — Automatically fetches model lists via official APIs with 24-hour TTL caching, API key change validation using SHA-256 signatures, and strict filtering of non-text modalities (`banana`, `nano`, `image`, `embed`, etc.).
 - **Adaptive Prompts** — Auto-detects language (RU/EN) and selects the matching prompt.
 - **Reliability** — Retry logic for rate limit errors (HTTP 429) with exponential backoff.
 

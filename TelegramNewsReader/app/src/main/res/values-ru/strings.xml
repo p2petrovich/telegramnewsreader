@@ -205,6 +205,14 @@
     <string name="no_news_status">Нет новостей</string>
 
     <string name="ai_api_key_missing">API ключ отсутствует</string>
+    <string name="ai_refresh_models">Обновить список моделей</string>
+    <string name="ai_model_custom">Указать вручную (Custom ID)</string>
+    <string name="ai_model_id_hint">Идентификатор модели</string>
+    <string name="ai_model_id_required">Введите идентификатор модели</string>
+    <string name="ai_models_loading">Загрузка моделей…</string>
+    <string name="ai_models_key_missing">Введите API-ключ этого провайдера, чтобы загрузить его модели.</string>
+    <string name="ai_models_load_failed">Не удалось загрузить список моделей. Вы можете ввести ID вручную.</string>
+    <string name="ai_models_load_failed_cached">Не удалось обновить список моделей. Показаны кэшированные данные.</string>
     <string name="ai_model_available">Модель доступна</string>
     <string name="ai_error_format">Ошибка %1$d: %2$s</string>
     <string name="ai_error_429">Превышен лимит запросов (429). Подождите минуту.</string>

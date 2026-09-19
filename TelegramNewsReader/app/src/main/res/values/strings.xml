@@ -205,6 +205,14 @@
     <string name="no_news_status">No news</string>
 
     <string name="ai_api_key_missing">API key is missing</string>
+    <string name="ai_refresh_models">Refresh model list</string>
+    <string name="ai_model_custom">Specify manually (Custom ID)</string>
+    <string name="ai_model_id_hint">Model ID</string>
+    <string name="ai_model_id_required">Enter a model ID</string>
+    <string name="ai_models_loading">Loading models…</string>
+    <string name="ai_models_key_missing">Enter the API key for this provider to load its models.</string>
+    <string name="ai_models_load_failed">Could not load model list. You can enter a model ID manually.</string>
+    <string name="ai_models_load_failed_cached">Could not update model list. Cached data is shown.</string>
     <string name="ai_model_available">Model is available</string>
     <string name="ai_error_format">Error %1$d: %2$s</string>
     <string name="ai_error_429">Rate limit hit (429). Please wait a minute.</string>

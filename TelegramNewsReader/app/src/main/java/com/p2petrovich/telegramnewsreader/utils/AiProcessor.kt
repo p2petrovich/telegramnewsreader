@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 
 object AiProcessor {
     private const val TAG = "AiProcessor"
@@ -68,7 +69,7 @@ object AiProcessor {
             "groq" -> Triple(GROQ_URL, PreferenceManager.getGroqApiKey(context), model)
             "gemini" -> {
                 val apiKey = PreferenceManager.getGeminiApiKey(context)
-                val url = String.format(GEMINI_URL_TEMPLATE, model, apiKey)
+                val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent"
                 Triple(url, apiKey, model)
             }
             else   -> Triple(OPENROUTER_URL, PreferenceManager.getOpenRouterApiKey(context), model)
@@ -76,7 +77,10 @@ object AiProcessor {
     }
 
     suspend fun testModelAvailability(modelName: String, context: Context): Pair<Boolean, String> {
-        val provider = PreferenceManager.getAiProvider(context)
+        return testModelAvailability(PreferenceManager.getAiProvider(context), modelName, context)
+    }
+
+    suspend fun testModelAvailability(provider: String, modelName: String, context: Context): Pair<Boolean, String> {
         val apiKey = when (provider) {
             "groq" -> PreferenceManager.getGroqApiKey(context)
             "gemini" -> PreferenceManager.getGeminiApiKey(context)
@@ -89,7 +93,7 @@ object AiProcessor {
         }
 
         val apiUrl = if (provider == "gemini") {
-            String.format(GEMINI_URL_TEMPLATE, modelName, apiKey)
+            "https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent"
         } else if (provider == "groq") {
             GROQ_URL
         } else {
@@ -117,7 +121,9 @@ object AiProcessor {
             .url(apiUrl)
             .post(requestBodyString.toRequestBody(mediaType))
 
-        if (provider != "gemini") {
+        if (provider == "gemini") {
+            requestBuilder.addHeader("x-goog-api-key", apiKey)
+        } else {
             requestBuilder.addHeader("Authorization", "Bearer $apiKey")
         }
 
@@ -128,18 +134,21 @@ object AiProcessor {
         }
 
         return try {
-            val response = withContext(Dispatchers.IO) {
-                client.newCall(requestBuilder.build()).execute()
+            kotlinx.coroutines.runInterruptible(Dispatchers.IO) {
+                client.newCall(requestBuilder.build()).execute().use { response ->
+                    if (response.isSuccessful) {
+                        true to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_model_available)
+                    } else if (response.code == 429) {
+                        false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_error_429)
+                    } else {
+                        val errorBody = response.body?.string() ?: response.message
+                        Logx.e(TAG, "testModelAvailability: provider=$provider code=${response.code} error=$errorBody")
+                        false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_error_format, response.code, "Check Logcat")
+                    }
+                }
             }
-            if (response.isSuccessful) {
-                true to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_model_available)
-            } else if (response.code == 429) {
-                false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_error_429)
-            } else {
-                val errorBody = response.body?.string() ?: response.message
-                Logx.e(TAG, "testModelAvailability: provider=$provider code=${response.code} error=$errorBody")
-                false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_error_format, response.code, "Check Logcat")
-            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Logx.e(TAG, "testModelAvailability: network error", e)
             false to context.getString(com.p2petrovich.telegramnewsreader.R.string.ai_network_unavailable, e.message)
@@ -197,8 +206,7 @@ object AiProcessor {
                 contents = listOf(GeminiRequest.Content(listOf(GeminiRequest.Part(prompt)))),
                 generationConfig = GeminiRequest.GenerationConfig(
                     temperature = temperature,
-                    maxOutputTokens = maxOutputTokens,
-                    thinkingConfig = GeminiRequest.ThinkingConfig(false, 0)
+                    maxOutputTokens = maxOutputTokens
                 )
             )
             gson.toJson(req)
@@ -222,7 +230,9 @@ object AiProcessor {
                         .url(apiUrl)
                         .post(requestBodyString.toRequestBody(mediaType))
 
-                    if (provider != "gemini") {
+                    if (provider == "gemini") {
+                        requestBuilder.addHeader("x-goog-api-key", apiKey)
+                    } else {
                         requestBuilder.addHeader("Authorization", "Bearer $apiKey")
                     }
 
@@ -232,35 +242,39 @@ object AiProcessor {
                             .addHeader("X-Title", "TelegramNewsReader")
                     }
 
-                    val response = client.newCall(requestBuilder.build()).execute()
-                    val responseBody = response.body?.string()
+                    val responseBody = client.newCall(requestBuilder.build()).execute().use { response ->
+                        val body = response.body?.string()
+                        if (response.isSuccessful && body != null) {
+                            val summarized = if (provider == "gemini") {
+                                val geminiResp = gson.fromJson(body, GeminiResponse::class.java)
+                                geminiResp.candidates?.getOrNull(0)?.content?.parts?.getOrNull(0)?.text?.trim()
+                            } else {
+                                val openAiResp = gson.fromJson(body, OpenAIResponse::class.java)
+                                openAiResp.choices?.getOrNull(0)?.message?.content?.trim()
+                            }
 
-                    if (response.isSuccessful && responseBody != null) {
-                        val summarized = if (provider == "gemini") {
-                            val geminiResp = gson.fromJson(responseBody, GeminiResponse::class.java)
-                            geminiResp.candidates?.getOrNull(0)?.content?.parts?.getOrNull(0)?.text?.trim()
+                            if (summarized != null) {
+                                return@withContext if (summarized.isBlank()) safeText else summarized
+                            } else {
+                                Logx.e(TAG, "AI summarized text is null. Provider: $provider. Masked Key: ${Logx.mask(apiKey)}")
+                                return@withContext "[AI Error: Bad Response] $safeText"
+                            }
+                        } else if (response.code == 429) {
+                            Logx.w(TAG, "Rate limit (429) for $provider. Attempt $attempt/3. Masked Key: ${Logx.mask(apiKey)}")
+                            lastAttemptResponse = "[AI Error 429] $safeText"
+                            null
                         } else {
-                            val openAiResp = gson.fromJson(responseBody, OpenAIResponse::class.java)
-                            openAiResp.choices?.getOrNull(0)?.message?.content?.trim()
+                            Logx.e(TAG, "summarizeNews: $provider Error ${response.code}. Masked Key: ${Logx.mask(apiKey)}")
+                            return@withContext "[AI Error ${response.code}] $safeText"
                         }
-
-                        if (summarized != null) {
-                            return@withContext if (summarized.isBlank()) safeText else summarized
-                        } else {
-                            Logx.e(TAG, "AI summarized text is null. Provider: $provider. Masked Key: ${Logx.mask(apiKey)}")
-                            return@withContext "[AI Error: Bad Response] $safeText"
-                        }
-                    } else if (response.code == 429) {
-                        Logx.w(TAG, "Rate limit (429) for $provider. Attempt $attempt/3. Masked Key: ${Logx.mask(apiKey)}")
-                        lastAttemptResponse = "[AI Error 429] $safeText"
-                        if (attempt < 3) {
-                            delay(2000L * attempt)
-                            continue
-                        }
-                    } else {
-                        Logx.e(TAG, "summarizeNews: $provider Error ${response.code}. Masked Key: ${Logx.mask(apiKey)}")
-                        return@withContext "[AI Error ${response.code}] $safeText"
                     }
+
+                    if (responseBody == null && attempt < 3) {
+                        delay(2000L * attempt)
+                        continue
+                    }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     Logx.e(TAG, "summarizeNews: Network error for $provider. Attempt $attempt. Masked Key: ${Logx.mask(apiKey)}", e)
                     lastAttemptResponse = "[AI Network Error] $safeText"

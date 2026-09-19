@@ -141,6 +141,9 @@ object PreferenceManager {
     fun getAiModel(context: Context): String =
         getPreferences(context).getString(KEY_AI_MODEL, "nvidia/nemotron-3-super-120b-a12b:free") ?: "nvidia/nemotron-3-super-120b-a12b:free"
 
+    fun getAiModelOrNull(context: Context): String? =
+        getPreferences(context).getString(KEY_AI_MODEL, null)
+
     fun setAiModel(context: Context, model: String) {
         getPreferences(context).edit().putString(KEY_AI_MODEL, model).apply()
     }

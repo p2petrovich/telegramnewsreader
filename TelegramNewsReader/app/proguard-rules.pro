@@ -2,6 +2,10 @@
 #  ProGuard / R8 rules — Telegram News Reader
 # ============================================================
 
+# AI Data Repositories and GSON DTO mappings
+-keep class com.p2petrovich.telegramnewsreader.utils.CachedModel { *; }
+-keep class com.p2petrovich.telegramnewsreader.utils.AiModelRepository$* { *; }
+
 # ---- Общие настройки ----
 -optimizationpasses 5
 -dontusemixedcaseclassnames
