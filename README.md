@@ -107,7 +107,7 @@
 telegram.api.id=ВАШ_ID
 telegram.api.hash=ВАШ_HASH
 ```
-2. **Логирование**: Для отладки используйте централизованную систему в `DebugConfig.kt`. Подробности в [LOGGING_GUIDE.md](LOGGING_GUIDE.md).
+2. **Логирование**: Для отладки используйте централизованную систему в `DebugConfig.kt`. Подробности в    [LOGGING_GUIDE.md](https://github.com/p2petrovich/telegramnewsreader/blob/main/TelegramNewsReader/LOGGING_GUIDE.md).
 
 ---
 

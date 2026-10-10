@@ -108,7 +108,7 @@ A hybrid algorithm for detecting duplicate news:
 telegram.api.id=YOUR_ID
 telegram.api.hash=YOUR_HASH
 ```
-2. **Logging**: Use the centralized system in `DebugConfig.kt` for debugging. Details in [LOGGING_GUIDE.md](LOGGING_GUIDE.md).
+2. **Logging**: Use the centralized system in `DebugConfig.kt` for debugging. Details in    [LOGGING_GUIDE.md](https://github.com/p2petrovich/telegramnewsreader/blob/main/TelegramNewsReader/LOGGING_GUIDE.md).
 
 ---
 
