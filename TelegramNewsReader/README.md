@@ -112,4 +112,4 @@ telegram.api.hash=ВАШ_HASH
 ---
 
 **Разработано с ❤️ для тех, кто ценит свое время.**  
-**Поддержать разработку:** [Boosty](https://boosty.to/telegramnewsreader)
+

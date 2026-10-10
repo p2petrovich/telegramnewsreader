@@ -77,7 +77,7 @@
 
     <!-- About dialog -->
     <string name="app_description">Приложение для чтения новостей из Telegram-каналов с озвучкой.\n\nРазработчик: p2petrovich\n© 2025</string>
-    <string name="support_developer">Поддержать разработчика</string>
+
     <string name="settings_restored">Настройки восстановлены</string>
     <string name="file_read_error">Ошибка при чтении файла</string>
     <string name="settings_saved">Настройки сохранены</string>

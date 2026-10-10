@@ -113,4 +113,4 @@ telegram.api.hash=YOUR_HASH
 ---
 
 Built with ❤️ for people who value their time.  
-**Support the project:** [Boosty](https://boosty.to/telegramnewsreader)
+

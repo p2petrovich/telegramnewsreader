@@ -1138,36 +1138,7 @@ class MainActivity : AppCompatActivity() {
             .setOnCancelListener { showSettingsDialog() }
             .create()
 
-        //   :  Boosty   .
-        //   " "       .
-        dialogView.findViewById<View>(R.id.btn_support_developer)?.setOnClickListener {
-            dialog.dismiss()
-            openDonationPage()
-            showSettingsDialog()
-        }
-
         dialog.show()
-    }
-
-    /**
-     *       .
-     *
-     *   (ACTION_VIEW),    SDK:
-     *  -     ;
-     *  -    ( ,   );
-     *  - Boosty   ,     .
-     * fallback:      .
-     */
-    private fun openDonationPage() {
-        val url = "https://boosty.to/telegramnewsreader" //  TODO:    Boosty
-        try {
-            startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
-        } catch (_: Exception) {
-            Toast.makeText(this, getString(R.string.file_read_error), Toast.LENGTH_SHORT).show()
-        }
     }
 
     private fun showResetAuthConfirmation() {
